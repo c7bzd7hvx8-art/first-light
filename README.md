@@ -32,7 +32,7 @@ The app installs with its icon and runs fullscreen — no browser chrome.
 
 ## Live App
 
-👉 **[Open First Light](https://YOUR-USERNAME.github.io/first-light/)**
+👉 **[Open First Light](https://c7bzd7hvx8-art.github.io/first-light/)**
 
 ## Deploy Your Own
 
