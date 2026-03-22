@@ -606,6 +606,14 @@
 </div>
 <div class="bg-texture" aria-hidden="true" role="presentation"></div>
 
+<!-- Pull to refresh indicator -->
+<div id="ptr-indicator" style="display:none;position:fixed;top:0;left:50%;transform:translateX(-50%);z-index:9999;background:rgba(26,46,26,0.95);border-radius:0 0 20px 20px;padding:8px 18px;font-size:12px;font-weight:600;color:#c8a84b;display:none;align-items:center;gap:8px;border:1px solid rgba(200,168,75,0.2);border-top:none;box-shadow:0 4px 16px rgba(0,0,0,0.4);">
+  <svg id="ptr-arrow" width="16" height="16" viewBox="0 0 16 16" fill="none" style="transition:transform 0.2s;" aria-hidden="true">
+    <path d="M8 2v9M4 8l4 4 4-4" stroke="#c8a84b" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+  </svg>
+  <span id="ptr-label">Pull to refresh</span>
+</div>
+
 
 <!-- Header -->
 <div class="app-header">
@@ -671,15 +679,7 @@
       <span>Free forever · support the app</span>
       <span>☕</span>
     </a>
-    <button id="share-btn" title="Share First Light" aria-label="Share First Light"
-       style="background:none;border:none;cursor:pointer;padding:0;display:inline-flex;align-items:center;gap:4px;font-size:11px;color:rgba(255,255,255,0.35);letter-spacing:0.2px;">
-      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-        <circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/>
-        <line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/>
-      </svg>
-      Share
-    </button>
-  </div>
+</div>
 </div>
 
 <!-- Legal Hours Banner -->
@@ -801,14 +801,16 @@
         <div style="line-height:1.2;">
           <div id="moon-phase-name" style="font-size:10px;font-weight:700;color:rgba(255,255,200,0.9);white-space:nowrap;"></div>
           <div id="moon-illumination" style="font-size:9px;color:rgba(255,255,255,0.45);"></div>
+          <div style="font-size:8px;font-weight:600;color:rgba(90,223,90,0.7);margin-top:1px;">Tap for 🦌 forecast</div>
         </div>
+        <div id="activity-score-badge" style="background:rgba(90,220,90,0.15);border:1px solid rgba(90,220,90,0.3);border-radius:8px;padding:2px 6px;font-size:11px;font-weight:700;color:#7adf7a;white-space:nowrap;flex-shrink:0;display:none;"></div>
         <div id="activity-pip" style="width:8px;height:8px;border-radius:50%;background:#5adf5a;flex-shrink:0;box-shadow:0 0 5px #5adf5a;"></div>
       </div>
     </div>
 
     <!-- Deer Activity Panel (expandable) -->
     <div id="activity-panel" style="display:none;margin:10px 0 0;padding:12px 16px;background:rgba(0,0,0,0.25);border-radius:14px;border:1px solid rgba(200,168,75,0.2);">
-      <div style="font-size:11px;font-weight:700;color:#c8a84b;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:10px;">🦌 Deer Activity Forecast — Today</div>
+      <div style="font-size:11px;font-weight:700;color:#c8a84b;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:10px;">🦌 Deer Activity Forecast — Live</div>
       <!-- Activity meter -->
       <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px;">
         <div style="flex:1;background:rgba(255,255,255,0.1);border-radius:6px;height:10px;overflow:hidden;">
@@ -817,8 +819,102 @@
         <div id="activity-score" style="font-size:14px;font-weight:700;color:white;min-width:38px;text-align:right;"></div>
       </div>
       <div id="activity-label" style="font-size:13px;font-weight:600;color:white;margin-bottom:8px;"></div>
+
+      <!-- Weather strip -->
+      <div id="activity-wx-label" style="display:none;font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;color:rgba(255,255,255,0.3);margin-bottom:5px;">Live weather · Open-Meteo</div>
+      <div id="activity-wx-strip" style="display:none;grid-template-columns:repeat(4,1fr);gap:5px;margin-bottom:8px;"></div>
+
       <div id="activity-factors" style="display:flex;flex-direction:column;gap:4px;"></div>
-      <div style="font-size:10px;color:rgba(255,255,255,0.35);margin-top:8px;line-height:1.5;">Based on moon phase, rut calendar &amp; time of day. Moon effect reflects the lunar cycle — overcast skies reduce but do not eliminate moonlight influence on deer behaviour. Tap moon to hide.</div>
+
+      <!-- Peak windows timeline -->
+      <div id="activity-timeline" style="margin-top:10px;padding-top:10px;border-top:1px solid rgba(255,255,255,0.07);">
+        <div style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;color:rgba(255,255,255,0.35);margin-bottom:6px;">Today's peak windows</div>
+        <!-- 24hr bar -->
+        <div style="position:relative;height:24px;background:rgba(255,255,255,0.07);border-radius:6px;margin-bottom:5px;">
+          <div id="tl-dawn-seg" style="position:absolute;height:100%;border-radius:4px;background:linear-gradient(90deg,#f0c040,#f0e060);opacity:0.85;"></div>
+          <div id="tl-dusk-seg" style="position:absolute;height:100%;border-radius:4px;background:linear-gradient(90deg,#f09020,#f0c040);opacity:0.85;"></div>
+          <div id="tl-sol1-seg" style="position:absolute;height:100%;border-radius:3px;background:#c8a84b;opacity:0.45;"></div>
+          <div id="tl-sol2-seg" style="position:absolute;height:100%;border-radius:3px;background:#c8a84b;opacity:0.45;"></div>
+          <div id="tl-now-line" style="position:absolute;top:-4px;width:3px;height:32px;background:#ef4444;border-radius:2px;z-index:2;"></div>
+        </div>
+        <!-- Hour ticks -->
+        <div style="display:flex;justify-content:space-between;margin-bottom:4px;">
+          <span style="font-size:8px;color:rgba(255,255,255,0.25);">00:00</span>
+          <span style="font-size:8px;color:rgba(255,255,255,0.25);">06:00</span>
+          <span style="font-size:8px;color:rgba(255,255,255,0.25);">12:00</span>
+          <span style="font-size:8px;color:rgba(255,255,255,0.25);">18:00</span>
+          <span style="font-size:8px;color:rgba(255,255,255,0.25);">24:00</span>
+        </div>
+        <!-- Legend -->
+        <div style="display:flex;gap:10px;margin-bottom:7px;flex-wrap:wrap;">
+          <span style="font-size:8px;color:rgba(255,255,255,0.3);display:flex;align-items:center;gap:3px;"><span style="display:inline-block;width:10px;height:6px;border-radius:2px;background:linear-gradient(90deg,#f0c040,#f0e060);"></span>Dawn/dusk peak</span>
+          <span style="font-size:8px;color:rgba(255,255,255,0.3);display:flex;align-items:center;gap:3px;"><span style="display:inline-block;width:10px;height:6px;border-radius:2px;background:#c8a84b;opacity:0.6;"></span>Solunar major</span>
+          <span style="font-size:8px;color:rgba(255,255,255,0.3);display:flex;align-items:center;gap:3px;"><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:#ef4444;"></span>Now</span>
+        </div>
+        <!-- Peak chips row 1: dawn/dusk -->
+        <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:5px;">
+          <div id="tl-dawn-chip" style="display:flex;align-items:center;gap:5px;border-radius:20px;padding:5px 10px;flex:1;min-width:110px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.08);">
+            <div style="width:6px;height:6px;border-radius:50%;background:#f0c040;flex-shrink:0;"></div>
+            <div>
+              <div id="tl-dawn-chip-label" style="font-size:10px;font-weight:700;color:#f0c870;"></div>
+              <div id="tl-dawn-chip-time" style="font-size:12px;font-weight:700;color:rgba(255,255,255,0.85);font-variant-numeric:tabular-nums;"></div>
+            </div>
+          </div>
+          <div id="tl-dusk-chip" style="display:flex;align-items:center;gap:5px;border-radius:20px;padding:5px 10px;flex:1;min-width:110px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.08);">
+            <div style="width:6px;height:6px;border-radius:50%;background:#f09820;flex-shrink:0;"></div>
+            <div>
+              <div id="tl-dusk-chip-label" style="font-size:10px;font-weight:700;color:#f09850;"></div>
+              <div id="tl-dusk-chip-time" style="font-size:12px;font-weight:700;color:rgba(255,255,255,0.85);font-variant-numeric:tabular-nums;"></div>
+            </div>
+          </div>
+        </div>
+        <!-- Solunar chips row 2 -->
+        <div style="display:flex;gap:6px;flex-wrap:wrap;">
+          <div style="display:flex;align-items:center;gap:5px;border-radius:14px;padding:7px 10px;flex:1;min-width:110px;background:rgba(200,168,75,0.07);border:1px solid rgba(200,168,75,0.18);">
+            <div style="width:6px;height:6px;border-radius:50%;background:#c8a84b;flex-shrink:0;margin-top:2px;align-self:flex-start;"></div>
+            <div>
+              <div id="tl-sol1-label" style="font-size:10px;font-weight:700;color:#c8a84b;"></div>
+              <div id="tl-sol1-time" style="font-size:12px;font-weight:700;color:rgba(255,255,255,0.85);font-variant-numeric:tabular-nums;"></div>
+              <div style="font-size:9px;color:rgba(255,255,255,0.3);margin-top:2px;line-height:1.3;">Moon directly above — gravitational pull at peak, deer move more</div>
+            </div>
+          </div>
+          <div style="display:flex;align-items:center;gap:5px;border-radius:14px;padding:7px 10px;flex:1;min-width:110px;background:rgba(200,168,75,0.07);border:1px solid rgba(200,168,75,0.18);">
+            <div style="width:6px;height:6px;border-radius:50%;background:#c8a84b;flex-shrink:0;margin-top:2px;align-self:flex-start;"></div>
+            <div>
+              <div id="tl-sol2-label" style="font-size:10px;font-weight:700;color:#c8a84b;"></div>
+              <div id="tl-sol2-time" style="font-size:12px;font-weight:700;color:rgba(255,255,255,0.85);font-variant-numeric:tabular-nums;"></div>
+              <div style="font-size:9px;color:rgba(255,255,255,0.3);margin-top:2px;line-height:1.3;">Moon directly below — opposite gravitational effect, also a peak period</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div style="font-size:10px;color:rgba(255,255,255,0.35);margin-top:8px;line-height:1.5;">Based on: time of day · moon phase · solunar periods (moon gravity) · rut calendar · seasonal body condition · temperature · barometric pressure · wind speed · cloud cover. Weather via Open-Meteo. Tap moon to hide.</div>
+    </div>
+
+    <!-- 7-Day Activity Forecast Panel -->
+    <div id="week-forecast-panel" style="display:none;margin:10px 0 0;border-radius:14px;border:1px solid rgba(200,168,75,0.15);overflow:hidden;background:rgba(0,0,0,0.2);">
+
+      <!-- Best day hero -->
+      <div id="wf-hero" style="background:linear-gradient(135deg,#1a3a1a,#0e2e0e);padding:14px 16px;border-bottom:1px solid rgba(255,255,255,0.06);">
+        <div id="wf-hero-eyebrow" style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:rgba(200,168,75,0.7);margin-bottom:8px;">⭐ Best day this week</div>
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
+          <div>
+            <div id="wf-hero-day" style="font-family:'Playfair Display',serif;font-size:20px;font-weight:700;color:#f5e6c8;"></div>
+            <div id="wf-hero-window" style="font-size:12px;color:rgba(255,255,255,0.45);margin-top:2px;"></div>
+          </div>
+          <div style="text-align:right;">
+            <div id="wf-hero-score" style="font-size:34px;font-weight:700;color:#7adf7a;line-height:1;"></div>
+            <div id="wf-hero-label" style="font-size:10px;color:rgba(122,223,122,0.6);margin-top:2px;"></div>
+          </div>
+        </div>
+        <div id="wf-hero-pills" style="display:flex;gap:5px;flex-wrap:wrap;"></div>
+      </div>
+
+      <!-- Day rows -->
+      <div id="wf-rows" style="padding:4px 0;"></div>
+
+      <div style="font-size:9px;color:rgba(255,255,255,0.2);padding:8px 16px 12px;line-height:1.5;">Forecast uses 7-day weather from Open-Meteo · Moon phase · Rut calendar · Solar times for your location</div>
     </div>
 
   </div>
@@ -1619,254 +1715,186 @@
   <!-- CALENDAR TAB -->
   <div id="tab-calendar" class="info-section" role="tabpanel" aria-labelledby="tab-btn-calendar">
 
-    <!-- ENGLAND & WALES -->
-    <div class="info-card">
-      <h3>📅 England &amp; Wales</h3>
+    <!-- Region toggle -->
+    <div style="display:flex;gap:8px;margin-bottom:14px;">
+      <button id="cal-btn-ew" style="flex:1;padding:10px 0;border-radius:20px;border:none;cursor:pointer;font-family:'DM Sans',sans-serif;font-size:13px;font-weight:600;background:linear-gradient(135deg,#2a5a18,#1a3a0e);color:#f5e6c8;border:1px solid rgba(200,168,75,0.3);">🏴󠁧󠁢󠁥󠁮󠁧󠁿 England &amp; Wales</button>
+      <button id="cal-btn-sc" style="flex:1;padding:10px 0;border-radius:20px;border:none;cursor:pointer;font-family:'DM Sans',sans-serif;font-size:13px;font-weight:600;background:rgba(255,255,255,0.07);color:rgba(255,255,255,0.45);border:1px solid rgba(255,255,255,0.1);">🏴󠁧󠁢󠁳󠁣󠁴󠁿 Scotland</button>
+    </div>
 
-      <div style="margin-bottom:14px;">
-        <div style="font-size:12px;font-weight:700;color:#3d2b1f;margin-bottom:5px;text-transform:uppercase;letter-spacing:0.5px;">🦌 Red &amp; Sika — Stag (1 Aug – 30 Apr)</div>
-        <div class="month-grid">
-          <div class="month-cell month-open" data-month="1">Jan</div>
-          <div class="month-cell month-open" data-month="2">Feb</div>
-          <div class="month-cell month-open" data-month="3">Mar</div>
-          <div class="month-cell month-open" data-month="4">Apr</div>
-          <div class="month-cell month-closed" data-month="5">May</div>
-          <div class="month-cell month-closed" data-month="6">Jun</div>
-          <div class="month-cell month-closed" data-month="7">Jul</div>
-          <div class="month-cell month-open" data-month="8">Aug</div>
-          <div class="month-cell month-open" data-month="9">Sep</div>
-          <div class="month-cell month-open" data-month="10">Oct</div>
-          <div class="month-cell month-open" data-month="11">Nov</div>
-          <div class="month-cell month-open" data-month="12">Dec</div>
-        </div>
+    <!-- England & Wales view -->
+    <div id="cal-view-ew">
+
+      <!-- What's open now -->
+      <div id="cal-open-now-ew" style="background:rgba(90,220,90,0.12);border:1px solid rgba(90,220,90,0.3);border-radius:12px;padding:12px 14px;margin-bottom:14px;">
+        <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.8px;color:#5aff5a;margin-bottom:8px;">✅ Open this month — England &amp; Wales</div>
+        <div id="cal-chips-ew" style="display:flex;flex-wrap:wrap;gap:5px;"></div>
       </div>
-      <div style="margin-bottom:14px;">
-        <div style="font-size:12px;font-weight:700;color:#3d2b1f;margin-bottom:5px;text-transform:uppercase;letter-spacing:0.5px;">🦌 Red &amp; Sika — Hind (1 Nov – 31 Mar)</div>
-        <div class="month-grid">
-          <div class="month-cell month-open" data-month="1">Jan</div>
-          <div class="month-cell month-open" data-month="2">Feb</div>
-          <div class="month-cell month-open" data-month="3">Mar</div>
-          <div class="month-cell month-closed" data-month="4">Apr</div>
-          <div class="month-cell month-closed" data-month="5">May</div>
-          <div class="month-cell month-closed" data-month="6">Jun</div>
-          <div class="month-cell month-closed" data-month="7">Jul</div>
-          <div class="month-cell month-closed" data-month="8">Aug</div>
-          <div class="month-cell month-closed" data-month="9">Sep</div>
-          <div class="month-cell month-closed" data-month="10">Oct</div>
-          <div class="month-cell month-open" data-month="11">Nov</div>
-          <div class="month-cell month-open" data-month="12">Dec</div>
+
+      <!-- Cal card EW -->
+      <div style="background:linear-gradient(135deg,#1a3a1a,#243a24,#1a301a);border-radius:20px;padding:18px;border:1px solid rgba(200,168,75,0.12);box-shadow:0 8px 32px rgba(0,0,0,0.5);">
+        <div style="font-family:'Playfair Display',serif;font-size:18px;font-weight:700;color:#f5e6c8;margin-bottom:3px;">Season Calendar</div>
+        <div style="font-size:11px;color:rgba(255,255,255,0.6);margin-bottom:14px;">England &amp; Wales · Deer Act 1991</div>
+        <div id="cal-today-badge-ew" style="display:inline-flex;align-items:center;gap:5px;background:rgba(240,192,64,0.15);border:1px solid rgba(240,192,64,0.35);border-radius:20px;padding:4px 10px;font-size:10px;font-weight:700;color:#f0c040;margin-bottom:14px;"><div style="width:6px;height:6px;border-radius:50%;background:#f0c040;"></div><span id="cal-month-label-ew"></span></div>
+
+        <!-- RED DEER -->
+        <div style="margin-bottom:10px;">
+          <div style="display:flex;align-items:center;gap:8px;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:1px;padding:6px 0;border-bottom:1px solid rgba(255,255,255,0.06);margin-bottom:6px;">
+            <div style="width:8px;height:8px;border-radius:50%;background:#c8503a;flex-shrink:0;"></div>
+            <span style="color:rgba(200,80,58,0.9);">Red Deer</span>
+            <span style="color:rgba(255,255,255,0.35);font-weight:400;font-size:9px;margin-left:4px;">Cervus elaphus</span>
+          </div>
+          <!-- Red Stag -->
+          <div class="cal-species-card" data-open="1,2,3,4,8,9,10,11,12" data-sex="stag" data-name="Red Stag" data-dates="1 Aug – 30 Apr" style="background:rgba(255,255,255,0.09);border:1px solid rgba(255,255,255,0.14);border-radius:12px;padding:10px 12px;margin-bottom:5px;"></div>
+          <!-- Red Hind -->
+          <div class="cal-species-card" data-open="1,2,3,11,12" data-sex="hind" data-name="Red Hind" data-dates="1 Nov – 31 Mar" style="background:rgba(255,255,255,0.09);border:1px solid rgba(255,255,255,0.14);border-radius:12px;padding:10px 12px;margin-bottom:5px;"></div>
         </div>
-      </div>
-      <div style="margin-bottom:14px;">
-        <div style="font-size:12px;font-weight:700;color:#3d2b1f;margin-bottom:5px;text-transform:uppercase;letter-spacing:0.5px;">🦌 Fallow — Buck (1 Aug – 30 Apr)</div>
-        <div class="month-grid">
-          <div class="month-cell month-open" data-month="1">Jan</div>
-          <div class="month-cell month-open" data-month="2">Feb</div>
-          <div class="month-cell month-open" data-month="3">Mar</div>
-          <div class="month-cell month-open" data-month="4">Apr</div>
-          <div class="month-cell month-closed" data-month="5">May</div>
-          <div class="month-cell month-closed" data-month="6">Jun</div>
-          <div class="month-cell month-closed" data-month="7">Jul</div>
-          <div class="month-cell month-open" data-month="8">Aug</div>
-          <div class="month-cell month-open" data-month="9">Sep</div>
-          <div class="month-cell month-open" data-month="10">Oct</div>
-          <div class="month-cell month-open" data-month="11">Nov</div>
-          <div class="month-cell month-open" data-month="12">Dec</div>
+
+        <!-- FALLOW DEER -->
+        <div style="margin-bottom:10px;">
+          <div style="display:flex;align-items:center;gap:8px;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:1px;padding:6px 0;border-bottom:1px solid rgba(255,255,255,0.06);margin-bottom:6px;">
+            <div style="width:8px;height:8px;border-radius:50%;background:#c8843a;flex-shrink:0;"></div>
+            <span style="color:rgba(200,132,58,0.9);">Fallow Deer</span>
+            <span style="color:rgba(255,255,255,0.35);font-weight:400;font-size:9px;margin-left:4px;">Dama dama</span>
+          </div>
+          <div class="cal-species-card" data-open="1,2,3,4,8,9,10,11,12" data-sex="buck" data-name="Fallow Buck" data-dates="1 Aug – 30 Apr" style="background:rgba(255,255,255,0.09);border:1px solid rgba(255,255,255,0.14);border-radius:12px;padding:10px 12px;margin-bottom:5px;"></div>
+          <div class="cal-species-card" data-open="1,2,3,11,12" data-sex="doe" data-name="Fallow Doe" data-dates="1 Nov – 31 Mar" style="background:rgba(255,255,255,0.09);border:1px solid rgba(255,255,255,0.14);border-radius:12px;padding:10px 12px;margin-bottom:5px;"></div>
         </div>
-      </div>
-      <div style="margin-bottom:14px;">
-        <div style="font-size:12px;font-weight:700;color:#3d2b1f;margin-bottom:5px;text-transform:uppercase;letter-spacing:0.5px;">🦌 Fallow — Doe (1 Nov – 31 Mar)</div>
-        <div class="month-grid">
-          <div class="month-cell month-open" data-month="1">Jan</div>
-          <div class="month-cell month-open" data-month="2">Feb</div>
-          <div class="month-cell month-open" data-month="3">Mar</div>
-          <div class="month-cell month-closed" data-month="4">Apr</div>
-          <div class="month-cell month-closed" data-month="5">May</div>
-          <div class="month-cell month-closed" data-month="6">Jun</div>
-          <div class="month-cell month-closed" data-month="7">Jul</div>
-          <div class="month-cell month-closed" data-month="8">Aug</div>
-          <div class="month-cell month-closed" data-month="9">Sep</div>
-          <div class="month-cell month-closed" data-month="10">Oct</div>
-          <div class="month-cell month-open" data-month="11">Nov</div>
-          <div class="month-cell month-open" data-month="12">Dec</div>
+
+        <!-- ROE DEER -->
+        <div style="margin-bottom:10px;">
+          <div style="display:flex;align-items:center;gap:8px;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:1px;padding:6px 0;border-bottom:1px solid rgba(255,255,255,0.06);margin-bottom:6px;">
+            <div style="width:8px;height:8px;border-radius:50%;background:#5a9a3a;flex-shrink:0;"></div>
+            <span style="color:rgba(90,154,58,0.9);">Roe Deer</span>
+            <span style="color:rgba(255,255,255,0.35);font-weight:400;font-size:9px;margin-left:4px;">Capreolus capreolus</span>
+          </div>
+          <div class="cal-species-card" data-open="4,5,6,7,8,9,10" data-sex="buck" data-name="Roe Buck" data-dates="1 Apr – 31 Oct" style="background:rgba(255,255,255,0.09);border:1px solid rgba(255,255,255,0.14);border-radius:12px;padding:10px 12px;margin-bottom:5px;"></div>
+          <div class="cal-species-card" data-open="1,2,3,11,12" data-sex="doe" data-name="Roe Doe" data-dates="1 Nov – 31 Mar" style="background:rgba(255,255,255,0.09);border:1px solid rgba(255,255,255,0.14);border-radius:12px;padding:10px 12px;margin-bottom:5px;"></div>
         </div>
-      </div>
-      <div style="margin-bottom:14px;">
-        <div style="font-size:12px;font-weight:700;color:#3d2b1f;margin-bottom:5px;text-transform:uppercase;letter-spacing:0.5px;">🦌 Roe — Buck (1 Apr – 31 Oct)</div>
-        <div class="month-grid">
-          <div class="month-cell month-closed" data-month="1">Jan</div>
-          <div class="month-cell month-closed" data-month="2">Feb</div>
-          <div class="month-cell month-closed" data-month="3">Mar</div>
-          <div class="month-cell month-open" data-month="4">Apr</div>
-          <div class="month-cell month-open" data-month="5">May</div>
-          <div class="month-cell month-open" data-month="6">Jun</div>
-          <div class="month-cell month-open" data-month="7">Jul</div>
-          <div class="month-cell month-open" data-month="8">Aug</div>
-          <div class="month-cell month-open" data-month="9">Sep</div>
-          <div class="month-cell month-open" data-month="10">Oct</div>
-          <div class="month-cell month-closed" data-month="11">Nov</div>
-          <div class="month-cell month-closed" data-month="12">Dec</div>
+
+        <!-- SIKA DEER -->
+        <div style="margin-bottom:10px;">
+          <div style="display:flex;align-items:center;gap:8px;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:1px;padding:6px 0;border-bottom:1px solid rgba(255,255,255,0.06);margin-bottom:6px;">
+            <div style="width:8px;height:8px;border-radius:50%;background:#5a7a9a;flex-shrink:0;"></div>
+            <span style="color:rgba(90,122,154,0.9);">Sika Deer</span>
+            <span style="color:rgba(255,255,255,0.35);font-weight:400;font-size:9px;margin-left:4px;">Cervus nippon</span>
+          </div>
+          <div class="cal-species-card" data-open="1,2,3,4,8,9,10,11,12" data-sex="stag" data-name="Sika Stag" data-dates="1 Aug – 30 Apr" style="background:rgba(255,255,255,0.09);border:1px solid rgba(255,255,255,0.14);border-radius:12px;padding:10px 12px;margin-bottom:5px;"></div>
+          <div class="cal-species-card" data-open="1,2,3,11,12" data-sex="hind" data-name="Sika Hind" data-dates="1 Nov – 31 Mar" style="background:rgba(255,255,255,0.09);border:1px solid rgba(255,255,255,0.14);border-radius:12px;padding:10px 12px;margin-bottom:5px;"></div>
         </div>
-      </div>
-      <div style="margin-bottom:14px;">
-        <div style="font-size:12px;font-weight:700;color:#3d2b1f;margin-bottom:5px;text-transform:uppercase;letter-spacing:0.5px;">🦌 Roe — Doe (1 Nov – 31 Mar)</div>
-        <div class="month-grid">
-          <div class="month-cell month-open" data-month="1">Jan</div>
-          <div class="month-cell month-open" data-month="2">Feb</div>
-          <div class="month-cell month-open" data-month="3">Mar</div>
-          <div class="month-cell month-closed" data-month="4">Apr</div>
-          <div class="month-cell month-closed" data-month="5">May</div>
-          <div class="month-cell month-closed" data-month="6">Jun</div>
-          <div class="month-cell month-closed" data-month="7">Jul</div>
-          <div class="month-cell month-closed" data-month="8">Aug</div>
-          <div class="month-cell month-closed" data-month="9">Sep</div>
-          <div class="month-cell month-closed" data-month="10">Oct</div>
-          <div class="month-cell month-open" data-month="11">Nov</div>
-          <div class="month-cell month-open" data-month="12">Dec</div>
+
+        <!-- MUNTJAC -->
+        <div style="margin-bottom:10px;">
+          <div style="display:flex;align-items:center;gap:8px;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:1px;padding:6px 0;border-bottom:1px solid rgba(255,255,255,0.06);margin-bottom:6px;">
+            <div style="width:8px;height:8px;border-radius:50%;background:#9a5a9a;flex-shrink:0;"></div>
+            <span style="color:rgba(154,90,154,0.9);">Muntjac</span>
+            <span style="color:rgba(255,255,255,0.35);font-weight:400;font-size:9px;margin-left:4px;">Muntiacus reevesi</span>
+          </div>
+          <div class="cal-species-card" data-open="1,2,3,4,5,6,7,8,9,10,11,12" data-sex="buck" data-name="Muntjac" data-dates="No close season" style="background:rgba(255,255,255,0.09);border:1px solid rgba(255,255,255,0.14);border-radius:12px;padding:10px 12px;margin-bottom:5px;"></div>
+          <div class="cal-species-card" data-open="1,2,3,4,5,6,7,8,9,10,11,12" data-sex="doe" data-name="Muntjac" data-dates="No close season" style="background:rgba(255,255,255,0.09);border:1px solid rgba(255,255,255,0.14);border-radius:12px;padding:10px 12px;margin-bottom:5px;"></div>
         </div>
-      </div>
-      <div style="margin-bottom:14px;">
-        <div style="font-size:12px;font-weight:700;color:#3d2b1f;margin-bottom:5px;text-transform:uppercase;letter-spacing:0.5px;">🦌 Muntjac — Buck &amp; Doe (No close season)</div>
-        <div class="month-grid">
-          <div class="month-cell month-open" data-month="1">Jan</div>
-          <div class="month-cell month-open" data-month="2">Feb</div>
-          <div class="month-cell month-open" data-month="3">Mar</div>
-          <div class="month-cell month-open" data-month="4">Apr</div>
-          <div class="month-cell month-open" data-month="5">May</div>
-          <div class="month-cell month-open" data-month="6">Jun</div>
-          <div class="month-cell month-open" data-month="7">Jul</div>
-          <div class="month-cell month-open" data-month="8">Aug</div>
-          <div class="month-cell month-open" data-month="9">Sep</div>
-          <div class="month-cell month-open" data-month="10">Oct</div>
-          <div class="month-cell month-open" data-month="11">Nov</div>
-          <div class="month-cell month-open" data-month="12">Dec</div>
+
+        <!-- CWD -->
+        <div style="margin-bottom:10px;">
+          <div style="display:flex;align-items:center;gap:8px;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:1px;padding:6px 0;border-bottom:1px solid rgba(255,255,255,0.06);margin-bottom:6px;">
+            <div style="width:8px;height:8px;border-radius:50%;background:#9a8a3a;flex-shrink:0;"></div>
+            <span style="color:rgba(154,138,58,0.9);">Chinese Water Deer</span>
+            <span style="color:rgba(255,255,255,0.35);font-weight:400;font-size:9px;margin-left:4px;">Hydropotes inermis</span>
+          </div>
+          <div class="cal-species-card" data-open="1,2,3,11,12" data-sex="buck" data-name="CWD Buck" data-dates="1 Nov – 31 Mar" style="background:rgba(255,255,255,0.09);border:1px solid rgba(255,255,255,0.14);border-radius:12px;padding:10px 12px;margin-bottom:5px;"></div>
+          <div class="cal-species-card" data-open="1,2,3,11,12" data-sex="doe" data-name="CWD Doe" data-dates="1 Nov – 31 Mar" style="background:rgba(255,255,255,0.09);border:1px solid rgba(255,255,255,0.14);border-radius:12px;padding:10px 12px;margin-bottom:0;"></div>
         </div>
-      </div>
-      <div style="margin-bottom:14px;">
-        <div style="font-size:12px;font-weight:700;color:#3d2b1f;margin-bottom:5px;text-transform:uppercase;letter-spacing:0.5px;">🦌 Chinese Water Deer — Buck &amp; Doe (1 Nov – 31 Mar)</div>
-        <div class="month-grid">
-          <div class="month-cell month-open" data-month="1">Jan</div>
-          <div class="month-cell month-open" data-month="2">Feb</div>
-          <div class="month-cell month-open" data-month="3">Mar</div>
-          <div class="month-cell month-closed" data-month="4">Apr</div>
-          <div class="month-cell month-closed" data-month="5">May</div>
-          <div class="month-cell month-closed" data-month="6">Jun</div>
-          <div class="month-cell month-closed" data-month="7">Jul</div>
-          <div class="month-cell month-closed" data-month="8">Aug</div>
-          <div class="month-cell month-closed" data-month="9">Sep</div>
-          <div class="month-cell month-closed" data-month="10">Oct</div>
-          <div class="month-cell month-open" data-month="11">Nov</div>
-          <div class="month-cell month-open" data-month="12">Dec</div>
+
+        <!-- Legend -->
+        <div style="display:flex;gap:12px;flex-wrap:wrap;margin-top:14px;padding-top:12px;border-top:1px solid rgba(255,255,255,0.06);">
+          <div style="display:flex;align-items:center;gap:5px;font-size:10px;color:rgba(255,255,255,0.7);font-weight:500;"><div style="width:12px;height:10px;border-radius:2px;background:linear-gradient(90deg,#3abf3a,#7aef7a);flex-shrink:0;"></div>Open season</div>
+          <div style="display:flex;align-items:center;gap:5px;font-size:10px;color:rgba(255,255,255,0.7);font-weight:500;"><div style="width:12px;height:10px;border-radius:2px;background:rgba(255,255,255,0.14);border:1px solid rgba(255,255,255,0.1);flex-shrink:0;"></div>Closed</div>
+          <div style="display:flex;align-items:center;gap:5px;font-size:10px;color:rgba(255,255,255,0.7);font-weight:500;"><div style="width:12px;height:10px;border-radius:2px;background:#f0c040;outline:2.5px solid #f0c040;outline-offset:0;flex-shrink:0;"></div>This month</div>
         </div>
-      </div>
-      <div style="display:flex;gap:12px;margin-top:14px;font-size:11px;color:#666;flex-wrap:wrap;">
-        <span><span style="display:inline-block;width:10px;height:10px;border-radius:3px;background:#e8f5e0;border:1px solid #b8d8a0;margin-right:4px;vertical-align:middle;"></span>Open</span>
-        <span><span style="display:inline-block;width:10px;height:10px;border-radius:3px;background:#f5f5f5;border:1px solid #ddd;margin-right:4px;vertical-align:middle;"></span>Closed</span>
-        <span><span style="display:inline-block;width:10px;height:10px;border-radius:3px;outline:2px solid #c8a84b;outline-offset:-1px;margin-right:4px;vertical-align:middle;"></span>This month</span>
       </div>
     </div>
 
-    <!-- SCOTLAND -->
-    <div class="info-card">
-      <h3>🏴󠁧󠁢󠁳󠁣󠁴󠁿 Scotland</h3>
-      <p style="font-size:12px;color:#888;margin-bottom:14px;">Close seasons for male deer removed Oct 2023. Females retain close seasons.</p>
+    <!-- Scotland view -->
+    <div id="cal-view-sc" style="display:none;">
 
-      <div style="margin-bottom:14px;">
-        <div style="font-size:12px;font-weight:700;color:#3d2b1f;margin-bottom:5px;text-transform:uppercase;letter-spacing:0.5px;">🦌 Red &amp; Sika &amp; Fallow — Stag / Buck (No close season)</div>
-        <div class="month-grid">
-          <div class="month-cell month-open" data-month="1">Jan</div>
-          <div class="month-cell month-open" data-month="2">Feb</div>
-          <div class="month-cell month-open" data-month="3">Mar</div>
-          <div class="month-cell month-open" data-month="4">Apr</div>
-          <div class="month-cell month-open" data-month="5">May</div>
-          <div class="month-cell month-open" data-month="6">Jun</div>
-          <div class="month-cell month-open" data-month="7">Jul</div>
-          <div class="month-cell month-open" data-month="8">Aug</div>
-          <div class="month-cell month-open" data-month="9">Sep</div>
-          <div class="month-cell month-open" data-month="10">Oct</div>
-          <div class="month-cell month-open" data-month="11">Nov</div>
-          <div class="month-cell month-open" data-month="12">Dec</div>
-        </div>
+      <!-- Law change notice -->
+      <div style="background:rgba(90,130,220,0.1);border:1px solid rgba(90,130,220,0.25);border-radius:14px;padding:12px 14px;margin-bottom:14px;">
+        <div style="font-size:11px;font-weight:700;color:#9ab8ef;margin-bottom:5px;">⚖️ Law change — effective 21 October 2023</div>
+        <div style="font-size:11px;color:rgba(255,255,255,0.5);line-height:1.6;">The Deer (Close Seasons) (Scotland) Amendment Order 2023 removed the statutory close season for <strong style="color:rgba(255,255,255,0.75);">all male deer of all species</strong>. Female close seasons remain unchanged.</div>
       </div>
-      <div style="margin-bottom:14px;">
-        <div style="font-size:12px;font-weight:700;color:#3d2b1f;margin-bottom:5px;text-transform:uppercase;letter-spacing:0.5px;">🦌 Roe — Buck (No close season)</div>
-        <div class="month-grid">
-          <div class="month-cell month-open" data-month="1">Jan</div>
-          <div class="month-cell month-open" data-month="2">Feb</div>
-          <div class="month-cell month-open" data-month="3">Mar</div>
-          <div class="month-cell month-open" data-month="4">Apr</div>
-          <div class="month-cell month-open" data-month="5">May</div>
-          <div class="month-cell month-open" data-month="6">Jun</div>
-          <div class="month-cell month-open" data-month="7">Jul</div>
-          <div class="month-cell month-open" data-month="8">Aug</div>
-          <div class="month-cell month-open" data-month="9">Sep</div>
-          <div class="month-cell month-open" data-month="10">Oct</div>
-          <div class="month-cell month-open" data-month="11">Nov</div>
-          <div class="month-cell month-open" data-month="12">Dec</div>
-        </div>
+
+      <!-- What's open now SC -->
+      <div id="cal-open-now-sc" style="background:rgba(90,130,220,0.12);border:1px solid rgba(90,130,220,0.3);border-radius:12px;padding:12px 14px;margin-bottom:14px;">
+        <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.8px;color:#9ab8ef;margin-bottom:8px;">✅ Open this month — Scotland</div>
+        <div id="cal-chips-sc" style="display:flex;flex-wrap:wrap;gap:5px;"></div>
       </div>
-      <div style="margin-bottom:14px;">
-        <div style="font-size:12px;font-weight:700;color:#3d2b1f;margin-bottom:5px;text-transform:uppercase;letter-spacing:0.5px;">🦌 Red &amp; Sika — Hind (21 Oct – 15 Feb)</div>
-        <div class="month-grid">
-          <div class="month-cell month-open" data-month="1">Jan</div>
-          <div class="month-cell month-open" data-month="2">Feb</div>
-          <div class="month-cell month-closed" data-month="3">Mar</div>
-          <div class="month-cell month-closed" data-month="4">Apr</div>
-          <div class="month-cell month-closed" data-month="5">May</div>
-          <div class="month-cell month-closed" data-month="6">Jun</div>
-          <div class="month-cell month-closed" data-month="7">Jul</div>
-          <div class="month-cell month-closed" data-month="8">Aug</div>
-          <div class="month-cell month-closed" data-month="9">Sep</div>
-          <div class="month-cell month-open" data-month="10">Oct</div>
-          <div class="month-cell month-open" data-month="11">Nov</div>
-          <div class="month-cell month-open" data-month="12">Dec</div>
+
+      <div style="background:linear-gradient(135deg,#1a3a1a,#243a24,#1a301a);border-radius:20px;padding:18px;border:1px solid rgba(90,130,220,0.15);box-shadow:0 8px 32px rgba(0,0,0,0.5);">
+        <div style="font-family:'Playfair Display',serif;font-size:18px;font-weight:700;color:#f5e6c8;margin-bottom:3px;">Season Calendar</div>
+        <div style="font-size:11px;color:rgba(255,255,255,0.6);margin-bottom:14px;">Scotland · Deer (Scotland) Act 1996 (as amended 2023)</div>
+        <div id="cal-today-badge-sc" style="display:inline-flex;align-items:center;gap:5px;background:rgba(240,192,64,0.15);border:1px solid rgba(240,192,64,0.35);border-radius:20px;padding:4px 10px;font-size:10px;font-weight:700;color:#f0c040;margin-bottom:14px;"><div style="width:6px;height:6px;border-radius:50%;background:#f0c040;"></div><span id="cal-month-label-sc"></span></div>
+
+        <!-- RED DEER SC -->
+        <div style="margin-bottom:10px;">
+          <div style="display:flex;align-items:center;gap:8px;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:1px;padding:6px 0;border-bottom:1px solid rgba(255,255,255,0.06);margin-bottom:6px;">
+            <div style="width:8px;height:8px;border-radius:50%;background:#c8503a;flex-shrink:0;"></div>
+            <span style="color:rgba(200,80,58,0.9);">Red Deer</span>
+          </div>
+          <div class="cal-species-card-sc" data-open="1,2,3,4,5,6,7,8,9,10,11,12" data-sex="stag" data-name="Red Stag" data-dates="No close season" style="background:rgba(255,255,255,0.09);border:1px solid rgba(255,255,255,0.14);border-radius:12px;padding:10px 12px;margin-bottom:5px;"></div>
+          <div class="cal-species-card-sc" data-open="1,2,10,11,12" data-sex="hind" data-name="Red Hind" data-dates="21 Oct – 15 Feb" style="background:rgba(255,255,255,0.09);border:1px solid rgba(255,255,255,0.14);border-radius:12px;padding:10px 12px;margin-bottom:5px;"></div>
         </div>
-        <div style="font-size:10px;color:#888;margin-top:4px;">Note: Oct open from 21st only</div>
-      </div>
-      <div style="margin-bottom:14px;">
-        <div style="font-size:12px;font-weight:700;color:#3d2b1f;margin-bottom:5px;text-transform:uppercase;letter-spacing:0.5px;">🦌 Fallow — Doe (21 Oct – 15 Feb)</div>
-        <div class="month-grid">
-          <div class="month-cell month-open" data-month="1">Jan</div>
-          <div class="month-cell month-open" data-month="2">Feb</div>
-          <div class="month-cell month-closed" data-month="3">Mar</div>
-          <div class="month-cell month-closed" data-month="4">Apr</div>
-          <div class="month-cell month-closed" data-month="5">May</div>
-          <div class="month-cell month-closed" data-month="6">Jun</div>
-          <div class="month-cell month-closed" data-month="7">Jul</div>
-          <div class="month-cell month-closed" data-month="8">Aug</div>
-          <div class="month-cell month-closed" data-month="9">Sep</div>
-          <div class="month-cell month-open" data-month="10">Oct</div>
-          <div class="month-cell month-open" data-month="11">Nov</div>
-          <div class="month-cell month-open" data-month="12">Dec</div>
+
+        <!-- FALLOW SC -->
+        <div style="margin-bottom:10px;">
+          <div style="display:flex;align-items:center;gap:8px;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:1px;padding:6px 0;border-bottom:1px solid rgba(255,255,255,0.06);margin-bottom:6px;">
+            <div style="width:8px;height:8px;border-radius:50%;background:#c8843a;flex-shrink:0;"></div>
+            <span style="color:rgba(200,132,58,0.9);">Fallow Deer</span>
+          </div>
+          <div class="cal-species-card-sc" data-open="1,2,3,4,5,6,7,8,9,10,11,12" data-sex="buck" data-name="Fallow Buck" data-dates="No close season" style="background:rgba(255,255,255,0.09);border:1px solid rgba(255,255,255,0.14);border-radius:12px;padding:10px 12px;margin-bottom:5px;"></div>
+          <div class="cal-species-card-sc" data-open="1,2,10,11,12" data-sex="hind" data-name="Fallow Hind" data-dates="21 Oct – 15 Feb" style="background:rgba(255,255,255,0.09);border:1px solid rgba(255,255,255,0.14);border-radius:12px;padding:10px 12px;margin-bottom:5px;"></div>
         </div>
-        <div style="font-size:10px;color:#888;margin-top:4px;">Note: Oct open from 21st only</div>
-      </div>
-      <div style="margin-bottom:14px;">
-        <div style="font-size:12px;font-weight:700;color:#3d2b1f;margin-bottom:5px;text-transform:uppercase;letter-spacing:0.5px;">🦌 Roe — Doe (21 Oct – 31 Mar)</div>
-        <div class="month-grid">
-          <div class="month-cell month-open" data-month="1">Jan</div>
-          <div class="month-cell month-open" data-month="2">Feb</div>
-          <div class="month-cell month-open" data-month="3">Mar</div>
-          <div class="month-cell month-closed" data-month="4">Apr</div>
-          <div class="month-cell month-closed" data-month="5">May</div>
-          <div class="month-cell month-closed" data-month="6">Jun</div>
-          <div class="month-cell month-closed" data-month="7">Jul</div>
-          <div class="month-cell month-closed" data-month="8">Aug</div>
-          <div class="month-cell month-closed" data-month="9">Sep</div>
-          <div class="month-cell month-open" data-month="10">Oct</div>
-          <div class="month-cell month-open" data-month="11">Nov</div>
-          <div class="month-cell month-open" data-month="12">Dec</div>
+
+        <!-- ROE SC -->
+        <div style="margin-bottom:10px;">
+          <div style="display:flex;align-items:center;gap:8px;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:1px;padding:6px 0;border-bottom:1px solid rgba(255,255,255,0.06);margin-bottom:6px;">
+            <div style="width:8px;height:8px;border-radius:50%;background:#5a9a3a;flex-shrink:0;"></div>
+            <span style="color:rgba(90,154,58,0.9);">Roe Deer</span>
+          </div>
+          <div class="cal-species-card-sc" data-open="1,2,3,4,5,6,7,8,9,10,11,12" data-sex="buck" data-name="Roe Buck" data-dates="No close season" style="background:rgba(255,255,255,0.09);border:1px solid rgba(255,255,255,0.14);border-radius:12px;padding:10px 12px;margin-bottom:5px;"></div>
+          <div class="cal-species-card-sc" data-open="1,2,3,10,11,12" data-sex="doe" data-name="Roe Doe" data-dates="21 Oct – 31 Mar" style="background:rgba(255,255,255,0.09);border:1px solid rgba(255,255,255,0.14);border-radius:12px;padding:10px 12px;margin-bottom:5px;"></div>
         </div>
-        <div style="font-size:10px;color:#888;margin-top:4px;">Note: Oct open from 21st only</div>
-      </div>
-      <div style="display:flex;gap:12px;margin-top:14px;font-size:11px;color:#666;flex-wrap:wrap;">
-        <span><span style="display:inline-block;width:10px;height:10px;border-radius:3px;background:#e8f5e0;border:1px solid #b8d8a0;margin-right:4px;vertical-align:middle;"></span>Open</span>
-        <span><span style="display:inline-block;width:10px;height:10px;border-radius:3px;background:#f5f5f5;border:1px solid #ddd;margin-right:4px;vertical-align:middle;"></span>Closed</span>
-        <span><span style="display:inline-block;width:10px;height:10px;border-radius:3px;outline:2px solid #c8a84b;outline-offset:-1px;margin-right:4px;vertical-align:middle;"></span>This month</span>
+
+        <!-- SIKA SC -->
+        <div style="margin-bottom:10px;">
+          <div style="display:flex;align-items:center;gap:8px;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:1px;padding:6px 0;border-bottom:1px solid rgba(255,255,255,0.06);margin-bottom:6px;">
+            <div style="width:8px;height:8px;border-radius:50%;background:#5a7a9a;flex-shrink:0;"></div>
+            <span style="color:rgba(90,122,154,0.9);">Sika Deer</span>
+          </div>
+          <div class="cal-species-card-sc" data-open="1,2,3,4,5,6,7,8,9,10,11,12" data-sex="stag" data-name="Sika Stag" data-dates="No close season" style="background:rgba(255,255,255,0.09);border:1px solid rgba(255,255,255,0.14);border-radius:12px;padding:10px 12px;margin-bottom:5px;"></div>
+          <div class="cal-species-card-sc" data-open="1,2,10,11,12" data-sex="hind" data-name="Sika Hind" data-dates="21 Oct – 15 Feb" style="background:rgba(255,255,255,0.09);border:1px solid rgba(255,255,255,0.14);border-radius:12px;padding:10px 12px;margin-bottom:5px;"></div>
+        </div>
+
+        <!-- MUNTJAC/CWD SC NOTE -->
+        <div style="margin-bottom:10px;">
+          <div style="display:flex;align-items:center;gap:8px;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:1px;padding:6px 0;border-bottom:1px solid rgba(255,255,255,0.06);margin-bottom:6px;">
+            <div style="width:8px;height:8px;border-radius:50%;background:#9a5a9a;flex-shrink:0;"></div>
+            <span style="color:rgba(154,90,154,0.9);">Muntjac &amp; CWD</span>
+          </div>
+          <div style="background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.08);border-radius:12px;padding:12px;font-size:11px;color:rgba(255,255,255,0.45);line-height:1.6;">
+            Muntjac and Chinese Water Deer are not present in Scotland in significant numbers and have no designated seasons under Scottish law.
+          </div>
+        </div>
+
+        <!-- Legend SC -->
+        <div style="display:flex;gap:12px;flex-wrap:wrap;margin-top:14px;padding-top:12px;border-top:1px solid rgba(255,255,255,0.06);">
+          <div style="display:flex;align-items:center;gap:5px;font-size:10px;color:rgba(255,255,255,0.7);font-weight:500;"><div style="width:12px;height:10px;border-radius:2px;background:linear-gradient(90deg,#3abf3a,#7aef7a);flex-shrink:0;"></div>Open season</div>
+          <div style="display:flex;align-items:center;gap:5px;font-size:10px;color:rgba(255,255,255,0.7);font-weight:500;"><div style="width:12px;height:10px;border-radius:2px;background:rgba(255,255,255,0.14);flex-shrink:0;"></div>Closed</div>
+          <div style="display:flex;align-items:center;gap:5px;font-size:10px;color:rgba(255,255,255,0.7);font-weight:500;"><div style="width:12px;height:10px;border-radius:2px;background:#f0c040;flex-shrink:0;"></div>This month</div>
+        </div>
       </div>
     </div>
 
   </div><!-- end calendar tab -->
+
 
   <!-- SHOT PLACEMENT TAB -->
   <div id="tab-shots" class="info-section" role="tabpanel" aria-labelledby="tab-btn-shots">
@@ -3789,32 +3817,32 @@ function updateBannerClock() {
   var now    = new Date();
   var curMin = now.getHours() * 60 + now.getMinutes();
   var curSec = now.getSeconds();
+  var curTotalSec = curMin * 60 + curSec;
   var el     = document.getElementById('banner-countdown');
   if (!el) return;
 
   var isLegal = bs.isLegal;
 
-  // Seconds to end/start
-  var targetMin, label;
+  var totalSec, label, diffMin;
   if (isLegal) {
-    targetMin = bs.legalEndMin;
-    label     = 'Time remaining';
-    var diffMin = ((targetMin - curMin) + 1440) % 1440;
-    var totalSec = diffMin * 60 - curSec;
+    label = 'Time remaining';
+    var legalEndTotalSec = bs.legalEndMin * 60;
+    // If legal end is past midnight and current time is before midnight, add 86400
+    totalSec = legalEndTotalSec - curTotalSec;
     if (totalSec < 0) totalSec += 86400;
+    diffMin = Math.floor(totalSec / 60);
   } else {
-    // nextLegalStartMin may be > 1440 (tomorrow's start expressed as mins since midnight)
     var rawTarget = bs.nextLegalStartMin;
     var nowTotalMin = curMin;
-    // If rawTarget > 1440 it means tomorrow — diff = rawTarget - curMin (no modulo needed)
-    // If rawTarget <= 1440 and > curMin — today's legal start not yet reached
     var diffMin, totalSec;
     if (rawTarget > 1440) {
-      diffMin = rawTarget - nowTotalMin;  // e.g. 1756 - 1230 = 526 mins
+      diffMin = rawTarget - nowTotalMin;
     } else {
       diffMin = rawTarget > nowTotalMin ? rawTarget - nowTotalMin : (1440 - nowTotalMin + rawTarget);
     }
-    totalSec = diffMin * 60 - curSec;
+    // Use total seconds for precision — avoids minute-boundary wraparound
+    var targetTotalSec = diffMin * 60;
+    totalSec = targetTotalSec - curSec;
     if (totalSec < 0) totalSec += 86400;
     label = 'Legal window opens in';
   }
@@ -3858,7 +3886,16 @@ function getMoonPhase(date) {
            : age < 23.99  ? 'Last Quarter'
            : age < 29.53  ? 'Waning Crescent'
            :                'New Moon';
-  return { age: age, pct: pct, name: name, illumination: Math.round((1 - Math.cos(age / synodicMonth * 2 * Math.PI)) / 2 * 100) };
+  var icon = age < 1.85   ? '🌑'
+           : age < 7.38   ? '🌒'
+           : age < 9.22   ? '🌓'
+           : age < 14.77  ? '🌔'
+           : age < 16.61  ? '🌕'
+           : age < 22.15  ? '🌖'
+           : age < 23.99  ? '🌗'
+           : age < 29.53  ? '🌘'
+           :                '🌑';
+  return { age: age, pct: pct, name: name, icon: icon, illumination: Math.round((1 - Math.cos(age / synodicMonth * 2 * Math.PI)) / 2 * 100) };
 }
 
 function drawMoonSVG(age) {
@@ -3915,6 +3952,14 @@ function updateMoon() {
   var illEl  = document.getElementById('moon-illumination');
   if (nameEl) nameEl.textContent = moon.name;
   if (illEl)  illEl.textContent  = moon.illumination + '% lit';
+
+  // Show quick activity score on badge without opening panel
+  var badge = document.getElementById('activity-score-badge');
+  if (badge && bannerState.lat !== null) {
+    var quick = getDeerActivityScore(null);
+    badge.textContent = '🦌 ' + quick.score + '%';
+    badge.style.display = 'block';
+  }
 }
 
 // ── Calendar highlight ────────────────────────────────────────
@@ -3923,6 +3968,84 @@ function highlightTodayMonth() {
   document.querySelectorAll('.month-cell[data-month="' + m + '"]').forEach(function(el) {
     el.classList.add('month-today');
   });
+}
+
+// ── Calendar tab rendering ────────────────────────────────────
+function buildCalendarCards(selector, isScotland) {
+  var months = ['J','F','M','A','M','J','J','A','S','O','N','D'];
+  var monthNames = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+  var now = new Date();
+  var curMonth = now.getMonth() + 1;
+
+  var badgeSpan = document.getElementById(isScotland ? 'cal-month-label-sc' : 'cal-month-label-ew');
+  if (badgeSpan) badgeSpan.textContent = monthNames[curMonth-1] + ' ' + now.getFullYear() + ' — highlighted gold';
+
+  document.querySelectorAll(selector).forEach(function(card) {
+    var openMonths = card.dataset.open.split(',').map(Number);
+    var sex = card.dataset.sex;
+    var name = card.dataset.name;
+    var dates = card.dataset.dates;
+    var isOpen = openMonths.indexOf(curMonth) !== -1;
+    var sexBadge = {
+      stag: {bg:'rgba(139,90,43,0.25)',color:'#d4a870',label:'&#9794; Stag'},
+      hind: {bg:'rgba(180,100,140,0.25)',color:'#e4a0c0',label:'&#9792; Hind'},
+      buck: {bg:'rgba(100,140,80,0.25)',color:'#90c870',label:'&#9794; Buck'},
+      doe:  {bg:'rgba(140,100,180,0.25)',color:'#c090e0',label:'&#9792; Doe'}
+    }[sex] || {bg:'rgba(100,100,100,0.25)',color:'#aaa',label:'Both'};
+
+    var html = '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:7px;">';
+    html += '<div style="display:flex;align-items:center;gap:8px;">';
+    html += '<div style="font-size:9px;font-weight:700;padding:2px 7px;border-radius:10px;text-transform:uppercase;letter-spacing:0.5px;background:' + sexBadge.bg + ';color:' + sexBadge.color + ';">' + sexBadge.label + '</div>';
+    html += '<div><div style="font-size:12px;font-weight:700;color:#ffffff;">' + name + '</div>';
+    html += '<div style="font-size:10px;color:rgba(255,255,255,0.65);">' + dates + '</div></div></div>';
+    html += '<div style="font-size:11px;font-weight:800;white-space:nowrap;color:' + (isOpen ? '#5aff5a' : '#ff6060') + ';">' + (isOpen ? '&#9679; OPEN' : '&#9679; CLOSED') + '</div></div>';
+
+    html += '<div style="display:grid;grid-template-columns:repeat(12,1fr);gap:2px;margin-bottom:4px;">';
+    for (var i = 1; i <= 12; i++) {
+      var isOpenM = openMonths.indexOf(i) !== -1;
+      var isToday = i === curMonth;
+      var bg = isOpenM ? (isToday ? '#f0c040' : 'linear-gradient(90deg,#3abf3a,#7aef7a)') : 'rgba(255,255,255,0.14)';
+      var outline = isToday ? 'outline:2.5px solid #f0c040;outline-offset:0;' : '';
+      html += '<div style="height:10px;border-radius:3px;background:' + bg + ';' + outline + '"></div>';
+    }
+    html += '</div>';
+
+    html += '<div style="display:grid;grid-template-columns:repeat(12,1fr);gap:2px;">';
+    for (var j = 1; j <= 12; j++) {
+      var col = j === curMonth ? '#f0c040' : 'rgba(255,255,255,0.6)';
+      var fw = j === curMonth ? '800' : '600';
+      html += '<div style="font-size:8px;color:' + col + ';text-align:center;font-weight:' + fw + ';">' + months[j-1] + '</div>';
+    }
+    html += '</div>';
+
+    card.innerHTML = html;
+  });
+
+  var chipsEl = document.getElementById(isScotland ? 'cal-chips-sc' : 'cal-chips-ew');
+  if (chipsEl) {
+    chipsEl.textContent = '';
+    document.querySelectorAll(selector).forEach(function(card) {
+      var openMonths = card.dataset.open.split(',').map(Number);
+      if (openMonths.indexOf(new Date().getMonth() + 1) !== -1) {
+        var chip = document.createElement('div');
+        var bgC = isScotland ? 'rgba(90,130,220,0.18)' : 'rgba(90,220,90,0.18)';
+        var bdrC = isScotland ? 'rgba(90,130,220,0.35)' : 'rgba(90,220,90,0.35)';
+        var txtC = isScotland ? '#9ab8ef' : '#7aff7a';
+        chip.style.cssText = 'background:' + bgC + ';border:1px solid ' + bdrC + ';border-radius:20px;padding:4px 10px;font-size:11px;font-weight:700;color:' + txtC + ';';
+        var sexLabel = {stag:'Stag',hind:'Hind',buck:'Buck',doe:'Doe'}[card.dataset.sex] || '';
+        var chipName = card.dataset.name;
+        // Only append sex label if name doesn't already end with it
+        if (sexLabel && !chipName.endsWith(sexLabel)) chipName += ' ' + sexLabel;
+        chip.textContent = chipName;
+        chipsEl.appendChild(chip);
+      }
+    });
+  }
+}
+
+function initCalendar() {
+  buildCalendarCards('.cal-species-card', false);
+  buildCalendarCards('.cal-species-card-sc', true);
 }
 
 // ── Public updateBanner (called by location picker, presets, GPS) ─
@@ -4250,7 +4373,242 @@ function buildForecast() {
 }
 
 
-// ── Master tick ────────────────────────────────────────────────
+// ════════════════════════════════════════════════════════════════
+// FEATURE: 7-DAY ACTIVITY FORECAST
+// ════════════════════════════════════════════════════════════════
+
+var _wfWeatherCache = { data: null, ts: 0, lat: null, lng: null };
+
+function fetch7DayWeather(lat, lng, cb) {
+  var now = Date.now();
+  if (_wfWeatherCache.data && (now - _wfWeatherCache.ts < 30*60*1000)
+      && _wfWeatherCache.lat === lat && _wfWeatherCache.lng === lng) {
+    return cb(null, _wfWeatherCache.data);
+  }
+  var url = 'https://api.open-meteo.com/v1/forecast?latitude=' + lat
+    + '&longitude=' + lng
+    + '&daily=temperature_2m_max,temperature_2m_min,wind_speed_10m_max,precipitation_sum,weather_code,surface_pressure_mean'
+    + '&hourly=surface_pressure&forecast_days=7&timezone=auto';
+  fetch(url)
+    .then(function(r) { return r.json(); })
+    .then(function(d) {
+      _wfWeatherCache = { data: d, ts: Date.now(), lat: lat, lng: lng };
+      cb(null, d);
+    })
+    .catch(function(e) { cb(e, null); });
+}
+
+function scoreDay(date, wxDay) {
+  // Score dawn and dusk windows for a given date
+  var bs = bannerState;
+  var lat = bs.lat || 52, lng = bs.lng || 0;
+  var sr, ss;
+  try { sr = calcSunTime(date, lat, lng, true);  } catch(e) { sr = null; }
+  try { ss = calcSunTime(date, lat, lng, false); } catch(e) { ss = null; }
+  if (!sr || !ss) return null;
+
+  var srMin = sr.getHours() * 60 + sr.getMinutes();
+  var ssMin = ss.getHours() * 60 + ss.getMinutes();
+  var dawnStart = srMin - 60;
+  var dawnEnd   = srMin + 120;
+  var duskStart = ssMin - 90;
+  var duskEnd   = ssMin + 45;  // 45 mins after sunset
+
+  var moon = getMoonPhase(date);
+  var month = date.getMonth() + 1;
+
+  // Moon boost
+  var mb = moon.illumination < 15 ? 15
+         : moon.illumination < 40 ? 11
+         : moon.illumination < 60 ? 8
+         : moon.illumination < 85 ? 4 : 1;
+
+  // Rut
+  var rutMonths = RUT_CALENDAR[month] || [0,0,0,0,0];
+  var maxRut = Math.max.apply(null, rutMonths);
+  var rutScore = maxRut >= 25 ? 15 : maxRut >= 10 ? 8 : maxRut > 0 ? 3 : 0;
+
+  // Seasonal
+  var sb = month === 2 ? 5 : month === 3 ? 3
+         : (month === 9 || month === 10) ? 4
+         : month === 11 ? 2
+         : (month >= 6 && month <= 8) ? -3 : 0;
+
+  // Weather for this day
+  var wxScore = 0;
+  if (wxDay) {
+    var avgTemp = (wxDay.tempMax + wxDay.tempMin) / 2;
+    wxScore += avgTemp <= 0 ? 4 : avgTemp <= 8 ? 6 : avgTemp <= 14 ? 3 : avgTemp <= 18 ? 0 : -3;
+    wxScore += wxDay.windMax < 8 ? 6 : wxDay.windMax < 20 ? 3 : wxDay.windMax < 35 ? -2 : -5;
+    wxScore += wxDay.precip > 5 ? -4 : wxDay.precip > 0.5 ? 2 : 1;
+    // No pressure trend available for future days — use neutral
+  }
+
+  var dawnScore = Math.min(100, Math.max(0, 40 + mb + rutScore + sb + wxScore));
+  var duskScore = Math.min(100, Math.max(0, 40 + mb + rutScore + sb + wxScore));
+  // Slight dusk variance based on wind (evening calmer)
+  duskScore = Math.min(100, Math.max(0, duskScore + (wxDay && wxDay.windMax > 20 ? -3 : 2)));
+
+  return {
+    dawnScore: dawnScore,
+    duskScore: duskScore,
+    bestScore: Math.max(dawnScore, duskScore),
+    bestWindow: dawnScore >= duskScore ? 'Dawn' : 'Dusk',
+    dawnTime: fmtMins(dawnStart),
+    duskTime: fmtMins(duskStart),
+    moon: moon,
+    wxDay: wxDay
+  };
+}
+
+function buildWeekForecast(wxData) {
+  var panel = document.getElementById('week-forecast-panel');
+  var rowsEl = document.getElementById('wf-rows');
+  var heroDay = document.getElementById('wf-hero-day');
+  var heroWindow = document.getElementById('wf-hero-window');
+  var heroScore = document.getElementById('wf-hero-score');
+  var heroLabel = document.getElementById('wf-hero-label');
+  var heroPills = document.getElementById('wf-hero-pills');
+  if (!panel || !rowsEl) return;
+
+  var days = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+  var months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  var today = new Date();
+  var results = [];
+
+  for (var i = 0; i < 7; i++) {
+    var d = new Date(today.getFullYear(), today.getMonth(), today.getDate() + i);
+    var wxDay = null;
+    if (wxData && wxData.daily) {
+      wxDay = {
+        tempMax:  wxData.daily.temperature_2m_max[i],
+        tempMin:  wxData.daily.temperature_2m_min[i],
+        windMax:  wxData.daily.wind_speed_10m_max[i],
+        precip:   wxData.daily.precipitation_sum[i],
+        wcode:    wxData.daily.weather_code[i],
+        pressure: wxData.daily.surface_pressure_mean ? wxData.daily.surface_pressure_mean[i] : null
+      };
+    }
+    var s = scoreDay(d, wxDay);
+    if (s) results.push({ date: d, day: i, s: s });
+  }
+
+  if (!results.length) return;
+
+  // Find best day — skip today if both windows already passed
+  var nowMin = new Date().getHours() * 60 + new Date().getMinutes();
+  var bestIdx = -1;
+  var bestScore = -1;
+  results.forEach(function(r, i) {
+    var effectiveScore = r.s.bestScore;
+    if (i === 0) {
+      var ss2 = bannerState.sunsetMin !== null ? bannerState.sunsetMin : 20 * 60;
+      if (nowMin > ss2 + 45) effectiveScore = 0; // dusk window passed
+    }
+    if (effectiveScore > bestScore) {
+      bestScore = effectiveScore;
+      bestIdx = i;
+    }
+  });
+  if (bestIdx < 0) bestIdx = 0;
+  var best = results[bestIdx];
+
+  // ── Hero ──────────────────────────────────────────────────
+  if (heroDay) heroDay.textContent = days[best.date.getDay()] + ' ' + best.date.getDate() + ' ' + months[best.date.getMonth()];
+  if (heroWindow) heroWindow.textContent = best.s.bestWindow + ' · ' +
+    (best.s.bestWindow === 'Dawn' ? best.s.dawnTime : best.s.duskTime) + ' peak';
+  if (heroScore) heroScore.textContent = best.s.bestScore + '%';
+  if (heroLabel) {
+    heroLabel.textContent = best.s.bestScore >= 75 ? 'Exceptional'
+      : best.s.bestScore >= 55 ? 'High Activity'
+      : best.s.bestScore >= 35 ? 'Moderate' : 'Low Activity';
+  }
+
+  // Hero pills
+  if (heroPills) {
+    heroPills.innerHTML = '';
+    var pillData = [
+      { label: best.s.moon.name, bg: 'rgba(255,255,200,0.1)', color: 'rgba(255,255,200,0.8)', border: 'rgba(255,255,200,0.15)' },
+    ];
+    if (best.s.wxDay) {
+      var avgT = Math.round((best.s.wxDay.tempMax + best.s.wxDay.tempMin) / 2);
+      pillData.push({ label: '🌡 ' + avgT + '°C', bg: avgT <= 10 ? 'rgba(90,180,255,0.12)' : 'rgba(255,140,60,0.1)', color: avgT <= 10 ? 'rgba(150,210,255,0.85)' : 'rgba(255,180,100,0.85)', border: 'rgba(90,180,255,0.15)' });
+      var windMph = Math.round(best.s.wxDay.windMax * 0.621);
+      pillData.push({ label: '🍃 ' + windMph + ' mph', bg: windMph < 10 ? 'rgba(90,220,90,0.1)' : 'rgba(255,200,60,0.1)', color: windMph < 10 ? 'rgba(122,223,122,0.85)' : 'rgba(255,220,100,0.85)', border: 'rgba(90,220,90,0.15)' });
+    }
+    var rutM = RUT_CALENDAR[best.date.getMonth()+1] || [0,0,0,0,0];
+    if (Math.max.apply(null,rutM) >= 10) {
+      var rutNames = RUT_SPECIES.filter(function(_,i){ return rutM[i]>=10; });
+      pillData.push({ label: '🦌 ' + rutNames[0] + ' rut', bg: 'rgba(200,100,50,0.1)', color: 'rgba(240,160,100,0.9)', border: 'rgba(200,100,50,0.2)' });
+    }
+    pillData.forEach(function(p) {
+      var pill = document.createElement('div');
+      pill.style.cssText = 'font-size:10px;font-weight:600;padding:4px 10px;border-radius:20px;background:' + p.bg + ';color:' + p.color + ';border:1px solid ' + p.border + ';';
+      pill.textContent = p.label;
+      heroPills.appendChild(pill);
+    });
+  }
+
+  // ── Rows ──────────────────────────────────────────────────
+  rowsEl.innerHTML = '';
+  results.forEach(function(r, i) {
+    var isToday = i === 0;
+    var isBest  = i === bestIdx;
+    var row = document.createElement('div');
+    var rowBg = isBest ? 'rgba(90,220,90,0.06)' : isToday ? 'rgba(200,168,75,0.07)' : 'transparent';
+    row.style.cssText = 'display:flex;align-items:center;gap:8px;padding:9px 16px;border-bottom:1px solid rgba(255,255,255,0.04);background:' + rowBg + ';';
+
+    var scoreColor = r.s.bestScore >= 65 ? '#7adf7a' : r.s.bestScore >= 45 ? '#f0c040' : '#e07020';
+    var barColor   = r.s.bestScore >= 65 ? 'linear-gradient(90deg,#3abf3a,#7aef7a)'
+                   : r.s.bestScore >= 45 ? 'linear-gradient(90deg,#c8a84b,#e0c050)'
+                   : 'linear-gradient(90deg,#e07020,#e09040)';
+
+    var dayLabel = isToday ? 'Today' : days[r.date.getDay()];
+    var dayColor = isToday ? '#f0c870' : isBest ? '#7adf7a' : 'rgba(255,255,255,0.45)';
+
+    row.innerHTML =
+      '<div style="width:36px;flex-shrink:0;">' +
+        '<div style="font-size:10px;font-weight:700;color:' + dayColor + ';text-transform:uppercase;">' + dayLabel + '</div>' +
+        '<div style="font-size:13px;font-weight:700;color:rgba(255,255,255,0.8);">' + r.date.getDate() + '</div>' +
+      '</div>' +
+      '<div style="width:18px;flex-shrink:0;font-size:14px;text-align:center;">' + r.s.moon.icon + '</div>' +
+      '<div style="flex:1;display:flex;flex-direction:column;gap:3px;">' +
+        '<div style="display:flex;align-items:center;gap:5px;">' +
+          '<div style="font-size:8px;color:rgba(255,255,255,0.25);width:28px;flex-shrink:0;">Dawn</div>' +
+          '<div style="flex:1;height:5px;background:rgba(255,255,255,0.08);border-radius:3px;overflow:hidden;">' +
+            '<div style="height:100%;border-radius:3px;background:' + barColor + ';width:' + r.s.dawnScore + '%;"></div>' +
+          '</div>' +
+        '</div>' +
+        '<div style="display:flex;align-items:center;gap:5px;">' +
+          '<div style="font-size:8px;color:rgba(255,255,255,0.25);width:28px;flex-shrink:0;">Dusk</div>' +
+          '<div style="flex:1;height:5px;background:rgba(255,255,255,0.08);border-radius:3px;overflow:hidden;">' +
+            '<div style="height:100%;border-radius:3px;background:' + barColor + ';opacity:0.7;width:' + r.s.duskScore + '%;"></div>' +
+          '</div>' +
+        '</div>' +
+      '</div>' +
+      '<div style="width:34px;flex-shrink:0;text-align:right;font-size:13px;font-weight:700;color:' + scoreColor + ';font-variant-numeric:tabular-nums;">' + r.s.bestScore + '%</div>' +
+      (isBest ? '<div style="font-size:11px;">⭐</div>' : '<div style="width:16px;"></div>');
+
+    rowsEl.appendChild(row);
+  });
+  // Remove border on last row
+  if (rowsEl.lastChild) rowsEl.lastChild.style.borderBottom = 'none';
+}
+
+function toggleWeekForecast() {
+  var panel = document.getElementById('week-forecast-panel');
+  if (!panel) return;
+  var isHidden = panel.style.display === 'none';
+  panel.style.display = isHidden ? 'block' : 'none';
+  if (isHidden) {
+    var bs = bannerState;
+    if (bs.lat === null) return;
+    buildWeekForecast(null);
+    fetch7DayWeather(bs.lat, bs.lng, function(err, d) {
+      if (!err && d) buildWeekForecast(d);
+    });
+  }
+}
 var _tickCount = 0;
 function tick() {
   _tickCount++;
@@ -4272,6 +4630,7 @@ document.addEventListener('DOMContentLoaded', function() {
   highlightTodayMonth();
   updateSeasonStatuses();
   initBanner();
+  initCalendar();
   setInterval(tick, 1000);
 
   // First-launch disclaimer
@@ -4304,107 +4663,340 @@ document.addEventListener('DOMContentLoaded', function() {
 // FEATURE 1: DEER ACTIVITY FORECAST
 // ════════════════════════════════════════════════════════════════
 
+// ════════════════════════════════════════════════════════════════
+// FEATURE 1: DEER ACTIVITY FORECAST — enhanced multi-factor model
+// Factors: time of day, moon phase, solunar, rut calendar,
+//          temperature, barometric pressure, wind speed,
+//          seasonal body condition
+// ════════════════════════════════════════════════════════════════
+
 // Rut calendar: peak activity boost per species per month (0=none, 30=peak)
 // Species: [Red, Fallow, Sika, Roe, CWD]
-// Muntjac omitted — breeds year-round, no rut peak
 // Sources: BDS, BASC, Deer Initiative
 var RUT_SPECIES = ['Red', 'Fallow', 'Sika', 'Roe', 'CWD'];
 var RUT_CALENDAR = {
-  1:  [0,  0,  0,  0,  15],  // CWD rut tailing off
+  1:  [0,  0,  0,  0,  15],
   2:  [0,  0,  0,  0,  5 ],
   3:  [0,  0,  0,  0,  0 ],
   4:  [0,  0,  0,  0,  0 ],
-  5:  [0,  0,  0,  5,  0 ],  // roe pre-rut
-  6:  [0,  0,  0,  15, 0 ],  // roe rut building
-  7:  [0,  0,  0,  30, 0 ],  // roe peak rut (late Jul–Aug)
-  8:  [5,  0,  0,  20, 0 ],  // roe tailing, red season opens
-  9:  [20, 5,  5,  0,  0 ],  // red rut building
-  10: [30, 30, 15, 0,  0 ],  // red & fallow peak rut
-  11: [15, 20, 30, 0,  20],  // sika peak, CWD rut starts
-  12: [0,  5,  15, 0,  30],  // CWD peak rut
+  5:  [0,  0,  0,  5,  0 ],
+  6:  [0,  0,  0,  15, 0 ],
+  7:  [0,  0,  0,  30, 0 ],
+  8:  [5,  0,  0,  20, 0 ],
+  9:  [20, 5,  5,  0,  0 ],
+  10: [30, 30, 15, 0,  0 ],
+  11: [15, 20, 30, 0,  20],
+  12: [0,  5,  15, 0,  30],
 };
 
-function getDeerActivityScore() {
+// Cached weather data
+var _weatherCache = { data: null, ts: 0, lat: null, lng: null };
+
+// Fetch weather from Open-Meteo (free, no API key)
+function fetchWeather(lat, lng, cb) {
+  var now = Date.now();
+  // Cache for 20 minutes or same location
+  if (_weatherCache.data && (now - _weatherCache.ts < 20*60*1000)
+      && _weatherCache.lat === lat && _weatherCache.lng === lng) {
+    return cb(null, _weatherCache.data);
+  }
+  var url = 'https://api.open-meteo.com/v1/forecast?latitude=' + lat
+    + '&longitude=' + lng
+    + '&current=temperature_2m,wind_speed_10m,surface_pressure,cloud_cover,weather_code,precipitation'
+    + '&hourly=surface_pressure&forecast_days=1&timezone=auto';
+  fetch(url)
+    .then(function(r) { return r.json(); })
+    .then(function(d) {
+      var c = d.current;
+      // Get pressure 3 hours ago from hourly to compute trend
+      var pressures = (d.hourly && d.hourly.surface_pressure) ? d.hourly.surface_pressure : [];
+      var curHour = new Date().getHours();
+      var pNow  = pressures[curHour]  || c.surface_pressure;
+      var p3ago = pressures[Math.max(0, curHour - 3)] || pNow;
+      var pressureTrend = pNow - p3ago; // positive = rising, negative = falling
+      var wx = {
+        temp:          c.temperature_2m,
+        windSpeed:     c.wind_speed_10m,   // km/h
+        pressure:      c.surface_pressure,
+        pressureTrend: pressureTrend,
+        cloudCover:    c.cloud_cover,
+        weatherCode:   c.weather_code,
+        precipitation: c.precipitation
+      };
+      _weatherCache = { data: wx, ts: Date.now(), lat: lat, lng: lng };
+      cb(null, wx);
+    })
+    .catch(function(e) { cb(e, null); });
+}
+
+// Solunar calculation — moon overhead/underfoot periods
+// Based on gravitational pull theory (Knight 1936, supported by Demarais et al)
+function getSolunar(date, lat, lng) {
+  var moon = getMoonPhase(date);
+  // Moon transit time: shifts ~50 min later each day from solar noon at new moon
+  // Each lunar day = 24h 50min = 1490 min, so transit moves 50 min/day
+  var SHIFT_PER_DAY = 50; // minutes per day
+  var transitMin    = (12 * 60 + moon.age * SHIFT_PER_DAY) % (24 * 60);
+  var underfootMin  = (transitMin + 12 * 60 + 25) % (24 * 60);
+  // Major periods: ±60 min around transit and underfoot (2hr window each)
+  // Minor periods: midpoints between majors (±30 min = 1hr window each)
+  var minor1 = (transitMin   + 6 * 60 + 12) % (24 * 60);
+  var minor2 = (underfootMin + 6 * 60 + 12) % (24 * 60);
+  return {
+    major1: { start: (transitMin   - 60 + 1440) % 1440, peak: transitMin,   end: (transitMin   + 60) % 1440 },
+    major2: { start: (underfootMin - 60 + 1440) % 1440, peak: underfootMin, end: (underfootMin + 60) % 1440 },
+    minor1: { start: (minor1 - 30 + 1440) % 1440, peak: minor1, end: (minor1 + 30) % 1440 },
+    minor2: { start: (minor2 - 30 + 1440) % 1440, peak: minor2, end: (minor2 + 30) % 1440 }
+  };
+}
+
+function fmtMins(m) {
+  if (m === null || m === undefined) return '--:--';
+  var mm = ((Math.round(m) % 1440) + 1440) % 1440;
+  var h = Math.floor(mm / 60), mn = mm % 60;
+  return (h < 10 ? '0' : '') + h + ':' + (mn < 10 ? '0' : '') + mn;
+}
+
+function getDeerActivityScore(wx) {
   var now = new Date();
   var month = now.getMonth() + 1;
   var moon = getMoonPhase(now);
   var bs = bannerState;
   var score = 0;
   var factors = [];
+  var wxFactors = []; // weather factors shown in strip separately
 
-  // ── Time of day ──────────────────────────────────────────────
+  // ── Time of day (max 40pts) ──────────────────────────────
   var curMin = now.getHours() * 60 + now.getMinutes();
   var srMin = bs.sunriseMin !== null ? bs.sunriseMin : (6 * 60);
   var ssMin = bs.sunsetMin  !== null ? bs.sunsetMin  : (20 * 60);
 
-  var dawnStart = bs.legalStartMin !== null ? bs.legalStartMin : (srMin - 60);
+  var dawnStart = srMin - 60;
   var dawnEnd   = srMin + 120;
   var duskStart = ssMin - 90;
-  var duskEnd   = bs.legalEndMin  !== null ? bs.legalEndMin  : (ssMin + 60);
+  var duskEnd   = ssMin + 45;  // 45 mins after sunset
+
+  var SVG_DAWN = '<svg width="18" height="14" viewBox="0 0 28 22" xmlns="http://www.w3.org/2000/svg" style="display:inline;vertical-align:middle;"><path d="M0,22 Q4,14 8,16 Q11,18 14,13 Q17,8 20,12 Q23,15 28,11 L28,22 Z" fill="#3a5a2a" opacity="0.85"/><path d="M0,22 Q5,17 9,19 Q13,21 16,17 Q19,14 24,18 Q26,19 28,17 L28,22 Z" fill="#2a4a1a" opacity="0.9"/><circle cx="14" cy="13" r="5" fill="#f5b830" opacity="0.95"/><g stroke="#f5b830" stroke-width="1.2" stroke-linecap="round" opacity="0.7"><line x1="14" y1="6" x2="14" y2="4"/><line x1="18.5" y1="7.5" x2="19.8" y2="6.2"/><line x1="9.5" y1="7.5" x2="8.2" y2="6.2"/></g></svg>';
+  var SVG_DUSK = '<svg width="18" height="14" viewBox="0 0 28 22" xmlns="http://www.w3.org/2000/svg" style="display:inline;vertical-align:middle;"><ellipse cx="14" cy="16" rx="12" ry="4" fill="#e06010" opacity="0.3"/><circle cx="14" cy="16" r="5" fill="#e87820" opacity="0.95"/><path d="M0,22 Q4,13 8,15 Q11,17 14,12 Q17,7 20,11 Q23,14 28,10 L28,22 Z" fill="#2a3a1a" opacity="0.9"/><path d="M0,22 Q5,16 9,18 Q13,20 16,16 Q19,13 24,17 Q26,18 28,16 L28,22 Z" fill="#1a2a0f" opacity="0.95"/></svg>';
 
   if (inWindow(curMin, dawnStart, dawnEnd)) {
-    score += 50;
-    factors.push({ icon:'🌅', text:'Dawn window — peak deer movement', good:true });
+    score += 40;
+    factors.push({ icon: SVG_DAWN, text: 'Dawn window — peak deer movement', good: true });
   } else if (inWindow(curMin, duskStart, duskEnd)) {
-    score += 50;
-    factors.push({ icon:'🌇', text:'Dusk window — peak deer movement', good:true });
+    score += 40;
+    factors.push({ icon: SVG_DUSK, text: 'Dusk window — peak deer movement', good: true });
   } else if (inWindow(curMin, dawnEnd, duskStart)) {
-    score += 15;
-    factors.push({ icon:'☀️', text:'Midday — deer movement reduced', good:false });
+    score += 8;
+    factors.push({ icon: '☀️', text: 'Midday — deer movement reduced', good: false });
   } else {
-    score += 5;
-    factors.push({ icon:'🌙', text:'Night — deer resting, minimal movement', good:false });
+    score += 8; // Night: new moon / rut / weather can still push score meaningfully
+    factors.push({ icon: '🌙', text: 'Night — deer resting, minimal movement', good: false });
   }
+  var isNight = !inWindow(curMin, dawnStart, duskEnd);
 
-  // ── Moon phase ────────────────────────────────────────────────
-  // New moon = darker nights = deer move in legal hours
-  // Full moon = deer fed all night = less dawn/dusk movement
+  // ── Moon phase (max 15pts) ───────────────────────────────
   var moonBoost, moonIcon, moonText, moonGood;
   if (moon.illumination < 15) {
-    moonBoost = 30; moonIcon = '🌑'; moonGood = true;
+    moonBoost = 15; moonIcon = '🌑'; moonGood = true;
     moonText = 'New moon (' + moon.illumination + '% lit) — deer active at dawn & dusk';
   } else if (moon.illumination < 40) {
-    moonBoost = 22; moonIcon = '🌒'; moonGood = true;
+    moonBoost = 11; moonIcon = '🌒'; moonGood = true;
     moonText = 'Crescent moon (' + moon.illumination + '% lit) — good movement conditions';
   } else if (moon.illumination < 60) {
-    moonBoost = 15; moonIcon = '🌓'; moonGood = null;
+    moonBoost = 8; moonIcon = '🌓'; moonGood = null;
     moonText = 'Quarter moon (' + moon.illumination + '% lit) — average movement';
   } else if (moon.illumination < 85) {
-    moonBoost = 8; moonIcon = '🌔'; moonGood = null;
+    moonBoost = 4; moonIcon = '🌔'; moonGood = null;
     moonText = 'Gibbous moon (' + moon.illumination + '% lit) — some nocturnal feeding';
   } else {
-    moonBoost = 3; moonIcon = '🌕'; moonGood = false;
-    moonText = 'Full moon (' + moon.illumination + '% lit) — deer fed overnight';
+    moonBoost = 1; moonIcon = '🌕'; moonGood = false;
+    moonText = 'Full moon (' + moon.illumination + '% lit) — deer may have fed overnight';
   }
-  // At night, moon phase is less relevant to current movement (deer resting regardless)
-  var isNight = !inWindow(curMin, dawnStart, duskEnd);
-  score += isNight ? Math.round(moonBoost * 0.4) : moonBoost;
+  score += isNight ? Math.round(moonBoost * 0.3) : moonBoost;
   factors.push({ icon: moonIcon, text: moonText, good: moonGood });
 
-  // ── Rut calendar ─────────────────────────────────────────────
+  // ── Solunar (max 8pts) ───────────────────────────────────
+  var sol = getSolunar(now, bs.lat || 52, bs.lng || 0);
+  var inMajor = inWindow(curMin, sol.major1.start, sol.major1.end) ||
+                inWindow(curMin, sol.major2.start, sol.major2.end);
+  var inMinor = inWindow(curMin, sol.minor1.start, sol.minor1.end) ||
+                inWindow(curMin, sol.minor2.start, sol.minor2.end);
+  if (inMajor) {
+    score += 8;
+    factors.push({ icon: '🌕', text: 'Solunar peak — moon directly overhead or underfoot, deer move more', good: true });
+  } else if (inMinor) {
+    score += 4;
+    factors.push({ icon: '🌗', text: 'Solunar minor period — moon at 90°, moderate activity boost', good: null });
+  }
+
+  // ── Rut calendar (max 15pts) ─────────────────────────────
   var rutMonths = RUT_CALENDAR[month] || [0,0,0,0,0];
   var maxRut = Math.max.apply(null, rutMonths);
   if (maxRut >= 25) {
     var peakNames = RUT_SPECIES.filter(function(_, i) { return rutMonths[i] >= 25; });
-    score += 20;
-    factors.push({ icon:'🦌', text: peakNames.join(' & ') + ' rut — heightened activity', good:true });
+    score += 15;
+    factors.push({ icon: '🦌', text: peakNames.join(' & ') + ' rut — heightened daytime activity', good: true });
   } else if (maxRut >= 10) {
     var activeNames = RUT_SPECIES.filter(function(_, i) { return rutMonths[i] >= 10; });
-    score += 10;
-    factors.push({ icon:'🦌', text: activeNames.join(' & ') + ' rut building — elevated movement', good:true });
+    score += 8;
+    factors.push({ icon: '🦌', text: activeNames.join(' & ') + ' rut building — elevated movement', good: true });
   } else if (maxRut > 0) {
-    score += 4;
-    factors.push({ icon:'🦌', text:'Pre/post rut — residual activity', good:null });
+    score += 3;
+    factors.push({ icon: '🦌', text: 'Pre/post rut — residual activity', good: null });
   }
-  // No rut = baseline, no factor shown
 
-  // Max possible: 50 (dawn) + 30 (new moon) + 20 (peak rut) = 100
+  // ── Seasonal body condition modifier (max 5pts) ──────────
+  // Sources: Clutton-Brock et al, BDS seasonal behaviour notes
+  var seasonBoost = 0;
+  if (month === 2) {
+    seasonBoost = 5; // Late winter nutritional stress — deer feed aggressively
+  } else if (month === 3) {
+    seasonBoost = 3; // Early spring recovery — some residual winter stress
+  } else if (month === 9 || month === 10) {
+    seasonBoost = 4; // Pre-rut energy build
+  } else if (month === 11) {
+    seasonBoost = 2; // Post-rut recovery — deer tired but still feeding
+  } else if (month === 6 || month === 7 || month === 8) {
+    seasonBoost = -3; // Summer heat suppresses movement
+  }
+  score += seasonBoost;
+  if (seasonBoost > 0 && month === 2) {
+    factors.push({ icon: '❄️', text: 'Late winter — deer feeding intensively to survive, movement elevated', good: true });
+  } else if (seasonBoost > 0 && month === 3) {
+    factors.push({ icon: '🌱', text: 'Early spring — residual winter stress, deer actively feeding', good: true });
+  } else if (seasonBoost > 0 && month === 11) {
+    factors.push({ icon: '🍂', text: 'Post-rut — deer exhausted but feeding to recover condition', good: null });
+  } else if (seasonBoost > 0) {
+    factors.push({ icon: '🍂', text: 'Pre-rut season — bucks building energy, increased movement', good: true });
+  } else if (seasonBoost < 0) {
+    factors.push({ icon: '☀️', text: 'Summer heat — movement concentrated at dawn & dusk only', good: null });
+  }
+
+  // ── Weather factors (max 22pts total) ───────────────────
+  if (wx) {
+    // Temperature (max 6pts)
+    // Optimal: 4–12°C. Cold snap bonus. Heat penalty.
+    var tempScore = 0, tempText = '', tempGood = null;
+    var t = wx.temp;
+    if (t <= 0) {
+      tempScore = 4; tempText = 'Freezing (' + t + '°C) — deer feeding to maintain warmth';
+      tempGood = true;
+    } else if (t <= 8) {
+      tempScore = 6; tempText = 'Cool (' + t + '°C) — ideal temperature for deer movement';
+      tempGood = true;
+    } else if (t <= 14) {
+      tempScore = 3; tempText = 'Mild (' + t + '°C) — moderate deer movement';
+      tempGood = null;
+    } else if (t <= 18) {
+      tempScore = 0; tempText = 'Warm (' + t + '°C) — movement somewhat suppressed';
+      tempGood = false;
+    } else {
+      tempScore = -3; tempText = 'Hot (' + t + '°C) — deer sheltering, movement suppressed';
+      tempGood = false;
+    }
+    score += tempScore;
+    wxFactors.push({ icon: '🌡️', text: tempText, good: tempGood,
+      wxLabel: 'Temp', wxVal: t + '°C',
+      wxSub: tempGood === true ? 'Favourable' : tempGood === false ? 'Suppressing' : 'Neutral',
+      wxClass: tempGood === true ? 'good' : tempGood === false ? 'bad' : 'mid' });
+
+    // Barometric pressure trend (max 8pts — strongest predictor)
+    var pressScore = 0, pressText = '', pressGood = null;
+    var pt = wx.pressureTrend; // change over 3hrs in hPa
+    if (pt < -2) {
+      pressScore = 8; pressText = 'Pressure falling sharply (' + wx.pressure.toFixed(0) + ' hPa) — pre-front feeding surge';
+      pressGood = true;
+    } else if (pt < -0.5) {
+      pressScore = 5; pressText = 'Pressure falling (' + wx.pressure.toFixed(0) + ' hPa) — increased deer movement';
+      pressGood = true;
+    } else if (pt > 2) {
+      pressScore = -2; pressText = 'Pressure rising sharply (' + wx.pressure.toFixed(0) + ' hPa) — settled conditions, less urgency';
+      pressGood = false;
+    } else if (pt > 0.5) {
+      pressScore = 0; pressText = 'Pressure steady/rising (' + wx.pressure.toFixed(0) + ' hPa) — normal conditions';
+      pressGood = null;
+    } else {
+      pressScore = 1; pressText = 'Pressure stable (' + wx.pressure.toFixed(0) + ' hPa) — routine movement expected';
+      pressGood = null;
+    }
+    score += pressScore;
+    var trendStr = pt < -0.5 ? '↓ ' : pt > 0.5 ? '↑ ' : '→ ';
+    wxFactors.push({ icon: '📉', text: pressText, good: pressGood,
+      wxLabel: 'Pressure', wxVal: trendStr + wx.pressure.toFixed(0),
+      wxSub: pressGood === true ? 'Falling ✓' : pressGood === false ? 'Rising ✗' : 'Stable',
+      wxClass: pressGood === true ? 'good' : pressGood === false ? 'bad' : 'mid' });
+
+    // Wind speed (max 6pts)
+    var windKmh = wx.windSpeed;
+    var windMph = Math.round(windKmh * 0.621);
+    var windScore = 0, windText = '', windGood = null;
+    if (windKmh <= 8) {
+      windScore = 6; windText = 'Calm wind (' + windMph + ' mph) — deer moving freely';
+      windGood = true;
+    } else if (windKmh < 20) {
+      windScore = 3; windText = 'Light breeze (' + windMph + ' mph) — minimal impact on movement';
+      windGood = null;
+    } else if (windKmh < 35) {
+      windScore = -2; windText = 'Moderate wind (' + windMph + ' mph) — deer more cautious';
+      windGood = false;
+    } else {
+      windScore = -5; windText = 'Strong wind (' + windMph + ' mph) — deer hunkered down, poor conditions';
+      windGood = false;
+    }
+    score += windScore;
+    wxFactors.push({ icon: '🍃', text: windText, good: windGood,
+      wxLabel: 'Wind', wxVal: windMph + ' mph',
+      wxSub: windGood === true ? 'Calm ✓' : windGood === false ? 'High ✗' : 'Moderate',
+      wxClass: windGood === true ? 'good' : windGood === false ? 'bad' : 'mid' });
+
+    // Precipitation (cloud/rain)
+    var rainScore = 0, rainText = '', rainGood = null;
+    var wc = wx.weatherCode;
+    var precip = wx.precipitation || 0;
+    if (precip > 5 || (wc >= 61 && wc <= 67) || (wc >= 80 && wc <= 82)) {
+      rainScore = -4; rainText = 'Heavy rain — deer sheltering, movement suppressed';
+      rainGood = false;
+    } else if (precip > 0.5 || (wc >= 51 && wc <= 57)) {
+      rainScore = 2; rainText = 'Light rain/drizzle — deer often more active in light rain';
+      rainGood = true;
+    } else if (wx.cloudCover > 70) {
+      rainScore = 2; rainText = 'Overcast (' + wx.cloudCover + '% cloud) — diffuse light, deer more active';
+      rainGood = true;
+    } else if (wx.cloudCover < 20) {
+      rainScore = 0; rainText = 'Clear sky (' + wx.cloudCover + '% cloud) — bright conditions';
+      rainGood = null;
+    } else {
+      rainScore = 1; rainText = 'Partly cloudy (' + wx.cloudCover + '%) — good conditions';
+      rainGood = null;
+    }
+    score += rainScore;
+    var rainLabel = precip > 5 ? 'Heavy rain' : precip > 0.5 ? 'Light rain' : wx.cloudCover > 70 ? 'Overcast' : wx.cloudCover < 20 ? 'Clear' : 'Partly cloudy';
+    wxFactors.push({ icon: '☁️', text: rainText, good: rainGood,
+      wxLabel: 'Sky', wxVal: rainLabel,
+      wxSub: rainGood === true ? 'Good ✓' : rainGood === false ? 'Poor ✗' : 'Neutral',
+      wxClass: rainGood === true ? 'good' : rainGood === false ? 'bad' : 'mid' });
+
+    // Add weather factors to main factors list
+    wxFactors.forEach(function(wf) { factors.push(wf); });
+  }
+
+  // Max without weather: 40+15+8+15+5 = 83
+  // Max with weather: 83+6+8+6+2 = 105, capped at 100
   score = Math.min(100, Math.max(0, score));
-  return { score: score, factors: factors, moon: moon };
+
+  return {
+    score: score, factors: factors, moon: moon,
+    wx: wx, wxFactors: wxFactors,
+    sol: getSolunar(now, bs.lat || 52, bs.lng || 0),
+    srMin: srMin, ssMin: ssMin,
+    dawnStart: dawnStart, dawnEnd: dawnEnd,
+    duskStart: duskStart, duskEnd: duskEnd,
+    curMin: curMin
+  };
 }
 
-function updateActivityPanel() {
-  var result = getDeerActivityScore();
+function updateActivityPanel(wx) {
+  var result = getDeerActivityScore(wx || null);
   var bar = document.getElementById('activity-bar');
   var scoreEl = document.getElementById('activity-score');
   var labelEl = document.getElementById('activity-label');
@@ -4413,15 +5005,13 @@ function updateActivityPanel() {
   if (!bar) return;
 
   bar.style.width = result.score + '%';
-
-  // Colour bar by score
-  if (result.score >= 70) {
+  if (result.score >= 75) {
     bar.style.background = 'linear-gradient(90deg,#5adf5a,#c8e050)';
     if (pip) { pip.style.background='#5adf5a'; pip.style.boxShadow='0 0 6px #5adf5a'; }
-  } else if (result.score >= 40) {
+  } else if (result.score >= 50) {
     bar.style.background = 'linear-gradient(90deg,#c8a84b,#e0c050)';
     if (pip) { pip.style.background='#c8a84b'; pip.style.boxShadow='0 0 6px #c8a84b'; }
-  } else if (result.score >= 20) {
+  } else if (result.score >= 25) {
     bar.style.background = 'linear-gradient(90deg,#e07020,#e09040)';
     if (pip) { pip.style.background='#e07020'; pip.style.boxShadow='0 0 6px #e07020'; }
   } else {
@@ -4431,18 +5021,70 @@ function updateActivityPanel() {
 
   scoreEl.textContent = result.score + '%';
 
-  var label = result.score >= 70 ? '🟢 High Activity Expected'
-            : result.score >= 40 ? '🟡 Moderate Activity'
-            : result.score >= 20 ? '🟠 Low Activity'
-            :                      '⚫ Minimal Activity';
+  // Update badge on moon widget
+  var badge = document.getElementById('activity-score-badge');
+  if (badge) {
+    badge.textContent = '🦌 ' + result.score + '%';
+    badge.style.display = 'block';
+  }
+  var isNightNow = result.curMin !== undefined &&
+    !inWindow(result.curMin, result.dawnStart, result.duskEnd);
+
+  var label;
+  if (isNightNow) {
+    // Night: max possible ~35% so use different scale
+    label = result.score >= 28 ? '🟢 Excellent dawn forecast'
+          : result.score >= 20 ? '🟡 Good dawn forecast'
+          : result.score >= 12 ? '🟠 Average dawn forecast'
+          :                      '⚫ Poor dawn forecast';
+  } else {
+    label = result.score >= 75 ? '🟢 Exceptional Conditions'
+          : result.score >= 55 ? '🟢 High Activity Expected'
+          : result.score >= 35 ? '🟡 Moderate Activity'
+          : result.score >= 18 ? '🟠 Low Activity'
+          :                      '⚫ Minimal Activity';
+  }
   labelEl.textContent = label;
 
+  // ── Weather strip ──────────────────────────────────────────
+  var wxStripEl = document.getElementById('activity-wx-strip');
+  var wxLabelEl = document.getElementById('activity-wx-label');
+  if (wxStripEl) {
+    if (result.wx) {
+      if (wxLabelEl) wxLabelEl.style.display = 'block';
+      wxStripEl.style.display = 'grid';
+      wxStripEl.innerHTML = '';
+      result.wxFactors.forEach(function(wf) {
+        var cell = document.createElement('div');
+        var clsMap = { good:'rgba(90,220,90,0.08);border:1px solid rgba(90,220,90,0.2);',
+                       bad: 'rgba(255,100,100,0.07);border:1px solid rgba(255,100,100,0.15);',
+                       mid: 'rgba(200,168,75,0.08);border:1px solid rgba(200,168,75,0.2);',
+                       '': 'rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.08);' };
+        var bg = clsMap[wf.wxClass] || clsMap[''];
+        cell.style.cssText = 'background:' + bg + 'border-radius:10px;padding:7px 8px;display:flex;flex-direction:column;gap:2px;';
+        var subColor = wf.wxClass === 'good' ? '#7adf7a' : wf.wxClass === 'bad' ? '#ff8080' : '#f0c870';
+        cell.innerHTML = '<div style="font-size:8px;font-weight:700;text-transform:uppercase;letter-spacing:0.4px;color:rgba(255,255,255,0.35);">' + wf.wxLabel + '</div>'
+          + '<div style="font-size:14px;font-weight:700;color:white;">' + wf.wxVal + '</div>'
+          + '<div style="font-size:9px;color:' + subColor + ';">' + wf.wxSub + '</div>';
+        wxStripEl.appendChild(cell);
+      });
+    } else {
+      wxStripEl.style.display = 'none';
+      if (wxLabelEl) wxLabelEl.style.display = 'none';
+    }
+  }
+
+  // ── Factors ────────────────────────────────────────────────
   factorsEl.innerHTML = '';
-  result.factors.forEach(function(f) {
+  // Only show non-weather factors here (weather shown in strip)
+  var mainFactors = result.factors.filter(function(f) { return !f.wxLabel; });
+  mainFactors.forEach(function(f) {
     var div = document.createElement('div');
     div.style.cssText = 'display:flex;gap:8px;align-items:center;font-size:12px;padding:4px 0;border-top:1px solid rgba(255,255,255,0.08);';
     var ico = document.createElement('span');
-    ico.textContent = f.icon;
+    ico.style.cssText = 'display:inline-flex;align-items:center;flex-shrink:0;';
+    if (f.icon && f.icon.startsWith('<')) ico.innerHTML = f.icon;
+    else ico.textContent = f.icon;
     var txt = document.createElement('span');
     txt.textContent = f.text;
     txt.style.color = f.good === true ? 'rgba(180,240,160,0.9)'
@@ -4452,22 +5094,105 @@ function updateActivityPanel() {
     div.appendChild(txt);
     factorsEl.appendChild(div);
   });
+
+  // ── Timeline ──────────────────────────────────────────────
+  var curMin2    = result.curMin    || (new Date().getHours() * 60 + new Date().getMinutes());
+  var dawnStart2 = result.dawnStart !== undefined ? result.dawnStart : (5 * 60 + 17);
+  var dawnEnd2   = result.dawnEnd   !== undefined ? result.dawnEnd   : (8 * 60 + 17);
+  var duskStart2 = result.duskStart !== undefined ? result.duskStart : (17 * 60);
+  var duskEnd2   = result.duskEnd   !== undefined ? result.duskEnd   : (19 * 60);
+  var MINS_DAY = 1440;
+
+  function pct(min) {
+    var v = ((Math.round(min) % MINS_DAY) + MINS_DAY) % MINS_DAY;
+    return (v / MINS_DAY * 100).toFixed(2) + '%';
+  }
+  function wPct(start, end) {
+    var s = ((Math.round(start) % MINS_DAY) + MINS_DAY) % MINS_DAY;
+    var e = ((Math.round(end)   % MINS_DAY) + MINS_DAY) % MINS_DAY;
+    var w = e > s ? e - s : (MINS_DAY - s + e); // handle midnight wrap
+    return (w / MINS_DAY * 100).toFixed(2) + '%';
+  }
+  function inWin(cur, s, e) { return cur >= s && cur <= e; }
+
+  var dawnSeg = document.getElementById('tl-dawn-seg');
+  var duskSeg = document.getElementById('tl-dusk-seg');
+  var nowLine = document.getElementById('tl-now-line');
+  var sol1Seg = document.getElementById('tl-sol1-seg');
+  var sol2Seg = document.getElementById('tl-sol2-seg');
+
+  if (dawnSeg) { dawnSeg.style.left = pct(dawnStart2); dawnSeg.style.width = wPct(dawnStart2, dawnEnd2); }
+  if (duskSeg) { duskSeg.style.left = pct(duskStart2); duskSeg.style.width = wPct(duskStart2, duskEnd2); }
+  if (nowLine) { nowLine.style.left = pct(curMin2); }
+
+  // Solunar markers on timeline
+  var sol = result.sol;
+  if (sol && sol1Seg) { sol1Seg.style.left = pct(sol.major1.start); sol1Seg.style.width = wPct(sol.major1.start, sol.major1.end); }
+  if (sol && sol2Seg) { sol2Seg.style.left = pct(sol.major2.start); sol2Seg.style.width = wPct(sol.major2.start, sol.major2.end); }
+
+  // Dawn chip
+  var dawnLabel = document.getElementById('tl-dawn-chip-label');
+  var dawnTime  = document.getElementById('tl-dawn-chip-time');
+  var dawnChip  = document.getElementById('tl-dawn-chip');
+  var dawnActive = inWin(curMin2, dawnStart2, dawnEnd2);
+  if (dawnChip) { dawnChip.style.background = dawnActive ? 'rgba(240,192,64,0.15)' : 'rgba(255,255,255,0.05)'; dawnChip.style.border = dawnActive ? '1px solid rgba(240,192,64,0.3)' : '1px solid rgba(255,255,255,0.08)'; }
+  if (dawnLabel) dawnLabel.textContent = 'Dawn peak' + (dawnActive ? ' ● Now' : '');
+  if (dawnTime)  dawnTime.textContent  = fmtMins(dawnStart2) + ' – ' + fmtMins(dawnEnd2);
+
+  // Dusk chip
+  var duskLabel = document.getElementById('tl-dusk-chip-label');
+  var duskTime  = document.getElementById('tl-dusk-chip-time');
+  var duskChip  = document.getElementById('tl-dusk-chip');
+  var duskActive = inWin(curMin2, duskStart2, duskEnd2);
+  if (duskChip) { duskChip.style.background = duskActive ? 'rgba(240,144,32,0.15)' : 'rgba(255,255,255,0.05)'; duskChip.style.border = duskActive ? '1px solid rgba(240,144,32,0.3)' : '1px solid rgba(255,255,255,0.08)'; }
+  if (duskLabel) duskLabel.textContent = 'Dusk peak' + (duskActive ? ' ● Now' : '');
+  if (duskTime)  duskTime.textContent  = fmtMins(duskStart2) + ' – ' + fmtMins(duskEnd2);
+
+  // Solunar chips
+  var sol1Label = document.getElementById('tl-sol1-label');
+  var sol1Time  = document.getElementById('tl-sol1-time');
+  var sol2Label = document.getElementById('tl-sol2-label');
+  var sol2Time  = document.getElementById('tl-sol2-time');
+  if (sol1Label) sol1Label.textContent = 'Solunar peak · Moon overhead';
+  if (sol1Time)  sol1Time.textContent  = fmtMins(sol.major1.peak);
+  if (sol2Label) sol2Label.textContent = 'Solunar peak · Moon underfoot';
+  if (sol2Time)  sol2Time.textContent  = fmtMins(sol.major2.peak);
 }
+
 
 function toggleActivityPanel() {
   var panel = document.getElementById('activity-panel');
+  var wfPanel = document.getElementById('week-forecast-panel');
   if (!panel) return;
   var isHidden = panel.style.display === 'none';
   panel.style.display = isHidden ? 'block' : 'none';
+  if (wfPanel) wfPanel.style.display = isHidden ? 'block' : 'none';
   if (isHidden) {
-    // If location not yet resolved, show a waiting state
-    if (bannerState.lat === null) {
-      var factorsEl = document.getElementById('activity-factors');
-      if (factorsEl) factorsEl.innerHTML = '<div style="color:rgba(255,255,255,0.45);font-size:12px;">Waiting for location to calculate times…</div>';
-      var labelEl = document.getElementById('activity-label');
-      if (labelEl) labelEl.textContent = '';
+    // Show loading state in wx strip
+    var wxStrip = document.getElementById('activity-wx-strip');
+    var wxLabel = document.getElementById('activity-wx-label');
+    if (wxStrip && bannerState.lat !== null) {
+      if (wxLabel) { wxLabel.style.display = 'block'; wxLabel.textContent = 'Live weather · Loading…'; }
+      wxStrip.style.display = 'grid';
+      wxStrip.innerHTML = '<div style="grid-column:1/-1;font-size:11px;color:rgba(255,255,255,0.3);padding:6px 0;">Fetching weather data…</div>';
     }
-    updateActivityPanel();
+    if (bannerState.lat !== null) {
+      // Fetch current weather for live panel
+      fetchWeather(bannerState.lat, bannerState.lng, function(err, wx) {
+        if (!err && wx) {
+          if (wxLabel) wxLabel.textContent = 'Live weather · Open-Meteo';
+          updateActivityPanel(wx);
+        } else {
+          if (wxLabel) { wxLabel.style.display = 'block'; wxLabel.textContent = 'Weather unavailable · score based on other factors'; }
+          if (wxStrip) wxStrip.style.display = 'none';
+        }
+      });
+      // Fetch 7-day weather forecast
+      buildWeekForecast(null);
+      fetch7DayWeather(bannerState.lat, bannerState.lng, function(err, d) {
+        if (!err && d) buildWeekForecast(d);
+      });
+    }
   }
 }
 
@@ -4820,7 +5545,103 @@ if ('serviceWorker' in navigator) {
 
   onReady(function() {
 
-    // ── Skip link: focus/blur ──────────────────────────────
+    // ── Pull to refresh ────────────────────────────────────
+    (function() {
+      var PTR_THRESHOLD = 72;   // px to pull before triggering
+      var PTR_RESIST   = 0.4;   // resistance factor
+      var startY = 0;
+      var pulling = false;
+      var refreshing = false;
+      var indicator = document.getElementById('ptr-indicator');
+      var arrow = document.getElementById('ptr-arrow');
+      var label = document.getElementById('ptr-label');
+
+      function showIndicator(dist) {
+        if (!indicator) return;
+        var progress = Math.min(dist / PTR_THRESHOLD, 1);
+        indicator.style.display = 'flex';
+        arrow.style.transform = progress >= 1 ? 'rotate(180deg)' : 'rotate(0deg)';
+        label.textContent = progress >= 1 ? 'Release to refresh' : 'Pull to refresh';
+        indicator.style.opacity = Math.min(progress * 1.5, 1);
+      }
+
+      function hideIndicator() {
+        if (!indicator) return;
+        indicator.style.display = 'none';
+        indicator.style.opacity = '0';
+      }
+
+      function doRefresh() {
+        if (refreshing) return;
+        refreshing = true;
+        if (indicator) {
+          arrow.style.transform = 'rotate(0deg)';
+          label.textContent = 'Refreshing…';
+        }
+        // Re-run GPS and solar calc
+        ui.showLocationPrompt('Locating…');
+        initBanner();
+        updateMoon();
+        // Hide after 1.5s
+        setTimeout(function() {
+          hideIndicator();
+          refreshing = false;
+        }, 1500);
+      }
+
+      document.addEventListener('touchstart', function(e) {
+        // Only trigger if at top of page
+        if (window.scrollY === 0) {
+          startY = e.touches[0].clientY;
+          pulling = true;
+        }
+      }, { passive: true });
+
+      document.addEventListener('touchmove', function(e) {
+        if (!pulling || refreshing) return;
+        var dist = (e.touches[0].clientY - startY) * PTR_RESIST;
+        if (dist > 0) showIndicator(dist);
+        else hideIndicator();
+      }, { passive: true });
+
+      document.addEventListener('touchend', function(e) {
+        if (!pulling || refreshing) return;
+        pulling = false;
+        var dist = (e.changedTouches[0].clientY - startY) * PTR_RESIST;
+        if (dist >= PTR_THRESHOLD) {
+          doRefresh();
+        } else {
+          hideIndicator();
+        }
+      }, { passive: true });
+    }());
+
+
+    var calBtnEW = document.getElementById('cal-btn-ew');
+    var calBtnSC = document.getElementById('cal-btn-sc');
+    var calViewEW = document.getElementById('cal-view-ew');
+    var calViewSC = document.getElementById('cal-view-sc');
+    var ewActiveStyle = 'flex:1;padding:10px 0;border-radius:20px;border:1px solid rgba(200,168,75,0.3);cursor:pointer;font-family:\'DM Sans\',sans-serif;font-size:13px;font-weight:600;background:linear-gradient(135deg,#2a5a18,#1a3a0e);color:#f5e6c8;';
+    var scActiveStyle = 'flex:1;padding:10px 0;border-radius:20px;border:1px solid rgba(120,160,240,0.3);cursor:pointer;font-family:\'DM Sans\',sans-serif;font-size:13px;font-weight:600;background:linear-gradient(135deg,#1a2a5a,#0e1a3a);color:#c8d8f8;';
+    var inactiveStyle = 'flex:1;padding:10px 0;border-radius:20px;border:1px solid rgba(255,255,255,0.1);cursor:pointer;font-family:\'DM Sans\',sans-serif;font-size:13px;font-weight:600;background:rgba(255,255,255,0.07);color:rgba(255,255,255,0.45);';
+    if (calBtnEW) {
+      calBtnEW.addEventListener('click', function() {
+        calBtnEW.style.cssText = ewActiveStyle;
+        calBtnSC.style.cssText = inactiveStyle;
+        calViewEW.style.display = 'block';
+        calViewSC.style.display = 'none';
+      });
+    }
+    if (calBtnSC) {
+      calBtnSC.addEventListener('click', function() {
+        calBtnSC.style.cssText = scActiveStyle;
+        calBtnEW.style.cssText = inactiveStyle;
+        calViewSC.style.display = 'block';
+        calViewEW.style.display = 'none';
+      });
+    }
+
+
     var skipLink = document.getElementById('skip-link');
     if (skipLink) {
       skipLink.addEventListener('focus', function() { this.style.top = '0'; });
@@ -4917,29 +5738,6 @@ if ('serviceWorker' in navigator) {
     // ── Hours disclaimer close button ──────────────────────
     var disclaimerCloseBtn = document.getElementById('hours-disclaimer-close');
     if (disclaimerCloseBtn) { disclaimerCloseBtn.addEventListener('click', closeHoursDisclaimer); }
-
-    // ── Share button ───────────────────────────────────────
-    var shareBtn = document.getElementById('share-btn');
-    if (shareBtn) {
-      shareBtn.addEventListener('click', function() {
-        var shareData = {
-          title: 'First Light',
-          text: 'UK deer seasons, legal hours & stalking guide — free app',
-          url: 'https://firstlightdeer.co.uk'
-        };
-        if (navigator.share) {
-          navigator.share(shareData).catch(function() {});
-        } else {
-          navigator.clipboard && navigator.clipboard.writeText('https://firstlightdeer.co.uk')
-            .then(function() {
-              shareBtn.textContent = '✓ Copied';
-              setTimeout(function() {
-                shareBtn.innerHTML = '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg> Share';
-              }, 2000);
-            }).catch(function() {});
-        }
-      });
-    }
 
     // ── BDS link ───────────────────────────────────────────
     var bdsLink = document.getElementById('bds-link');
