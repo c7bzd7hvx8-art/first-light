@@ -3953,10 +3953,11 @@ function updateMoon() {
   if (nameEl) nameEl.textContent = moon.name;
   if (illEl)  illEl.textContent  = moon.illumination + '% lit';
 
-  // Show quick activity score on badge without opening panel
+  // Show quick activity score on badge — use cached weather if available
   var badge = document.getElementById('activity-score-badge');
   if (badge && bannerState.lat !== null) {
-    var quick = getDeerActivityScore(null);
+    var cachedWx = (_weatherCache && _weatherCache.data && _weatherCache.lat === bannerState.lat) ? _weatherCache.data : null;
+    var quick = getDeerActivityScore(cachedWx);
     badge.textContent = '🦌 ' + quick.score + '%';
     badge.style.display = 'block';
   }
@@ -5182,6 +5183,10 @@ function toggleActivityPanel() {
         if (!err && wx) {
           if (wxLabel) wxLabel.textContent = 'Live weather · Open-Meteo';
           updateActivityPanel(wx);
+          // Sync badge with weather-enhanced score
+          var badge = document.getElementById('activity-score-badge');
+          var result = getDeerActivityScore(wx);
+          if (badge) badge.textContent = '🦌 ' + result.score + '%';
         } else {
           if (wxLabel) { wxLabel.style.display = 'block'; wxLabel.textContent = 'Weather unavailable · score based on other factors'; }
           if (wxStrip) wxStrip.style.display = 'none';
