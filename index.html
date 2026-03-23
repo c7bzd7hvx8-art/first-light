@@ -3958,7 +3958,7 @@ function updateMoon() {
   if (badge && bannerState.lat !== null) {
     var cachedWx = (_weatherCache && _weatherCache.data && _weatherCache.lat === bannerState.lat) ? _weatherCache.data : null;
     var quick = getDeerActivityScore(cachedWx);
-    badge.textContent = '🦌 ' + quick.score + '%';
+    badge.textContent = '🦌 ' + result.score + '%';
     badge.style.display = 'block';
   }
 }
