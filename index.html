@@ -3632,7 +3632,8 @@ function inWindow(cur, start, end) {
 }
 
 function toMinutes(dateObj) {
-  return dateObj.getHours() * 60 + dateObj.getMinutes();
+  var p = ukHourMin(dateObj);
+  return p.h * 60 + p.m;
 }
 
 function fmtTime(h, m) {
@@ -3646,6 +3647,18 @@ function fmtMinutes(totalMin) {
 
 function addMins(dateObj, mins) {
   return new Date(dateObj.getTime() + mins * 60000);
+}
+
+// ── UK time helper — always Europe/London, ignores device timezone ──
+function ukHourMin(dateObj) {
+  var parts = new Intl.DateTimeFormat('en-GB', {
+    timeZone: 'Europe/London',
+    hour: '2-digit', minute: '2-digit', hour12: false
+  }).formatToParts(dateObj);
+  return {
+    h: parseInt(parts.find(function(p) { return p.type === 'hour'; }).value, 10),
+    m: parseInt(parts.find(function(p) { return p.type === 'minute'; }).value, 10)
+  };
 }
 
 // ── 4 + 12: Update centralised bannerState ────────────────────
@@ -3662,7 +3675,8 @@ function computeBannerState(lat, lng, locationName) {
   var leMin = toMinutes(legalEnd);
   var srMin = toMinutes(sunrise);
   var ssMin = toMinutes(sunset);
-  var curMin = now.getHours() * 60 + now.getMinutes();
+  var _nowUK = ukHourMin(now);
+  var curMin = _nowUK.h * 60 + _nowUK.m;
 
   var isLegal    = inWindow(curMin, lsMin, leMin);
   var isTwilight = isLegal && (!inWindow(curMin, srMin, ssMin));
@@ -3699,7 +3713,8 @@ function computeBannerState(lat, lng, locationName) {
 var _lastSolarMinute = -1;
 
 function maybeRecalcSolar() {
-  var nowMin = new Date().getHours() * 60 + new Date().getMinutes();
+  var _n = new Date(); var _p = ukHourMin(_n);
+  var nowMin = _p.h * 60 + _p.m;
   if (nowMin === _lastSolarMinute) return;
   _lastSolarMinute = nowMin;
   if (bannerState.lat !== null) {
@@ -3770,7 +3785,8 @@ function drawSunArc(srMin, ssMin, lsMin, leMin) {
   var svg = document.getElementById('sun-arc-svg');
   if (!svg) return;
   var now    = new Date();
-  var curMin = now.getHours() * 60 + now.getMinutes();
+  var _pArc  = ukHourMin(now);
+  var curMin = _pArc.h * 60 + _pArc.m;
 
   // Map minute (0-1439) to position along the arc path
   // Arc goes from x=10 (left) to x=190 (right) across viewBox 0 0 200 50
@@ -3815,7 +3831,8 @@ function updateBannerClock() {
   if (bs.legalStartMin === null) return;
 
   var now    = new Date();
-  var curMin = now.getHours() * 60 + now.getMinutes();
+  var nowUK  = ukHourMin(now);
+  var curMin = nowUK.h * 60 + nowUK.m;
   var curSec = now.getSeconds();
   var curTotalSec = curMin * 60 + curSec;
   var el     = document.getElementById('banner-countdown');
@@ -4276,7 +4293,8 @@ function buildForecast() {
 
   function fmtD(dateObj) {
     if (!dateObj || isNaN(dateObj.getTime())) return 'Unavailable';
-    return fmtTime(dateObj.getHours(), dateObj.getMinutes());
+    var p = ukHourMin(dateObj);
+    return fmtTime(p.h, p.m);
   }
 
   function windowDuration(lsDate, leDate) {
@@ -4408,8 +4426,9 @@ function scoreDay(date, wxDay) {
   try { ss = calcSunTime(date, lat, lng, false); } catch(e) { ss = null; }
   if (!sr || !ss) return null;
 
-  var srMin = sr.getHours() * 60 + sr.getMinutes();
-  var ssMin = ss.getHours() * 60 + ss.getMinutes();
+  var _srP = ukHourMin(sr), _ssP = ukHourMin(ss);
+  var srMin = _srP.h * 60 + _srP.m;
+  var ssMin = _ssP.h * 60 + _ssP.m;
   var dawnStart = srMin - 60;
   var dawnEnd   = srMin + 120;
   var duskStart = ssMin - 90;
@@ -4497,7 +4516,8 @@ function buildWeekForecast(wxData) {
   if (!results.length) return;
 
   // Find best day — skip today if both windows already passed
-  var nowMin = new Date().getHours() * 60 + new Date().getMinutes();
+  var _nf = new Date(); var _pf = ukHourMin(_nf);
+  var nowMin = _pf.h * 60 + _pf.m;
   var bestIdx = -1;
   var bestScore = -1;
   results.forEach(function(r, i) {
@@ -4711,7 +4731,7 @@ function fetchWeather(lat, lng, cb) {
       var c = d.current;
       // Get pressure 3 hours ago from hourly to compute trend
       var pressures = (d.hourly && d.hourly.surface_pressure) ? d.hourly.surface_pressure : [];
-      var curHour = new Date().getHours();
+      var curHour = ukHourMin(new Date()).h;
       var pNow  = pressures[curHour]  || c.surface_pressure;
       var p3ago = pressures[Math.max(0, curHour - 3)] || pNow;
       var pressureTrend = pNow - p3ago; // positive = rising, negative = falling
@@ -4769,7 +4789,8 @@ function getDeerActivityScore(wx) {
   var wxFactors = []; // weather factors shown in strip separately
 
   // ── Time of day (max 40pts) ──────────────────────────────
-  var curMin = now.getHours() * 60 + now.getMinutes();
+  var _nowAct = ukHourMin(now);
+  var curMin = _nowAct.h * 60 + _nowAct.m;
   var srMin = bs.sunriseMin !== null ? bs.sunriseMin : (6 * 60);
   var ssMin = bs.sunsetMin  !== null ? bs.sunsetMin  : (20 * 60);
 
@@ -5098,7 +5119,7 @@ function updateActivityPanel(wx) {
   });
 
   // ── Timeline ──────────────────────────────────────────────
-  var curMin2    = result.curMin    || (new Date().getHours() * 60 + new Date().getMinutes());
+  var curMin2    = result.curMin    || (function() { var p = ukHourMin(new Date()); return p.h * 60 + p.m; }());
   var dawnStart2 = result.dawnStart !== undefined ? result.dawnStart : (5 * 60 + 17);
   var dawnEnd2   = result.dawnEnd   !== undefined ? result.dawnEnd   : (8 * 60 + 17);
   var duskStart2 = result.duskStart !== undefined ? result.duskStart : (17 * 60);
@@ -5441,7 +5462,7 @@ function useMyLocation() {
         .catch(function() { updateBanner(lat, lng, 'Your Location'); });
     },
     function() { ui.showLocationPrompt('Location unavailable'); },
-    { timeout: 8000, maximumAge: 300000 }
+    { timeout: 8000, maximumAge: 0 }
   );
 }
 
