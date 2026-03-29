@@ -3619,7 +3619,7 @@ function calcSunTime(date, lat, lng, isSunrise) {
   var T = H + RA - (0.06571 * t) - 6.622;
   var UT = ((T - lngHour) % 24 + 24) % 24;
   var result = new Date(date);
-  result.setHours(Math.floor(UT), Math.round((UT % 1) * 60), 0, 0);
+  result.setUTCHours(Math.floor(UT), Math.round((UT % 1) * 60), 0, 0);
   return result;
 }
 
