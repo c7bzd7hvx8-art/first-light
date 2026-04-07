@@ -1,0 +1,555 @@
+<!DOCTYPE html>
+<html lang="en-GB">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Deer School — First Light</title>
+<meta name="description" content="DSC1 study aid and mock exam. Test your deer stalking knowledge.">
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,700;1,400&family=DM+Sans:wght@300;400;500;600;700&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="deerschool.css">
+</head>
+<body>
+<div class="toast" id="toast"></div>
+
+<!-- ══ DISCLAIMER ══ -->
+<div id="v-disclaimer" class="view active">
+  <div class="disc-logo">
+    <img src="icon-180.png" alt="First Light">
+    <h1>Deer School</h1>
+    <p>by First Light</p>
+  </div>
+  <div class="disc-card">
+    <div class="disc-badge">📋 Study Aid Disclaimer</div>
+    <div class="disc-title">First Light: DSC1 Study Aid</div>
+    <div class="disc-body">
+      This training module is an <strong>independent study aid</strong> designed to test knowledge of the public UK Deer Management Qualifications (DMQ) syllabus.<br><br>
+      It is <strong>not an official DMQ product</strong> and does not replace the British Deer Society (BDS) Training Manual. All users are strongly encouraged to study official materials in preparation for their assessment.<br><br>
+      Usage of this app <strong>does not guarantee a pass.</strong>
+    </div>
+  </div>
+  <button class="disc-btn" onclick="acceptDisclaimer()">I understand — Enter Deer School →</button>
+</div>
+
+<!-- ══ DASHBOARD ══ -->
+<div id="v-dashboard" class="view">
+  <div class="dash-hdr">
+    <!-- Subtle radial glow top-right -->
+    <div style="position:absolute;top:-40px;right:-40px;width:160px;height:160px;border-radius:50%;background:radial-gradient(circle,rgba(200,168,75,0.12),transparent 70%);pointer-events:none;"></div>
+    <div class="dash-top">
+      <a href="index.html" class="dash-back">
+        <img src="icon-180.png" alt="First Light">
+        <span>First Light</span>
+      </a>
+      <div style="background:linear-gradient(135deg,#c9a84c,#d4b45a);color:#0f1a0f;font-size:9px;font-weight:800;padding:3px 9px;border-radius:7px;letter-spacing:0.5px;">DSC1 PREP</div>
+    </div>
+    <div class="dash-title">Deer School</div>
+    <div style="display:flex;align-items:center;gap:8px;margin-top:6px;">
+      <div class="dash-sub">Study</div>
+      <div style="width:3px;height:3px;border-radius:50%;background:rgba(200,168,75,0.4);"></div>
+      <div class="dash-sub">Practise</div>
+      <div style="width:3px;height:3px;border-radius:50%;background:rgba(200,168,75,0.4);"></div>
+      <div class="dash-sub">Pass</div>
+    </div>
+  </div>
+  <div class="dash-scroll">
+    <!-- Exam readiness -->
+    <div class="readiness-card">
+      <div class="readiness-lbl">Exam Readiness</div>
+      <div class="readiness-row">
+        <div class="readiness-pct" id="readiness-pct">–<span>%</span></div>
+        <div class="readiness-info">
+          <div class="readiness-bar-wrap">
+            <div class="readiness-bar" id="readiness-bar" style="width:0%;background:var(--muted);"></div>
+          </div>
+          <div class="readiness-note" id="readiness-note">Complete a session to see your readiness score. Pass mark is 80%.</div>
+        </div>
+      </div>
+      <div class="score-pills" id="score-pills"></div>
+    </div>
+
+    <!-- Section label -->
+    <div style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--muted);font-family:'DM Mono',monospace;margin-bottom:8px;padding-left:2px;">Study Modes</div>
+    <!-- Mode buttons -->
+    <div class="mode-grid">
+      <button class="mode-btn primary" onclick="startQuiz('quick')">
+        <div class="mode-btn-icon">
+          <svg width="32" height="32" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <!-- Lightning bolt -->
+            <path d="M19 4L10 18H16L13 28L23 13H17L19 4Z" fill="rgba(255,210,80,0.95)" stroke="rgba(255,210,80,0.5)" stroke-width="0.5" stroke-linejoin="round"/>
+          </svg>
+        </div>
+        <div class="mode-btn-title">Quick Quiz</div>
+        <div class="mode-btn-sub">10 random questions</div>
+      </button>
+      <button class="mode-btn" onclick="startQuiz('mock')">
+        <div class="mode-btn-icon">
+          <svg width="32" height="32" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <!-- Clipboard body -->
+            <rect x="7" y="8" width="18" height="21" rx="3" fill="#f0f4ff" stroke="#4a6abf" stroke-width="1.6"/>
+            <!-- Clipboard top clip -->
+            <rect x="12" y="5" width="8" height="5" rx="2" fill="#4a6abf"/>
+            <rect x="12" y="5" width="8" height="3" rx="1.5" fill="#3a5ab0"/>
+            <!-- Lines on clipboard -->
+            <line x1="11" y1="15" x2="21" y2="15" stroke="#4a6abf" stroke-width="1.3" stroke-linecap="round" opacity="0.6"/>
+            <line x1="11" y1="19" x2="21" y2="19" stroke="#4a6abf" stroke-width="1.3" stroke-linecap="round" opacity="0.6"/>
+            <line x1="11" y1="23" x2="17" y2="23" stroke="#4a6abf" stroke-width="1.3" stroke-linecap="round" opacity="0.6"/>
+            <!-- Timer badge bottom-right -->
+            <circle cx="22" cy="25" r="6" fill="#4a6abf"/>
+            <line x1="22" y1="22.5" x2="22" y2="25" stroke="white" stroke-width="1.4" stroke-linecap="round"/>
+            <line x1="22" y1="25" x2="24" y2="26.2" stroke="white" stroke-width="1.4" stroke-linecap="round"/>
+          </svg>
+        </div>
+        <div class="mode-btn-title">Mock Exam</div>
+        <div class="mode-btn-sub">50 questions · timed · 80% to pass</div>
+      </button>
+    </div>
+    <!-- Tools section label -->
+    <div style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--muted);font-family:'DM Mono',monospace;margin-bottom:8px;padding-left:2px;">Tools</div>
+    <!-- Secondary modes grid -->
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:14px;">
+
+      <!-- Quick Reference -->
+      <button onclick="showRefView()" style="background:white;border:1px solid rgba(0,0,0,0.05);border-radius:16px;padding:16px 10px 13px;display:flex;flex-direction:column;align-items:center;gap:8px;cursor:pointer;box-shadow:0 3px 12px rgba(0,0,0,0.07);">
+        <div style="width:44px;height:44px;border-radius:12px;background:linear-gradient(145deg,#f0f6e8,#e4eed8);display:flex;align-items:center;justify-content:center;">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <!-- Open book -->
+            <path d="M12 6C10 4.5 7 4 4 4.5V19C7 18.5 10 19 12 20.5" stroke="#2d7a1a" stroke-width="1.6" stroke-linecap="round"/>
+            <path d="M12 6C14 4.5 17 4 20 4.5V19C17 18.5 14 19 12 20.5" stroke="#2d7a1a" stroke-width="1.6" stroke-linecap="round"/>
+            <line x1="12" y1="6" x2="12" y2="20.5" stroke="#2d7a1a" stroke-width="1.4" stroke-linecap="round"/>
+            <line x1="7" y1="8" x2="10" y2="8" stroke="#2d7a1a" stroke-width="1.2" stroke-linecap="round" opacity="0.5"/>
+            <line x1="7" y1="11" x2="10" y2="11" stroke="#2d7a1a" stroke-width="1.2" stroke-linecap="round" opacity="0.5"/>
+            <line x1="14" y1="8" x2="17" y2="8" stroke="#2d7a1a" stroke-width="1.2" stroke-linecap="round" opacity="0.5"/>
+            <line x1="14" y1="11" x2="17" y2="11" stroke="#2d7a1a" stroke-width="1.2" stroke-linecap="round" opacity="0.5"/>
+          </svg>
+        </div>
+        <div style="font-size:10px;font-weight:700;color:var(--bark);text-align:center;line-height:1.3;">Quick<br>Reference</div>
+      </button>
+
+      <!-- Category Drill -->
+      <button onclick="showDrillView()" style="background:white;border:1px solid rgba(0,0,0,0.05);border-radius:16px;padding:16px 10px 13px;display:flex;flex-direction:column;align-items:center;gap:8px;cursor:pointer;box-shadow:0 3px 12px rgba(0,0,0,0.07);">
+        <div style="width:44px;height:44px;border-radius:12px;background:linear-gradient(145deg,#fef3e8,#fde8d0);display:flex;align-items:center;justify-content:center;">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <!-- Target / bullseye -->
+            <circle cx="12" cy="12" r="9" stroke="#c8601a" stroke-width="1.6"/>
+            <circle cx="12" cy="12" r="5.5" stroke="#c8601a" stroke-width="1.4"/>
+            <circle cx="12" cy="12" r="2" fill="#c8601a"/>
+            <!-- Arrow -->
+            <line x1="18.5" y1="5.5" x2="13.5" y2="10.5" stroke="#c8601a" stroke-width="1.6" stroke-linecap="round"/>
+            <polyline points="15.5,5 18.5,5.5 19,8.5" stroke="#c8601a" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+          </svg>
+        </div>
+        <div style="font-size:10px;font-weight:700;color:var(--bark);text-align:center;line-height:1.3;">Category<br>Drill</div>
+      </button>
+
+      <!-- Spaced Repetition -->
+      <button onclick="startQuiz('spaced')" id="spaced-btn" style="background:white;border:1px solid rgba(0,0,0,0.05);border-radius:16px;padding:16px 10px 13px;display:flex;flex-direction:column;align-items:center;gap:8px;cursor:pointer;box-shadow:0 3px 12px rgba(0,0,0,0.07);position:relative;">
+        <div id="spaced-badge" style="display:none;position:absolute;top:9px;right:9px;width:8px;height:8px;border-radius:50%;background:#e07020;box-shadow:0 0 4px rgba(224,112,32,0.6);"></div>
+        <div style="width:44px;height:44px;border-radius:12px;background:linear-gradient(145deg,#ede8f8,#dfd8f2);display:flex;align-items:center;justify-content:center;">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <!-- Circular arrows / repeat -->
+            <path d="M4.5 12C4.5 8 8 4.5 12 4.5C14.5 4.5 16.7 5.7 18.1 7.5" stroke="#6a3ab2" stroke-width="1.7" stroke-linecap="round"/>
+            <path d="M19.5 12C19.5 16 16 19.5 12 19.5C9.5 19.5 7.3 18.3 5.9 16.5" stroke="#6a3ab2" stroke-width="1.7" stroke-linecap="round"/>
+            <!-- Arrow heads -->
+            <polyline points="16,5.5 18.1,7.5 16.2,9.8" stroke="#6a3ab2" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+            <polyline points="8,18.5 5.9,16.5 7.8,14.2" stroke="#6a3ab2" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+            <!-- Centre dot -->
+            <circle cx="12" cy="12" r="1.8" fill="#6a3ab2" opacity="0.7"/>
+          </svg>
+        </div>
+        <div style="font-size:10px;font-weight:700;color:var(--bark);text-align:center;line-height:1.3;">Weak<br>Areas</div>
+        <div id="spaced-btn-sub" style="font-size:9px;color:#a0988a;text-align:center;line-height:1.3;padding:0 2px;">Questions you struggle with appear more often</div>
+      </button>
+
+    </div>
+
+    <!-- Category performance -->
+    <div class="cat-card">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;">
+        <div class="cat-card-title" style="margin-bottom:0;">Performance by Category</div>
+      </div>
+      <div id="cat-stats"></div>
+    </div>
+
+    <button class="reset-btn" onclick="confirmReset()">🗑 Reset all progress</button>
+    <a href="index.html" class="back-link-btn">← Back to First Light</a>
+    <button class="back-link-btn" onclick="showDisclaimer()" style="margin-top:6px;font-size:10px;">📋 View disclaimer</button>
+    <div style="text-align:center;margin-top:8px;font-size:10px;color:var(--muted);opacity:0.6;">
+      © 2025–2026 Sohaib Mengal · First Light · All rights reserved
+    </div>
+  </div>
+</div>
+
+<!-- ══ QUIZ ══ -->
+<div id="v-quiz" class="view">
+  <div class="quiz-hdr">
+    <div class="quiz-meta-row">
+      <button class="quiz-back" onclick="quitQuiz()">←</button>
+      <div class="quiz-cat-badge" id="quiz-cat-badge">Biology</div>
+      <div class="quiz-timer" id="quiz-timer" style="display:none;">45:00</div>
+    </div>
+    <div class="quiz-progress-wrap">
+      <div class="quiz-progress-bar" id="quiz-progress-bar" style="width:0%;"></div>
+    </div>
+    <div class="quiz-count" id="quiz-count">Question 1 of 10</div>
+  </div>
+  <div class="quiz-scroll">
+    <div class="q-card">
+      <div class="q-num" id="q-num">Q1</div>
+      <div class="q-text" id="q-text">Loading…</div>
+    </div>
+    <div class="options-wrap" id="options-wrap"></div>
+    <div class="explanation-card" id="explanation-card" style="display:none;">
+      <div class="explanation-lbl">💡 Explanation</div>
+      <div class="explanation-text" id="explanation-text"></div>
+    </div>
+    <button class="next-btn" id="next-btn" onclick="nextQuestion()">Next →</button>
+  </div>
+</div>
+
+<!-- ══ RESULTS ══ -->
+<div id="v-results" class="view">
+  <div class="results-hdr">
+    <div class="results-score" id="results-score">–<span>%</span></div>
+    <div class="results-verdict" id="results-verdict">–</div>
+    <div class="results-sub" id="results-sub">–</div>
+  </div>
+  <div class="results-scroll">
+    <div class="pass-banner" id="pass-banner" style="display:none;">
+      <div class="pass-banner-icon">🏆</div>
+      <div class="pass-banner-title">Excellent Work!</div>
+      <div class="pass-banner-sub">You've hit the 80% pass mark</div>
+    </div>
+    <div class="results-card">
+      <div class="results-card-title">Breakdown by Category</div>
+      <div id="results-cat-breakdown"></div>
+    </div>
+    <div class="results-action-row">
+      <button class="r-btn primary" onclick="startQuiz(lastMode)">Try Again</button>
+      <button class="r-btn secondary" onclick="showView('v-dashboard'); refreshDashboard()">Dashboard</button>
+    </div>
+    <button class="r-btn full" onclick="reviewWrong()" id="review-btn" style="display:none;">📖 Review wrong answers</button>
+  </div>
+</div>
+
+
+<!-- ══ CATEGORY DRILL ══ -->
+<div id="v-drill" class="view">
+  <div class="dash-hdr">
+    <div class="dash-top">
+      <button onclick="showView('v-dashboard')" style="background:rgba(255,255,255,0.1);border:1px solid rgba(255,255,255,0.15);border-radius:50%;width:32px;height:32px;color:white;font-size:15px;cursor:pointer;">←</button>
+    </div>
+    <div class="dash-title">Category Drill</div>
+    <div class="dash-sub">Choose a subject to focus on</div>
+  </div>
+  <div class="dash-scroll">
+    <div class="drill-grid" id="drill-grid"></div>
+    <div style="font-size:11px;color:var(--muted);text-align:center;padding:4px 0 8px;">Each drill draws 10 questions from that category only.</div>
+  </div>
+</div>
+
+
+<!-- ══ QUICK REFERENCE CARD ══ -->
+<div id="v-ref" class="view">
+  <div class="dash-hdr">
+    <div class="dash-top">
+      <button onclick="showView('v-dashboard');refreshDashboard();" style="background:rgba(255,255,255,0.1);border:1px solid rgba(255,255,255,0.15);border-radius:50%;width:32px;height:32px;color:white;font-size:15px;cursor:pointer;">←</button>
+    </div>
+    <div class="dash-title">Quick Reference</div>
+    <div class="dash-sub">Field-ready cheat sheet · No internet needed</div>
+  </div>
+  <div class="dash-scroll" style="padding-bottom:32px;">
+    <!-- SECTION TABS -->
+    <div style="display:flex;gap:6px;overflow-x:auto;padding:0 0 10px;scrollbar-width:none;-webkit-overflow-scrolling:touch;" id="ref-tabs">
+      <button class="ref-tab active" data-section="seasons">Seasons</button>
+      <button class="ref-tab" data-section="calibres">Calibres</button>
+      <button class="ref-tab" data-section="legal">Legal</button>
+      <button class="ref-tab" data-section="rut">Rut</button>
+      <button class="ref-tab" data-section="disease">Disease</button>
+      <button class="ref-tab" data-section="contacts">Contacts</button>
+    </div>
+
+    <div class="ref-section-block" id="ref-seasons">
+
+      <div class="ref-card">
+        <div class="ref-card-title"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" style="vertical-align:middle;margin-right:5px;flex-shrink:0;"><path d="M12 3C8 3 5 4 3 5V12C3 17 7 20.5 12 22C17 20.5 21 17 21 12V5C19 4 16 3 12 3Z" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/><line x1="3" y1="10" x2="21" y2="10" stroke="currentColor" stroke-width="1.2" opacity="0.4"/><line x1="12" y1="3" x2="12" y2="22" stroke="currentColor" stroke-width="1.2" opacity="0.4"/></svg> England &amp; Wales — Deer Act 1991</div>
+        <table class="ref-table">
+          <thead><tr><th>Species &amp; Sex</th><th>Open Season</th></tr></thead>
+          <tbody>
+            <tr><td>Red Stag</td><td>1 Aug – 30 Apr</td></tr>
+            <tr><td>Red Hind</td><td>1 Nov – 31 Mar</td></tr>
+            <tr><td>Fallow Buck</td><td>1 Aug – 30 Apr</td></tr>
+            <tr><td>Fallow Doe</td><td>1 Nov – 31 Mar</td></tr>
+            <tr><td>Sika Stag</td><td>1 Aug – 30 Apr</td></tr>
+            <tr><td>Sika Hind</td><td>1 Nov – 31 Mar</td></tr>
+            <tr><td>Roe Buck</td><td>1 Apr – 31 Oct</td></tr>
+            <tr><td>Roe Doe</td><td>1 Nov – 31 Mar</td></tr>
+            <tr class="ref-row-highlight"><td>Muntjac (both)</td><td>No close season</td></tr>
+            <tr><td>CWD (both)</td><td>1 Nov – 31 Mar</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="ref-card">
+        <div class="ref-card-title"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" style="vertical-align:middle;margin-right:5px;flex-shrink:0;"><path d="M12 3C8 3 5 4 3 5V12C3 17 7 20.5 12 22C17 20.5 21 17 21 12V5C19 4 16 3 12 3Z" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/><line x1="3" y1="10" x2="21" y2="10" stroke="currentColor" stroke-width="1.2" opacity="0.4"/></svg> Scotland — Deer (Scotland) Act 1996 (as amended 2023)</div>
+        <table class="ref-table">
+          <thead><tr><th>Species &amp; Sex</th><th>Open Season</th></tr></thead>
+          <tbody>
+            <tr class="ref-row-highlight"><td>All males (all species)</td><td>No close season</td></tr>
+            <tr><td>Red / Sika / Fallow Hind</td><td>21 Oct – 15 Feb</td></tr>
+            <tr><td>Roe Doe</td><td>21 Oct – 31 Mar</td></tr>
+          </tbody>
+        </table>
+        <div class="ref-note">Male close seasons abolished Oct 2023. Female seasons unchanged.</div>
+      </div>
+
+      <div class="ref-card">
+        <div class="ref-card-title"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" style="vertical-align:middle;margin-right:5px;flex-shrink:0;"><circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="1.7"/><path d="M12 7V12L15.5 14" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg> Legal Shooting Hours</div>
+        <table class="ref-table">
+          <tbody>
+            <tr class="ref-row-highlight"><td><strong>All regions</strong></td><td>1 hour before sunrise → 1 hour after sunset</td></tr>
+            <tr><td>Night shooting</td><td>Only with written NE / NatureScot authorisation, or emergency welfare dispatch</td></tr>
+          </tbody>
+        </table>
+        <div class="ref-note">Night vision does not grant authority to shoot outside legal hours.</div>
+      </div>
+
+    </div>
+
+    <!-- CALIBRES SECTION -->
+    <div class="ref-section-block" id="ref-calibres" style="display:none;">
+
+      <div class="ref-card">
+        <div class="ref-card-title"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" style="vertical-align:middle;margin-right:5px;flex-shrink:0;"><path d="M12 3C8 3 5 4 3 5V12C3 17 7 20.5 12 22C17 20.5 21 17 21 12V5C19 4 16 3 12 3Z" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/><line x1="3" y1="10" x2="21" y2="10" stroke="currentColor" stroke-width="1.2" opacity="0.4"/><line x1="12" y1="3" x2="12" y2="22" stroke="currentColor" stroke-width="1.2" opacity="0.4"/></svg> England &amp; Wales — Deer Act 1991</div>
+        <table class="ref-table">
+          <thead><tr><th>Species</th><th>Min Calibre</th><th>Min Energy</th><th>Other</th></tr></thead>
+          <tbody>
+            <tr><td>Red, Fallow, Sika, Roe</td><td>.240" (6mm)</td><td>1,700 ft/lb</td><td>Expanding bullet</td></tr>
+            <tr class="ref-row-highlight"><td>Muntjac &amp; CWD only</td><td>.220"</td><td>1,000 ft/lb</td><td>Min 50gr expanding</td></tr>
+          </tbody>
+        </table>
+        <div class="ref-note">.222/.223 legal for Muntjac &amp; CWD in E&amp;W only — NOT for Roe or larger species.</div>
+      </div>
+
+      <div class="ref-card">
+        <div class="ref-card-title"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" style="vertical-align:middle;margin-right:5px;flex-shrink:0;"><path d="M12 3C8 3 5 4 3 5V12C3 17 7 20.5 12 22C17 20.5 21 17 21 12V5C19 4 16 3 12 3Z" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/><line x1="3" y1="10" x2="21" y2="10" stroke="currentColor" stroke-width="1.2" opacity="0.4"/></svg> Scotland — Deer (Scotland) Act 1996</div>
+        <table class="ref-table">
+          <thead><tr><th>Species</th><th>Min Weight</th><th>Min Velocity</th><th>Min Energy</th></tr></thead>
+          <tbody>
+            <tr><td>All except Roe</td><td>80gr</td><td>2,450 fps</td><td>1,750 ft/lb</td></tr>
+            <tr class="ref-row-highlight"><td>Roe only</td><td>50gr</td><td>2,450 fps</td><td>1,000 ft/lb</td></tr>
+          </tbody>
+        </table>
+        <div class="ref-note">All deer bullets must be expanding. FMJ is illegal throughout UK.</div>
+      </div>
+
+      <div class="ref-card">
+        <div class="ref-card-title"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" style="vertical-align:middle;margin-right:5px;flex-shrink:0;"><circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="1.7"/><path d="M8 12L11 15L16 9" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg> Common Legal Calibres (UK-wide)</div>
+        <table class="ref-table">
+          <tbody>
+            <tr class="ref-row-highlight"><td>.243 Win</td><td>Legal all species, all regions. Most popular UK deer calibre.</td></tr>
+            <tr><td>6.5 Creedmoor</td><td>Legal all species, all regions. Excellent ballistics.</td></tr>
+            <tr><td>.308 Win</td><td>Legal all species, all regions. Classic stalking round.</td></tr>
+            <tr><td>.270 Win</td><td>Legal all species, all regions. Flat-shooting.</td></tr>
+            <tr><td>.222 / .223</td><td>E&amp;W: Muntjac &amp; CWD only. Scotland: Roe only.</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+    </div>
+
+    <!-- LEGAL DEFINITIONS SECTION -->
+    <div class="ref-section-block" id="ref-legal" style="display:none;">
+
+      <div class="ref-card">
+        <div class="ref-card-title"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" style="vertical-align:middle;margin-right:5px;flex-shrink:0;"><line x1="12" y1="3" x2="12" y2="21" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/><line x1="8" y1="21" x2="16" y2="21" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/><line x1="4" y1="7" x2="20" y2="7" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><path d="M4 7L2 13C2 14.7 3.3 16 5 16C6.7 16 8 14.7 8 13L4 7Z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/><path d="M20 7L18 13C18 14.7 19.3 16 21 16C22.7 16 24 14.7 24 13L20 7Z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/></svg> Key Legislation</div>
+        <table class="ref-table">
+          <tbody>
+            <tr><td><strong>Deer Act 1991</strong></td><td>England &amp; Wales. Seasons, legal hours, vehicle/lamp offences, sale of venison.</td></tr>
+            <tr><td><strong>Deer (Scotland) Act 1996</strong></td><td>Scotland. Similar provisions + NatureScot powers to order deer control.</td></tr>
+            <tr><td><strong>Wild Mammals (Protection) Act 1996</strong></td><td>UK-wide. Prohibition of intentional cruelty to wild mammals, including injured deer.</td></tr>
+            <tr><td><strong>Animal Welfare Act 2006</strong></td><td>England &amp; Wales. Duty to take reasonable steps to end unnecessary suffering.</td></tr>
+            <tr><td><strong>Food Hygiene Regulations 2006</strong></td><td>Requires carcass chilling to ≤7°C. Applies to venison entering food chain.</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="ref-card">
+        <div class="ref-card-title"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" style="vertical-align:middle;margin-right:5px;flex-shrink:0;"><rect x="5" y="4" width="14" height="17" rx="2" stroke="currentColor" stroke-width="1.7"/><rect x="9" y="2" width="6" height="4" rx="1.5" stroke="currentColor" stroke-width="1.5"/><line x1="8" y1="10" x2="16" y2="10" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" opacity="0.6"/><line x1="8" y1="14" x2="16" y2="14" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" opacity="0.6"/><line x1="8" y1="18" x2="12" y2="18" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" opacity="0.6"/></svg> DSC1 — Exam Structure</div>
+        <table class="ref-table">
+          <tbody>
+            <tr><td>Written paper</td><td>50 MCQ — 80% pass mark (40/50)</td></tr>
+            <tr><td>Wild Game Meat Hygiene</td><td>40 MCQ — 80% pass mark (32/40)</td></tr>
+            <tr><td>Visual ID</td><td>20 slides — species &amp; sex (16/20 to pass)</td></tr>
+            <tr><td>Safety walk</td><td>Simulated stalk with safety scenarios (10/10)</td></tr>
+            <tr><td>Shooting assessment</td><td>2 shots at 100m prone · 2 at 70m off sticks · 2 at 10–20m humane dispatch</td></tr>
+            <tr class="ref-row-highlight"><td>DSC2</td><td>Portfolio — witnessed stalk with DMQ Approved Witness. Must complete within 3 years of registration.</td></tr>
+          </tbody>
+        </table>
+        <div class="ref-note">DSC2 grants Large Game Trained Hunter (LGTH) status — required to supply venison to an Approved Game Handling Establishment (AGHE).</div>
+      </div>
+
+      <div class="ref-card">
+        <div class="ref-card-title"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" style="vertical-align:middle;margin-right:5px;flex-shrink:0;"><path d="M6 20L18 5C18 5 20 3 21 4C22 5 20 7 20 7L8 22L6 20Z" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/><line x1="6" y1="20" x2="4" y2="22" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg> Gralloch &amp; Carcass Obligations</div>
+        <table class="ref-table">
+          <tbody>
+            <tr><td>Chill temp</td><td>≤7°C (Food Hygiene Regs). Target ≤4°C.</td></tr>
+            <tr><td>PPE required</td><td>Gloves always — zoonotic risk (leptospirosis, E. coli)</td></tr>
+            <tr><td>Notifiable finding</td><td>bTB, CWD, FMD, anthrax — must report to APHA immediately</td></tr>
+            <tr><td>Condemn carcass if</td><td>TB lesions, extensive pneumonia, anthrax, severe peritonitis</td></tr>
+            <tr><td>Declaration required</td><td>LGTH declaration needed when supplying venison to game dealer</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+    </div>
+
+    <!-- RUT CALENDAR SECTION -->
+    <div class="ref-section-block" id="ref-rut" style="display:none;">
+
+      <div class="ref-card">
+        <div class="ref-card-title"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" style="vertical-align:middle;margin-right:5px;flex-shrink:0;"><path d="M8 2C8 2 6 5 6 7C6 8.5 7 9 8 9" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><path d="M16 2C16 2 18 5 18 7C18 8.5 17 9 16 9" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><path d="M6 4L4 2" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><path d="M18 4L20 2" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><ellipse cx="12" cy="13" rx="5" ry="6" stroke="currentColor" stroke-width="1.6"/><circle cx="10" cy="11.5" r="0.8" fill="currentColor"/><circle cx="14" cy="11.5" r="0.8" fill="currentColor"/><line x1="9" y1="19" x2="9" y2="22" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><line x1="15" y1="19" x2="15" y2="22" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg> Rut Calendar</div>
+        <table class="ref-table">
+          <thead><tr><th>Species</th><th>Rut Period</th><th>Peak</th><th>Call</th></tr></thead>
+          <tbody>
+            <tr><td>Red</td><td>Sept – Nov</td><td>October</td><td>Roar / bellow</td></tr>
+            <tr><td>Fallow</td><td>Oct – Nov</td><td>October</td><td>Belching groan</td></tr>
+            <tr><td>Sika</td><td>Oct – Nov</td><td>Nov</td><td>High-pitched whistle/scream</td></tr>
+            <tr class="ref-row-highlight"><td>Roe</td><td>July – Aug</td><td>Late July</td><td>Bark — also roe rings</td></tr>
+            <tr><td>Muntjac</td><td>Year-round</td><td>No peak</td><td>Repetitive dog-like bark</td></tr>
+            <tr><td>CWD</td><td>Nov – Jan</td><td>Dec</td><td>Whistle / squeak</td></tr>
+          </tbody>
+        </table>
+        <div class="ref-note">Roe is the only UK species with a summer rut. Muntjac breed year-round — no fixed season.</div>
+      </div>
+
+      <div class="ref-card">
+        <div class="ref-card-title"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" style="vertical-align:middle;margin-right:5px;flex-shrink:0;"><rect x="3" y="4" width="18" height="17" rx="3" stroke="currentColor" stroke-width="1.8"/><line x1="3" y1="9" x2="21" y2="9" stroke="currentColor" stroke-width="1.6"/><line x1="8" y1="2" x2="8" y2="6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><line x1="16" y1="2" x2="16" y2="6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><rect x="7" y="13" width="3" height="3" rx="0.5" fill="currentColor" opacity="0.7"/><rect x="14" y="13" width="3" height="3" rx="0.5" fill="currentColor" opacity="0.7"/></svg> Antler Cast Dates</div>
+        <table class="ref-table">
+          <thead><tr><th>Species</th><th>Cast</th><th>In Velvet</th><th>Hard Antler</th></tr></thead>
+          <tbody>
+            <tr><td>Red Stag</td><td>Mar – Apr</td><td>Apr – Jul</td><td>Aug – Mar</td></tr>
+            <tr><td>Fallow Buck</td><td>Apr – May</td><td>May – Jul</td><td>Aug – Apr</td></tr>
+            <tr><td>Sika Stag</td><td>Mar – Apr</td><td>Apr – Jul</td><td>Aug – Mar</td></tr>
+            <tr class="ref-row-highlight"><td>Roe Buck</td><td>Nov – Dec</td><td>Dec – Mar</td><td>Mar – Oct</td></tr>
+            <tr><td>Muntjac Buck</td><td>May – Jun</td><td>Jun – Jul</td><td>Aug – May</td></tr>
+          </tbody>
+        </table>
+        <div class="ref-note">CWD: neither sex carries antlers — bucks have visible tusks instead.</div>
+      </div>
+
+      <div class="ref-card">
+        <div class="ref-card-title"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" style="vertical-align:middle;margin-right:5px;flex-shrink:0;"><rect x="2" y="8" width="20" height="8" rx="2" stroke="currentColor" stroke-width="1.7"/><line x1="6" y1="8" x2="6" y2="13" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/><line x1="10" y1="8" x2="10" y2="11" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/><line x1="14" y1="8" x2="14" y2="13" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/><line x1="18" y1="8" x2="18" y2="11" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg> Size at a Glance</div>
+        <table class="ref-table">
+          <thead><tr><th>Species</th><th>Shoulder</th><th>Weight (male)</th><th>Key ID feature</th></tr></thead>
+          <tbody>
+            <tr><td>Red</td><td>Up to 140cm</td><td>90–190kg</td><td>Tawny rump, no white flash</td></tr>
+            <tr><td>Fallow</td><td>85–100cm</td><td>46–94kg</td><td>Palmate antlers, spotted coat</td></tr>
+            <tr><td>Sika</td><td>70–95cm</td><td>40–125kg</td><td>White rump flares when alarmed</td></tr>
+            <tr><td>Roe</td><td>60–75cm</td><td>18–29kg</td><td>White kidney rump, no tail</td></tr>
+            <tr><td>CWD</td><td>55–65cm</td><td>11–18kg</td><td>No antlers, large round ears, tusks</td></tr>
+            <tr><td>Muntjac</td><td>45–52cm</td><td>10–18kg</td><td>Hunched, reddish, dark V-face</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+    </div>
+
+    <!-- DISEASE SECTION -->
+    <div class="ref-section-block" id="ref-disease" style="display:none;">
+
+      <div class="ref-card">
+        <div class="ref-card-title"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" style="vertical-align:middle;margin-right:5px;flex-shrink:0;"><path d="M12 3L4 7V13C4 17.4 7.4 21.5 12 22C16.6 21.5 20 17.4 20 13V7L12 3Z" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/><line x1="12" y1="9" x2="12" y2="14" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><circle cx="12" cy="17" r="1.2" fill="currentColor"/></svg> Notifiable Diseases — Must Report to APHA</div>
+        <table class="ref-table">
+          <thead><tr><th>Disease</th><th>Signs</th></tr></thead>
+          <tbody>
+            <tr><td><strong>bTB</strong></td><td>Enlarged caseous lymph nodes (jaw, shoulder), lung lesions</td></tr>
+            <tr><td><strong>CWD</strong></td><td>Weight loss, lost fear of humans, salivation, abnormal gait — FATAL</td></tr>
+            <tr><td><strong>FMD</strong></td><td>Lameness, blisters on feet and mouth, excessive salivation</td></tr>
+            <tr><td><strong>Bluetongue</strong></td><td>Facial swelling, nasal discharge, blue tongue, lameness</td></tr>
+            <tr class="ref-row-highlight"><td><strong>Anthrax</strong></td><td>Sudden death, massively enlarged black spleen — DO NOT HANDLE</td></tr>
+          </tbody>
+        </table>
+        <div class="ref-note">Suspicion alone is sufficient and legally obligatory to report. Do not wait for confirmation.</div>
+      </div>
+
+      <div class="ref-card">
+        <div class="ref-card-title"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" style="vertical-align:middle;margin-right:5px;flex-shrink:0;"><circle cx="12" cy="12" r="5" stroke="currentColor" stroke-width="1.7"/><line x1="12" y1="4" x2="12" y2="7" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><line x1="12" y1="17" x2="12" y2="20" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><line x1="4" y1="12" x2="7" y2="12" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><line x1="17" y1="12" x2="20" y2="12" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><line x1="6.3" y1="6.3" x2="8.5" y2="8.5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/><line x1="17.7" y1="6.3" x2="15.5" y2="8.5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg> Common Non-Notifiable Conditions</div>
+        <table class="ref-table">
+          <tbody>
+            <tr><td>Liver fluke</td><td>Pale fluke tracks / damage in liver. Needs mud snail habitat.</td></tr>
+            <tr><td>Lungworm</td><td>Worms in airways. Heavy burden = poor condition, condemn lungs.</td></tr>
+            <tr><td>Sarcoptic mange</td><td>Hair loss, thickened skin, intense scratching.</td></tr>
+            <tr><td>Deer keds</td><td>Flat wingless flies in coat. Can bite humans.</td></tr>
+            <tr><td>Leptospirosis</td><td>Zoonotic — wear gloves. Carried in kidneys/urine.</td></tr>
+            <tr><td>Elaphostrongylus</td><td>Muscle worm — affects muscles and nervous system in Red/Sika.</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="ref-card">
+        <div class="ref-card-title"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" style="vertical-align:middle;margin-right:5px;flex-shrink:0;"><path d="M9 12L11 15L15 9" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/><rect x="3" y="5" width="18" height="15" rx="3" stroke="currentColor" stroke-width="1.7"/><line x1="8" y1="5" x2="8" y2="20" stroke="currentColor" stroke-width="1.2" opacity="0.3"/></svg> Gralloch Inspection Checklist</div>
+        <table class="ref-table">
+          <tbody>
+            <tr class="ref-row-highlight"><td>Lymph nodes</td><td>Should be small and pale. Enlarged / caseous = possible bTB</td></tr>
+            <tr><td>Lungs</td><td>Pink-red, spongy. Grey lesions or miliary spots = TB</td></tr>
+            <tr><td>Liver</td><td>Deep red-brown, firm. White spots or fluke = condemn liver</td></tr>
+            <tr><td>Spleen</td><td>Normal = small red organ. Massively enlarged, black = anthrax — do not handle</td></tr>
+            <tr><td>Gut</td><td>Peritonitis, unusual odour, widespread lesions = condemn carcass</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+    </div>
+
+    <!-- CONTACTS SECTION -->
+    <div class="ref-section-block" id="ref-contacts" style="display:none;">
+
+      <div class="ref-card">
+        <div class="ref-card-title"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" style="vertical-align:middle;margin-right:5px;flex-shrink:0;"><path d="M6.6 4C6.6 4 5 4 4 6C3 8 4 10 5 11.5C6.7 14 9.5 16.8 12.5 18.5C14 19.5 16.5 20.5 18 19.5C19.5 18.5 20 17 20 17L18 15C18 15 17 14 16 15L14.5 16.5C14.5 16.5 12 15 10.5 13.5C9 12 7.5 9.5 7.5 9.5L9 8C10 7 9 6 9 6L7 4C7 4 6.8 4 6.6 4Z" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/></svg> Key Contacts</div>
+        <table class="ref-table">
+          <tbody>
+            <tr class="ref-row-highlight"><td>UKDTR</td><td>ukdtr.co.uk — free wounded deer trackers, 24/7</td></tr>
+            <tr><td>APHA England</td><td>03000 200 301</td></tr>
+            <tr><td>APHA Wales</td><td>0300 303 8268</td></tr>
+            <tr><td>NatureScot / SASA</td><td>0131 244 8890</td></tr>
+            <tr><td>BDS</td><td>bds.org.uk · DSC training, species surveys</td></tr>
+            <tr><td>BASC</td><td>basc.org.uk · DSC courses, legal advice, insurance</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="ref-card">
+        <div class="ref-card-title"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" style="vertical-align:middle;margin-right:5px;flex-shrink:0;"><path d="M12 3L22 20H2L12 3Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><line x1="12" y1="10" x2="12" y2="15" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><circle cx="12" cy="18" r="1.2" fill="currentColor"/></svg> If You Wound a Deer</div>
+        <table class="ref-table">
+          <tbody>
+            <tr><td>1. Reload</td><td>Immediately — then wait 20–30 min (heart/lung) or longer (gut)</td></tr>
+            <tr><td>2. Mark</td><td>Mark firing point and strike site before approaching</td></tr>
+            <tr><td>3. Read</td><td>Bright red frothy = lung (20 min). Dark = heart/liver (30 min). Green/foul = gut (4+ hrs)</td></tr>
+            <tr><td>4. Stop</td><td>If uncertain — stop searching. Call UKDTR. Random searching pushes animal further.</td></tr>
+            <tr class="ref-row-highlight"><td>Legal duty</td><td>You must make every reasonable effort to find and dispatch a wounded deer (Deer Act 1991)</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="ref-card">
+        <div class="ref-card-title"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" style="vertical-align:middle;margin-right:5px;flex-shrink:0;"><circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="1.7"/><path d="M12 8V13" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><circle cx="12" cy="16" r="1.2" fill="currentColor"/></svg> Zoonotic Risks — Protect Yourself</div>
+        <table class="ref-table">
+          <tbody>
+            <tr><td>Leptospirosis</td><td>Always wear gloves — contact with urine/kidneys</td></tr>
+            <tr><td>Lyme disease</td><td>Check for ticks after every outing. Remove promptly with tick tool.</td></tr>
+            <tr><td>E. coli / Salmonella</td><td>Gloves + hygiene at gralloch and in larder</td></tr>
+            <tr><td>bTB</td><td>Avoid inhaling dust near TB-suspect carcass. Report to APHA.</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+    </div>
+
+    <div style="font-size:10px;color:var(--muted);text-align:center;padding:8px 0 4px;line-height:1.5;">Study aid only — always verify against current legislation before acting.</div>
+  </div>
+</div>
+
+<script src="questions.js"></script>
+<script src="deerschool.js"></script>
+</body>
+</html>
