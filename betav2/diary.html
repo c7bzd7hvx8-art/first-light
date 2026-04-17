@@ -1,0 +1,1161 @@
+<!DOCTYPE html>
+<html lang="en-GB">
+<head>
+<meta charset="UTF-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; base-uri 'self'; form-action 'self'; object-src 'none'; script-src 'self' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com https://unpkg.com; connect-src 'self' https://*.supabase.co https://nominatim.openstreetmap.org https://api.os.uk https://api.open-meteo.com https://api.mapbox.com https://events.mapbox.com https://worldtimeapi.org https://timeapi.io https://cdn.jsdelivr.net https://cdnjs.cloudflare.com https://unpkg.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdnjs.cloudflare.com https://unpkg.com; font-src https://fonts.gstatic.com; img-src 'self' data: blob: https://*.supabase.co https://server.arcgisonline.com https://*.tile.openstreetmap.org https://api.os.uk https://api.mapbox.com https://*.tiles.mapbox.com; worker-src 'self';">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">
+<link rel="manifest" href="manifest-diary.json">
+<title>Cull Diary — First Light</title>
+<meta name="description" content="Record and track your deer cull. Syncs across all devices.">
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,700;1,400&family=DM+Sans:wght@300;400;500;600;700&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+<!-- Supabase -->
+<link rel="stylesheet" href="vendor/leaflet/leaflet.min.css">
+<link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css">
+<link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css">
+<script src="vendor/leaflet/leaflet.min.js"></script>
+<script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>
+<meta name="fl-mapbox-token" content="pk.eyJ1IjoibWlyc29oYWliNyIsImEiOiJjbW8xOXhlNm4wNmUyMnBzNzBrdHg2Y2cxIn0.as0v71QJj4wq48f0x3gBXg">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2" crossorigin="anonymous"></script>
+<!-- jsPDF for PDF export -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js" integrity="sha384-JcnsjUPPylna1s1fvi1u12X5qjY5OL56iySh75FdtrwhO/SWXgMjoVqcKyIIWOLk" crossorigin="anonymous"></script>
+<link rel="stylesheet" href="diary.css">
+</head>
+<body>
+
+<div class="toast" id="toast" role="status" aria-live="polite" aria-atomic="true"></div>
+
+<!-- ══ AUTH ══ -->
+<div id="v-auth" class="view active">
+  <div class="auth-logo">
+    <img src="icon-180.png" alt="First Light" width="64" height="64" style="border-radius:16px;display:block;margin:0 auto;">
+    <h1>Cull Diary</h1>
+    <p>by First Light</p>
+  </div>
+  <div class="auth-card">
+    <div id="auth-standard-panel">
+    <div class="auth-tabs">
+      <button class="auth-tab on" id="tab-signin" type="button" data-fl-action="auth-tab" data-tab="signin">Sign In</button>
+      <button class="auth-tab" id="tab-signup" type="button" data-fl-action="auth-tab" data-tab="signup">Create Account</button>
+    </div>
+    <div class="auth-field"><label for="auth-email">Email</label><input type="email" id="auth-email" placeholder="you@example.com" autocomplete="email"></div>
+    <div class="auth-field"><label for="auth-password">Password</label><input type="password" id="auth-password" placeholder="••••••••" autocomplete="current-password"></div>
+    <div class="auth-forgot-row" id="auth-forgot-row"><button type="button" class="auth-forgot-link" data-fl-action="open-forgot-password">Forgot password?</button></div>
+    <div class="auth-field" id="auth-name-field" style="display:none;"><label for="auth-name">Full name</label><input type="text" id="auth-name" placeholder="Your name"></div>
+    <div id="auth-consent-field" style="display:none;padding:8px 0 4px;">
+      <label style="display:flex;align-items:flex-start;gap:8px;cursor:pointer;font-size:12px;color:rgba(255,255,255,0.55);line-height:1.5;">
+        <input type="checkbox" id="auth-consent" style="margin-top:3px;flex-shrink:0;accent-color:#5a7a30;">
+        <span>I agree to the <a href="privacy.html" target="_blank" style="color:#c8a84b;text-decoration:underline;">Privacy Policy</a> and <a href="terms.html" target="_blank" style="color:#c8a84b;text-decoration:underline;">Terms of Use</a>. My email and diary data will be stored securely in Supabase.</span>
+      </label>
+    </div>
+    <button class="auth-submit" id="auth-btn" type="button" data-fl-action="handle-auth">Sign In →</button>
+    <div class="auth-err" id="auth-err"></div>
+    <div class="auth-note">Your diary is stored securely.<br>Syncs across all your devices automatically.</div>
+    <a href="diary-guide.html" style="display:flex;align-items:center;justify-content:center;gap:8px;text-align:center;margin-top:12px;font-size:12px;font-weight:600;color:#c8a84b;text-decoration:none;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/><path d="M8 7h8M8 11h6"/></svg>How to use the Cull Diary →</a>
+    </div>
+    <div id="auth-recovery-panel" style="display:none;">
+      <div class="auth-recovery-title">Set a new password</div>
+      <p class="auth-recovery-hint">You opened a password reset link. Choose a new password (at least 8 characters).</p>
+      <div class="auth-field"><label for="auth-recovery-pass">New password</label><input type="password" id="auth-recovery-pass" placeholder="••••••••" autocomplete="new-password"></div>
+      <div class="auth-field"><label for="auth-recovery-pass2">Confirm password</label><input type="password" id="auth-recovery-pass2" placeholder="••••••••" autocomplete="new-password"></div>
+      <div class="auth-err" id="auth-recovery-err" style="display:none;"></div>
+      <button class="auth-submit" id="auth-recovery-btn" type="button" data-fl-action="submit-password-recovery">Update password →</button>
+      <button type="button" class="auth-recovery-cancel" data-fl-action="cancel-password-recovery">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<div id="forgot-password-modal" class="di-modal-ov di-modal-ov--center di-modal-ov--above-toast" style="display:none;">
+  <div class="di-modal-card">
+    <div class="di-modal-title">Reset password</div>
+    <p class="di-modal-lede">We’ll email you a link to choose a new password. If it does not arrive in a few minutes, check your spam folder and try again.</p>
+    <label class="di-modal-field-lbl" for="forgot-password-email">Email</label>
+    <input type="email" id="forgot-password-email" class="di-modal-input" placeholder="you@example.com" autocomplete="email">
+    <div class="auth-err di-modal-err" id="forgot-password-err" style="display:none;"></div>
+    <button type="button" class="di-btn-full di-btn-pri-solid" data-fl-action="send-password-reset">Send reset link</button>
+    <button type="button" class="di-btn-full di-btn-sec-tonal" data-fl-action="close-forgot-password-modal">Cancel</button>
+  </div>
+</div>
+
+<div id="name-edit-modal" class="di-modal-ov di-modal-ov--center di-modal-ov--above-toast" style="display:none;" role="dialog" aria-modal="true" aria-labelledby="name-edit-title">
+  <div class="di-modal-card">
+    <div class="di-modal-title" id="name-edit-title">Edit display name</div>
+    <p class="di-modal-lede">Used on your account card, in PDF signatures, and alongside your entries in any syndicate you belong to. Changing it updates those places only — existing shooter names on past diary entries are left as they were.</p>
+    <label class="di-modal-field-lbl" for="name-edit-input">Your name</label>
+    <input type="text" id="name-edit-input" class="di-modal-input" placeholder="e.g. John Smith" autocomplete="name" maxlength="60">
+    <div class="auth-err di-modal-err" id="name-edit-err" style="display:none;"></div>
+    <button type="button" class="di-btn-full di-btn-pri-solid" id="name-edit-btn" data-fl-action="save-name-edit">Save name</button>
+    <button type="button" class="di-btn-full di-btn-sec-tonal" data-fl-action="close-name-edit">Cancel</button>
+  </div>
+</div>
+
+<div id="password-change-modal" class="di-modal-ov di-modal-ov--center di-modal-ov--above-toast" style="display:none;" role="dialog" aria-modal="true" aria-labelledby="password-change-title">
+  <div class="di-modal-card">
+    <div class="di-modal-title" id="password-change-title">Change password</div>
+    <p class="di-modal-lede">Enter your current password for security, then pick a new one of at least 8 characters.</p>
+    <label class="di-modal-field-lbl" for="password-change-current">Current password</label>
+    <input type="password" id="password-change-current" class="di-modal-input" placeholder="••••••••" autocomplete="current-password">
+    <label class="di-modal-field-lbl" for="password-change-next">New password</label>
+    <input type="password" id="password-change-next" class="di-modal-input" placeholder="At least 8 characters" autocomplete="new-password">
+    <label class="di-modal-field-lbl" for="password-change-confirm">Confirm new password</label>
+    <input type="password" id="password-change-confirm" class="di-modal-input" placeholder="Type the new password again" autocomplete="new-password">
+    <div class="auth-err di-modal-err" id="password-change-err" style="display:none;"></div>
+    <button type="button" class="di-btn-full di-btn-pri-solid" id="password-change-btn" data-fl-action="save-password-change">Update password</button>
+    <button type="button" class="di-btn-full di-btn-sec-tonal" data-fl-action="close-password-change">Cancel</button>
+  </div>
+</div>
+
+<!-- ══ LIST ══ -->
+<div id="v-list" class="view">
+  <div class="list-hdr">
+    <a href="index.html" class="fl-logo">
+      <img src="icon-180.png" alt="First Light">
+      <div class="fl-logo-text">First Light<span>Tap to return to app</span></div>
+    </a>
+    <div class="list-top">
+      <div>
+        <div class="list-title">Cull Diary</div>
+        <div class="list-season" id="season-label">2025–26 Season</div>
+      </div>
+      <div class="hstats">
+        <div class="hs"><div class="hsn" id="stat-total">0</div><div class="hsl">Total</div></div>
+        <div class="hs"><div class="hsn" id="stat-kg">0</div><div class="hsl">kg</div></div>
+        <div class="hs"><div class="hsn" id="stat-spp">0</div><div class="hsl">Species</div></div>
+      </div>
+    </div>
+    <div class="list-row2">
+      <select class="season-sel" id="season-select">
+      </select>
+      <a href="diary-guide.html" class="hdr-btn" style="text-decoration:none;font-size:11px;font-weight:700;color:rgba(200,168,75,0.7);display:flex;align-items:center;gap:4px;" title="How to use the Cull Diary" aria-label="Open diary guide"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/><path d="M8 7h8M8 11h6"/></svg></a>
+      <button class="hdr-btn" type="button" data-fl-action="go" data-view="v-stats" aria-label="Open stats"><svg width="18" height="18" viewBox="0 0 24 24" fill="none"><rect x="2" y="12" width="5" height="9" rx="1.5" fill="#c8a84b" opacity="0.9"/><rect x="9.5" y="7" width="5" height="14" rx="1.5" fill="white"/><rect x="17" y="16" width="5" height="5" rx="1.5" fill="#c8a84b" opacity="0.6"/></svg></button>
+    </div>
+  </div>
+  <div class="filter-bar">
+    <button class="fc on" type="button" data-fl-action="filter-entries" data-species="all">All</button>
+    <button class="fc" type="button" data-fl-action="filter-entries" data-species="Red Deer">Red Deer</button>
+    <button class="fc" type="button" data-fl-action="filter-entries" data-species="Roe Deer">Roe Deer</button>
+    <button class="fc" type="button" data-fl-action="filter-entries" data-species="Fallow">Fallow</button>
+    <button class="fc" type="button" data-fl-action="filter-entries" data-species="Sika">Sika</button>
+    <button class="fc" type="button" data-fl-action="filter-entries" data-species="Muntjac">Muntjac</button>
+    <button class="fc" type="button" data-fl-action="filter-entries" data-species="CWD">CWD</button>
+  </div>
+  <div class="list-search" id="list-search" style="display:none;">
+    <svg class="list-search-ico" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+    <input type="search" id="list-search-input" class="list-search-input" placeholder="Search species, ground, tag, notes…" autocomplete="off" spellcheck="false" aria-label="Search diary entries">
+    <button type="button" id="list-search-clear" class="list-search-clear" data-fl-action="clear-list-search" hidden aria-label="Clear search">✕</button>
+  </div>
+  <div class="list-secondary-filters" id="list-secondary-filters" style="display:none;">
+    <select class="ground-filter-sel" id="ground-filter" data-fl-action="filter-ground"><option value="all">All grounds</option></select>
+    <button class="sort-toggle-btn" id="sort-toggle" type="button" data-fl-action="toggle-sort" title="Toggle sort order"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12l7 7 7-7"/></svg><span id="sort-label">Newest</span></button>
+    <button class="sort-toggle-btn" id="select-mode-toggle" type="button" data-fl-action="enter-select-mode" title="Select multiple entries for a consignment PDF" aria-label="Select multiple entries"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 11 12 14 20 6"/><path d="M20 12v6a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h10"/></svg><span>Select</span></button>
+  </div>
+  <div class="offline-banner" id="offline-banner">
+    <div class="offline-banner-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M2 20h20"/><path d="M6 16v-6M10 16V8M14 16v-9M18 16V5"/></svg></div>
+    <div class="offline-banner-txt">
+      <div class="offline-banner-t" id="offline-banner-t">1 entry queued offline</div>
+      <div class="offline-banner-s" id="offline-banner-s">Will sync when connection returns</div>
+    </div>
+    <button class="offline-banner-sync" type="button" data-fl-action="sync-offline">Sync now</button>
+  </div>
+  <div class="entries" id="entries-container">
+    <div class="empty-state">
+      <div class="empty-illu" aria-hidden="true">
+        <svg class="empty-illu-svg" viewBox="0 0 120 88" xmlns="http://www.w3.org/2000/svg">
+          <defs><linearGradient id="empty-paper-static" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stop-color="#faf8f4"/><stop offset="100%" stop-color="#ebe6dc"/></linearGradient></defs>
+          <rect x="22" y="10" width="76" height="68" rx="9" fill="url(#empty-paper-static)" stroke="#d4cfc4" stroke-width="1.2"/>
+          <rect x="22" y="10" width="16" height="68" rx="3" fill="#5a7a30" opacity="0.1"/>
+          <line x1="22" y1="26" x2="98" y2="26" stroke="#e0dbd2" stroke-width="1"/>
+          <line x1="46" y1="40" x2="88" y2="40" stroke="#c9a84c" stroke-width="1.4" stroke-linecap="round" opacity="0.45"/>
+          <line x1="46" y1="50" x2="80" y2="50" stroke="#c9a84c" stroke-width="1.4" stroke-linecap="round" opacity="0.35"/>
+          <line x1="46" y1="60" x2="92" y2="60" stroke="#c9a84c" stroke-width="1.4" stroke-linecap="round" opacity="0.28"/>
+          <circle cx="82" cy="20" r="6" fill="#c9a84c" opacity="0.2"/>
+          <path d="M86 52c4-6 10-6 14-2c2 2 3 5 2 8h-5c0-3-2-5-5-5s-5 2-6 5v3h-4v-4c0-4 2-8 4-5z" fill="#5a7a30" opacity="0.18"/>
+        </svg>
+      </div>
+      <div class="empty-title">Start your cull diary</div>
+      <div class="empty-sub">Tap <strong>+</strong> for a full entry or <strong>Quick</strong> for a fast log. Your records sync when you&#39;re online.</div>
+      <a href="diary-guide.html" class="empty-guide-link">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/><path d="M8 7h8M8 11h5" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" opacity="0.7"/></svg>
+        How to use the Cull Diary</a>
+    </div>
+  </div>
+  <button class="fab-quick" type="button" data-fl-action="open-quick"><svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><path fill="currentColor" d="M13 1L3 15h7l-1.5 10L21 9h-8l1-8z"/></svg>Quick</button>
+  <button class="fab" type="button" data-fl-action="open-new" aria-label="New entry">+</button>
+  <div class="select-bar" id="select-bar" hidden role="toolbar" aria-label="Selection actions">
+    <div class="select-bar-info">
+      <button class="select-bar-cancel" type="button" data-fl-action="exit-select-mode" aria-label="Exit selection mode">✕</button>
+      <span id="select-count" aria-live="polite">0 selected</span>
+    </div>
+    <div class="select-bar-actions">
+      <button class="select-bar-btn" type="button" data-fl-action="select-all-visible">All visible</button>
+      <button class="select-bar-btn" type="button" id="select-csv-btn" data-fl-action="bulk-csv-selected" disabled title="CSV of selected entries"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12M8 11l4 4 4-4"/><path d="M5 21h14"/></svg>CSV</button>
+      <button class="select-bar-btn select-bar-btn-primary" type="button" id="select-consignment-btn" data-fl-action="export-consignment-dealer" disabled><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>Game dealer PDF</button>
+      <button class="select-bar-btn select-bar-btn-danger" type="button" id="select-delete-btn" data-fl-action="bulk-delete-selected" disabled title="Delete selected entries"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6M14 11v6"/></svg>Delete</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── Quick Entry Sheet ── -->
+<div class="qsheet-overlay" id="qs-overlay" data-fl-overlay="close-quick"></div>
+<div class="qsheet" id="quick-sheet" style="display:none;">
+  <div class="qsheet-handle"></div>
+  <div class="qsheet-hdr">
+    <div>
+      <div class="qsheet-title">Quick Entry</div>
+      <div class="qsheet-meta" id="qs-meta">Loading…</div>
+    </div>
+    <button class="qsheet-close" type="button" data-fl-action="close-quick" aria-label="Close quick entry">✕</button>
+  </div>
+  <div class="qsheet-body">
+    <div class="qs-lbl">Species</div>
+    <div class="qs-pills" id="qs-pills">
+      <div class="qs-pill" role="button" tabindex="0" data-fl-action="qs-pick" data-species="Red Deer">Red Deer</div>
+      <div class="qs-pill" role="button" tabindex="0" data-fl-action="qs-pick" data-species="Roe Deer">Roe</div>
+      <div class="qs-pill" role="button" tabindex="0" data-fl-action="qs-pick" data-species="Fallow">Fallow</div>
+      <div class="qs-pill" role="button" tabindex="0" data-fl-action="qs-pick" data-species="Sika">Sika</div>
+      <div class="qs-pill" role="button" tabindex="0" data-fl-action="qs-pick" data-species="Muntjac">Muntjac</div>
+      <div class="qs-pill" role="button" tabindex="0" data-fl-action="qs-pick" data-species="CWD">CWD</div>
+    </div>
+    <div class="qs-lbl">Sex</div>
+    <div class="qs-sex">
+      <button class="qs-sex-btn" id="qs-m" type="button" data-fl-action="qs-sex" data-sex="m">♂ Stag / Buck</button>
+      <button class="qs-sex-btn" id="qs-f" type="button" data-fl-action="qs-sex" data-sex="f">♀ Hind / Doe</button>
+    </div>
+    <div class="qs-lbl">Carcass weight (optional)</div>
+    <div class="qs-wt">
+      <div class="qs-wt-lbl">Weight</div>
+      <div class="qs-wt-row">
+        <input class="qs-wt-input" id="qs-wt" type="number" placeholder="0" inputmode="decimal" min="0" step="0.1">
+        <span class="qs-wt-unit">kg</span>
+      </div>
+    </div>
+    <div class="qs-lbl">Tag number (optional)</div>
+    <div class="qs-wt">
+      <div class="qs-wt-row">
+        <input class="qs-wt-input qs-tag-input" id="qs-tag" type="text" placeholder="e.g. FL-0047" style="text-align:left;">
+      </div>
+    </div>
+    <button class="qs-save" id="qs-save-btn" type="button" data-fl-action="save-quick"><span class="di-btn-ic" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M7 18h11a4 4 0 0 0 0-8h-.5A5.5 5.5 0 0 0 7 11a4 4 0 0 0 0 7z"/></svg></span>Save to Cloud</button>
+    <div class="qs-more" role="button" tabindex="0" data-fl-action="close-quick-then-new"><span>+ Add full details</span> — calibre, notes, photo…</div>
+  </div>
+</div>
+
+<!-- ══ DETAIL ══ -->
+<div id="v-detail" class="view">
+  <div class="detail-scroll" id="detail-content"></div>
+</div>
+
+<!-- ══ FORM ══ -->
+<div id="v-form" class="view">
+  <div class="form-hdr">
+    <button class="form-back" type="button" data-fl-action="form-back" aria-label="Back to list">←</button>
+    <div style="flex:1;">
+      <h2 id="form-title">New Entry</h2>
+      <p id="form-date-label"></p>
+      <div class="form-progress-chip" id="form-progress-chip">Section 1 of 7 · Species</div>
+    </div>
+    <a href="index.html" style="display:flex;align-items:center;gap:6px;text-decoration:none;flex-shrink:0;">
+      <img src="icon-180.png" alt="First Light" style="width:26px;height:26px;border-radius:7px;opacity:0.8;">
+    </a>
+  </div>
+  <div class="form-scroll">
+    <!-- Photo -->
+    <div class="photo-picker">
+      <div class="photo-picker-lbl">Photo (optional)</div>
+      <div class="photo-slots">
+        <div class="photo-slot empty" id="photo-slot">
+          <div class="photo-slot-icon" aria-hidden="true">
+            <svg class="photo-slot-empty-svg" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <rect x="7" y="11" width="34" height="26" rx="5" stroke="currentColor" stroke-width="1.5" opacity="0.9"/>
+              <circle cx="17" cy="20" r="3.5" fill="#c8a84b" opacity="0.42"/>
+              <path d="M9 36l9-12 7 7 9-13 6 18H9z" fill="#5a7a30" fill-opacity="0.2"/>
+              <path d="M9 36l9-12 7 7 9-13 6 18" fill="none" stroke="#5a7a30" stroke-opacity="0.5" stroke-width="1.15" stroke-linejoin="round"/>
+            </svg>
+          </div>
+          <div class="photo-slot-lbl">No photo</div>
+        </div>
+        <div class="photo-opt-row">
+          <button class="photo-opt primary" type="button" data-fl-action="photo-camera"><svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="6" width="18" height="14" rx="2"/><circle cx="12" cy="13" r="3"/><path d="M8 6h2l1-2h4l1 2h2"/></svg>Camera</button>
+          <button class="photo-opt photo-opt--gallery" type="button" data-fl-action="photo-gallery"><svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg>Gallery</button>
+          <button class="photo-opt" id="photo-rm-btn" style="display:none;" type="button" data-fl-action="remove-photo">✕ Remove</button>
+        </div>
+      </div>
+      <input type="file" id="photo-input-camera" accept="image/*" capture="environment" style="display:none;">
+      <input type="file" id="photo-input-gallery" accept="image/*" style="display:none;">
+    </div>
+    <!-- 1 Species -->
+    <div class="fsec fsec-species">
+      <div class="fsec-hdr"><div class="fsec-num">1</div><div class="fsec-title">Species</div></div>
+      <div class="sp-grid" id="species-grid">
+        <button class="sp-btn" type="button" data-fl-action="pick-species" data-species="Red Deer"><div class="sp-name">Red Deer</div><div class="sp-lat">C. elaphus</div></button>
+        <button class="sp-btn" type="button" data-fl-action="pick-species" data-species="Roe Deer"><div class="sp-name">Roe Deer</div><div class="sp-lat">C. capreolus</div></button>
+        <button class="sp-btn" type="button" data-fl-action="pick-species" data-species="Fallow"><div class="sp-name">Fallow</div><div class="sp-lat">D. dama</div></button>
+        <button class="sp-btn" type="button" data-fl-action="pick-species" data-species="Sika"><div class="sp-name">Sika</div><div class="sp-lat">C. nippon</div></button>
+        <button class="sp-btn" type="button" data-fl-action="pick-species" data-species="Muntjac"><div class="sp-name">Muntjac</div><div class="sp-lat">M. reevesi</div></button>
+        <button class="sp-btn" type="button" data-fl-action="pick-species" data-species="CWD"><div class="sp-name">CWD</div><div class="sp-lat">H. inermis</div></button>
+      </div>
+    </div>
+    <div class="fdiv"></div>
+    <!-- 2 Sex -->
+    <div class="fsec fsec-sex">
+      <div class="fsec-hdr"><div class="fsec-num">2</div><div class="fsec-title">Sex</div></div>
+      <div class="sex-row">
+        <button class="sx m" id="sx-m" type="button" data-fl-action="pick-sex" data-sex="m"><div class="sx-ico">♂</div><div class="sx-name">Stag / Buck</div></button>
+        <button class="sx f" id="sx-f" type="button" data-fl-action="pick-sex" data-sex="f"><div class="sx-ico">♀</div><div class="sx-name">Hind / Doe</div></button>
+      </div>
+    </div>
+    <div class="fdiv"></div>
+    <!-- 3 Date & Time -->
+    <div class="fsec fsec-datetime">
+      <div class="fsec-hdr"><div class="fsec-num">3</div><div class="fsec-title">Date & Time</div></div>
+      <div class="fr2">
+        <div class="ff"><label for="f-date">Date</label><input type="date" id="f-date"></div>
+        <div class="ff"><label for="f-time">Time</label><input type="time" id="f-time"></div>
+      </div>
+    </div>
+    <div class="fdiv"></div>
+    <!-- 4 Location -->
+    <div class="fsec fsec-loc">
+      <div class="fsec-hdr"><div class="fsec-num">4</div><div class="fsec-title">Location</div></div>
+      <div class="loc-row">
+        <div class="ff"><label for="f-location">Place name</label><input type="text" id="f-location" placeholder="e.g. Thetford Forest"></div>
+        <button class="pin-btn" type="button" data-fl-action="open-pin"><svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21s7-4.35 7-11a7 7 0 1 0-14 0c0 6.65 7 11 7 11z"/><circle cx="12" cy="10" r="2.2" fill="currentColor" stroke="none"/></svg>Pin</button>
+        <button class="gps-btn" type="button" data-fl-action="get-gps"><svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="3"/><line x1="12" y1="2" x2="12" y2="5"/><line x1="12" y1="19" x2="12" y2="22"/><line x1="2" y1="12" x2="5" y2="12"/><line x1="19" y1="12" x2="22" y2="12"/></svg>GPS</button>
+      </div>
+      <div id="loc-pinned-strip" style="display:none;" class="loc-pinned-strip">
+        <span class="loc-pin-ic" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21s7-4.35 7-11a7 7 0 1 0-14 0c0 6.65 7 11 7 11z"/><circle cx="12" cy="10" r="2.2" fill="currentColor" stroke="none"/></svg></span>
+        <div style="flex:1;">
+          <div class="loc-pinned-name" id="loc-pinned-name">–</div>
+          <div class="loc-pinned-coords" id="loc-pinned-coords">–</div>
+        </div>
+        <button class="loc-pinned-clear" type="button" data-fl-action="clear-pinned">✕</button>
+      </div>
+      <!-- Ground / Permission field -->
+      <div class="ff loc-ground-wrap">
+        <label for="f-ground">Permission / Ground</label>
+        <select class="ground-input" id="f-ground">
+          <option value="">Select ground…</option>
+        </select>
+        <input type="text" id="f-ground-custom" class="ground-custom-input" placeholder="Enter ground name…" style="display:none;">
+        <div class="loc-ground-note">
+          <span class="loc-ground-note-line">Syndicate permissions must match team tallies exactly.</span>
+          <span class="loc-ground-note-line">New grounds are saved automatically when you save an entry.</span>
+        </div>
+      </div>
+      <div class="ff loc-ground-wrap">
+        <label for="f-syndicate">Syndicate attribution (optional)</label>
+        <select class="ground-input" id="f-syndicate">
+          <option value="">Personal only (no syndicate)</option>
+        </select>
+        <div id="f-syndicate-auto-note" class="loc-ground-note-line" style="display:none;color:#2d7a1a;margin-top:6px;"></div>
+        <div class="loc-ground-note">
+          <span class="loc-ground-note-line">Choose one syndicate for this cull, or leave personal only.</span>
+          <span class="loc-ground-note-line">A cull can count toward one syndicate at most.</span>
+        </div>
+      </div>
+    </div>
+    <div class="fdiv"></div>
+    <!-- 5 Shot Details -->
+    <div class="fsec fsec-shot">
+      <div class="fsec-hdr"><div class="fsec-num">5</div><div class="fsec-title">Shot Details</div></div>
+      <div class="fr2">
+        <div class="ff"><label for="f-calibre-sel">Calibre</label>
+          <div class="sp-sel-wrap">
+            <select id="f-calibre-sel" class="sp-placement-sel">
+              <option value="">Select calibre…</option>
+              <optgroup label="Most common UK deer">
+                <option>.243 Win</option>
+                <option>.308 Win</option>
+                <option>6.5mm Creedmoor</option>
+                <option>.270 Win</option>
+                <option>6.5×55 Swedish</option>
+                <option>7mm-08 Rem</option>
+                <option>.30-06 Springfield</option>
+                <option>7×57mm Mauser</option>
+              </optgroup>
+              <optgroup label="Smaller deer (Muntjac / CWD)">
+                <option>.222 Rem</option>
+                <option>.223 Rem</option>
+                <option>.22-250 Rem</option>
+                <option>6mm BR</option>
+              </optgroup>
+              <optgroup label="Larger calibres">
+                <option>.300 Win Mag</option>
+                <option>7mm Rem Mag</option>
+                <option>.338 Lapua</option>
+              </optgroup>
+              <option value="__custom__">Other / custom…</option>
+            </select>
+          </div>
+          <input type="text" id="f-calibre" placeholder="e.g. 6.5×47 Lapua…" style="display:none;margin-top:8px;">
+        </div>
+        <div class="ff"><label for="f-dist">Distance (m)</label><input type="number" id="f-dist" placeholder="e.g. 120" inputmode="numeric" min="0"></div>
+      </div>
+      <div class="fr2">
+        <div class="ff"><label for="f-placement">Shot placement</label>
+          <div class="sp-sel-wrap">
+            <select id="f-placement" class="sp-placement-sel">
+              <option value="">Select placement…</option>
+              <optgroup label="Vital zones">
+                <option>Heart / Lung</option>
+                <option>High Shoulder</option>
+                <option>Neck</option>
+                <option>Head</option>
+              </optgroup>
+              <optgroup label="Non-ideal">
+                <option>Shoulder</option>
+                <option>Abdomen</option>
+                <option>Haunch</option>
+              </optgroup>
+              <option value="__other__">Other / describe…</option>
+            </select>
+          </div>
+          <input type="text" id="f-placement-custom" class="sp-placement-custom"
+            placeholder="e.g. frontal chest, base of skull…" style="display:none;margin-top:8px;">
+        </div>
+        <div class="ff"><label for="f-shooter">Shooter</label>
+          <input type="text" id="f-shooter" placeholder="Self" value="Self" class="shooter-self">
+        </div>
+      </div>
+    </div>
+    <div class="fdiv"></div>
+    <!-- 6 Carcass -->
+    <div class="fsec fsec-carcass">
+      <div class="fsec-hdr"><div class="fsec-num">6</div><div class="fsec-title">Carcass</div></div>
+      <div class="fr2">
+        <div class="ff"><label for="f-wt">Weight (kg)</label><input type="number" id="f-wt" placeholder="e.g. 45" inputmode="decimal" min="0" step="0.1"></div>
+        <div class="ff"><label for="f-age">Age class</label>
+          <select id="f-age">
+            <option value="">Select...</option>
+            <option value="Calf / Kid / Fawn">Calf / Kid / Fawn</option>
+            <option>Yearling</option>
+            <option>2–4 years</option>
+            <option>5–8 years</option>
+            <option>9+ years</option>
+          </select>
+        </div>
+      </div>
+      <div class="fr2">
+        <div class="ff"><label for="f-destination">Destination</label>
+          <select id="f-destination">
+            <option value="">Select...</option>
+            <option>Self / personal use</option>
+            <option>Game dealer</option>
+            <option>Friend / family</option>
+            <option>Stalking client</option>
+            <option>Estate / landowner</option>
+            <option>Left on hill</option>
+            <option>Condemned</option>
+          </select>
+        </div>
+        <div class="ff"><label for="f-tag">Tag number (optional)</label>
+          <input type="text" id="f-tag" placeholder="e.g. FL-0047">
+        </div>
+      </div>
+    </div>
+    <div class="fdiv"></div>
+    <!-- 7 Larder inspection / abnormalities (AHVLA trained-hunter checklist) -->
+    <div class="fsec fsec-abnorm">
+      <div class="fsec-hdr"><div class="fsec-num">7</div><div class="fsec-title">Larder inspection</div></div>
+      <div class="abnorm-none">
+        <label class="abnorm-none-lbl">
+          <input type="checkbox" id="f-abnorm-none">
+          <span class="abnorm-none-text"><strong>No abnormalities observed</strong><small>Tick if the carcass and viscera were unremarkable at gralloch.</small></span>
+        </label>
+      </div>
+      <div class="abnorm-grid" id="abnorm-grid" aria-label="Abnormalities observed at gralloch">
+        <!-- populated by diary.js from ABNORMALITY_OPTIONS -->
+      </div>
+      <div class="fr1"><div class="ff"><label for="f-abnorm-other">Other abnormalities (optional)</label><input type="text" id="f-abnorm-other" placeholder="Anything not on the list…" autocomplete="off"></div></div>
+    </div>
+    <div class="fdiv"></div>
+    <!-- 8 Notes -->
+    <div class="fsec fsec-notes">
+      <div class="fsec-hdr"><div class="fsec-num">8</div><div class="fsec-title">Notes</div></div>
+      <div class="fr1"><div class="ff"><label for="f-notes">Conditions / observations</label><textarea id="f-notes" placeholder="Wind direction, approach, behaviour, conditions…"></textarea></div></div>
+    </div>
+    <button class="save-btn" id="save-btn" type="button" data-fl-action="save-entry"><span class="di-btn-ic" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M7 18h11a4 4 0 0 0 0-8h-.5A5.5 5.5 0 0 0 7 11a4 4 0 0 0 0 7z"/></svg></span>Save to Cloud</button>
+    <div class="save-note">Syncs to Supabase. Works offline.</div>
+  </div>
+</div>
+
+<!-- ══ STATS ══ -->
+<div id="v-stats" class="view">
+  <div class="stats-hdr">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
+      <button class="back-link" style="margin-bottom:0;" type="button" data-fl-action="go" data-view="v-list">← Diary</button>
+      <a href="index.html" style="display:flex;align-items:center;gap:6px;text-decoration:none;">
+        <img src="icon-180.png" alt="First Light" style="width:26px;height:26px;border-radius:7px;opacity:0.8;">
+        <span style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.8px;color:rgba(200,168,75,0.6);font-family:'DM Mono',monospace;">First Light</span>
+      </a>
+    </div>
+    <div style="display:flex;align-items:flex-end;justify-content:space-between;gap:12px;">
+      <h2>Season Statistics</h2>
+      <select class="season-pill-sel" id="season-select-stats">
+      </select>
+    </div>
+    <p id="stats-season-lbl" style="margin-top:4px;"></p>
+  </div>
+  <div class="stats-scroll">
+    <!-- ── Cull Map ── -->
+    <div class="cullmap-wrap" id="cullmap-wrap">
+      <div class="cullmap-head">
+        <div>
+          <div class="cullmap-title">Cull Map</div>
+          <div id="cullmap-sub">Location history · filter chips apply to all stats below</div>
+        </div>
+        <div class="cullmap-ctrl">
+          <button class="map-fs-btn" id="map-fs-btn" type="button" data-fl-action="toggle-map-fullscreen" title="Fullscreen map" aria-label="Toggle fullscreen map"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"/></svg></button>
+          <div class="layer-tog" id="cullmap-layer-tog">
+            <button class="lt-b on" id="clt-map" type="button" data-fl-action="set-cull-layer" data-layer="map">Map</button>
+            <div class="lt-div"></div>
+            <button class="lt-b off" id="clt-sat" type="button" data-fl-action="set-cull-layer" data-layer="sat">Satellite</button>
+          </div>
+        </div>
+      </div>
+      <div class="cullmap-filter" id="cullmap-filter">
+        <button class="cmf-chip on" type="button" data-fl-action="filter-cull-map" data-species="all" aria-pressed="true">All</button>
+        <button class="cmf-chip" type="button" data-fl-action="filter-cull-map" data-species="Red Deer" aria-pressed="false"><span class="cmf-spec-dot" style="background-color:#c8a84b" aria-hidden="true"></span>Red</button>
+        <button class="cmf-chip" type="button" data-fl-action="filter-cull-map" data-species="Roe Deer" aria-pressed="false"><span class="cmf-spec-dot" style="background-color:#5a7a30" aria-hidden="true"></span>Roe</button>
+        <button class="cmf-chip" type="button" data-fl-action="filter-cull-map" data-species="Fallow" aria-pressed="false"><span class="cmf-spec-dot" style="background-color:#f57f17" aria-hidden="true"></span>Fallow</button>
+        <button class="cmf-chip" type="button" data-fl-action="filter-cull-map" data-species="Muntjac" aria-pressed="false"><span class="cmf-spec-dot" style="background-color:#6a1b9a" aria-hidden="true"></span>Muntjac</button>
+        <button class="cmf-chip" type="button" data-fl-action="filter-cull-map" data-species="Sika" aria-pressed="false"><span class="cmf-spec-dot" style="background-color:#1565c0" aria-hidden="true"></span>Sika</button>
+        <button class="cmf-chip" type="button" data-fl-action="filter-cull-map" data-species="CWD" aria-pressed="false"><span class="cmf-spec-dot" style="background-color:#00695c" aria-hidden="true"></span>CWD</button>
+      </div>
+      <div id="cull-map-container" style="position:relative;">
+        <div id="cull-map-div"></div>
+      </div>
+      <div class="cull-map-stats" id="cull-map-stats" style="display:none;">
+        <div class="cms-cell"><div class="cms-v" id="cms-pinned">0</div><div class="cms-l">Pinned</div></div>
+        <div class="cms-cell"><div class="cms-v" id="cms-nogps">0</div><div class="cms-l">No GPS</div></div>
+        <div class="cms-cell"><div class="cms-v" id="cms-species">0</div><div class="cms-l">Species</div></div>
+      </div>
+    </div>
+    <div class="stat-grid">
+      <div class="stat-cell"><div class="stat-cell-l">Total cull</div><div class="stat-cell-v" id="st-total">0</div><div class="stat-cell-s" id="st-total-sub">Mapped 0/0 · 0%</div></div>
+      <div class="stat-cell"><div class="stat-cell-l">Season target</div><div class="stat-cell-v" id="st-target">–</div><div class="stat-cell-s" id="st-target-sub">Set targets to track progress</div></div>
+      <div class="stat-cell"><div class="stat-cell-l">Avg distance</div><div class="stat-cell-v" id="st-dist">–</div><div class="stat-cell-s" id="st-dist-sub">No shot distances recorded</div></div>
+      <div class="stat-cell"><div class="stat-cell-l">Species</div><div class="stat-cell-v" id="st-species">0</div><div class="stat-cell-s">active this season</div></div>
+    </div>
+    <div class="stats-more-wrap" id="stats-more-wrap">
+      <button type="button" class="stats-more-toggle" id="stats-more-toggle" aria-expanded="false" aria-controls="stats-more-body" aria-label="Show charts and breakdowns">
+        <span class="stats-more-toggle-l">
+          <span class="stats-more-toggle-t">Charts &amp; breakdowns</span>
+          <span class="stats-more-toggle-h">Monthly · species · sex · ground · more</span>
+          <span class="stats-more-toggle-cta" id="stats-more-cta">Tap to show</span>
+        </span>
+        <span class="stats-more-toggle-r" aria-hidden="true">
+          <span class="stats-more-mini-hist" role="presentation">
+            <span></span><span></span><span></span><span></span><span></span><span></span>
+            <span></span><span></span><span></span><span></span><span></span>
+          </span>
+          <span class="stats-more-chev-wrap"><span class="stats-more-chev">▾</span></span>
+        </span>
+      </button>
+      <div class="stats-more-body" id="stats-more-body" hidden>
+    <div class="scard">
+      <div class="scard-t">Monthly cull</div>
+      <div class="month-chart" id="month-chart"></div>
+    </div>
+    <div class="scard" id="ground-card" style="display:none;">
+      <div class="scard-t">Cull by ground</div>
+      <div id="ground-chart"></div>
+    </div>
+    <div class="scard" id="species-chart-card">
+      <div class="scard-t">Cull by species</div>
+      <div id="species-chart"></div>
+    </div>
+    <div class="scard">
+      <div class="scard-t">Sex breakdown</div>
+      <div id="sex-chart"></div>
+    </div>
+    <div class="scard" id="weight-card">
+      <div class="scard-t">Weight overview</div>
+      <div id="weight-chart"></div>
+    </div>
+    <div class="scard" id="shooter-card" style="display:none;">
+      <div class="scard-t">Cull by shooter</div>
+      <div id="shooter-chart"></div>
+    </div>
+    <div class="scard" id="destination-card" style="display:none;">
+      <div class="scard-t">Carcass destination</div>
+      <div id="destination-chart"></div>
+    </div>
+    <div class="scard" id="age-card" style="display:none;">
+      <div class="scard-t">Age class breakdown</div>
+      <div id="age-chart"></div>
+    </div>
+    <div class="scard" id="calibre-card" style="display:none;">
+      <div class="scard-t">Calibre usage</div>
+      <div id="calibre-chart"></div>
+    </div>
+    <div class="scard" id="distance-card" style="display:none;">
+      <div class="scard-t">Shot distance</div>
+      <div id="distance-chart"></div>
+    </div>
+    <div class="scard" id="time-card" style="display:none;">
+      <div class="scard-t">Cull by time of day</div>
+      <div id="time-chart"></div>
+    </div>
+    <div class="scard" id="trends-card" style="display:none;">
+      <div class="scard-t">Season trends</div>
+      <div id="trends-chart"></div>
+    </div>
+      </div>
+    </div>
+    <!-- ── Cull Plan Card ── -->
+    <div class="plan-card stats-section-wrap" id="plan-card">
+      <div class="stats-section-toggle" id="plan-toggle" role="button" tabindex="0" aria-controls="plan-fold" aria-expanded="false">
+        <span class="stats-more-toggle-l">
+          <span class="stats-more-toggle-t">Season Plan</span>
+          <span class="stats-more-toggle-h" id="plan-sub">Cull targets vs actual</span>
+          <span class="stats-more-toggle-cta" id="plan-more-cta">Tap to show</span>
+        </span>
+        <span class="stats-section-toggle-r">
+          <span class="stats-section-mini" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><circle cx="12" cy="12" r="8.2" stroke="currentColor" stroke-width="1.7" opacity="0.55"/><circle cx="12" cy="12" r="4.2" stroke="currentColor" stroke-width="1.7" opacity="0.8"/><circle cx="12" cy="12" r="1.4" fill="currentColor"/><path d="M12 2.5v3M12 18.5v3M2.5 12h3M18.5 12h3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" opacity="0.6"/></svg></span>
+          <button type="button" class="stats-more-chev-wrap stats-section-collapse" id="plan-collapse-btn" aria-expanded="false" aria-controls="plan-fold" aria-label="Show season plan"><span class="stats-more-chev">▾</span></button>
+        </span>
+      </div>
+      <div class="stats-section-body" id="plan-fold" hidden>
+        <div class="stats-section-actions">
+          <button class="plan-edit-btn" id="plan-edit-btn" type="button" data-fl-action="open-targets">Edit</button>
+        </div>
+        <div class="plan-ground-filter" id="plan-ground-filter" style="display:none;"></div>
+        <div class="plan-body" id="plan-body">
+          <div class="plan-empty">
+            <div class="plan-empty-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><circle cx="12" cy="12" r="8" stroke="#5a7a30" stroke-width="1.5" opacity="0.55"/><circle cx="12" cy="12" r="3" stroke="#c8a84b" stroke-width="1.3"/><circle cx="12" cy="12" r="1" fill="#c8a84b"/><line x1="12" y1="2" x2="12" y2="5" stroke="#5a7a30" stroke-width="1.2" stroke-linecap="round" opacity="0.5"/><line x1="12" y1="19" x2="12" y2="22" stroke="#5a7a30" stroke-width="1.2" stroke-linecap="round" opacity="0.5"/><line x1="2" y1="12" x2="5" y2="12" stroke="#5a7a30" stroke-width="1.2" stroke-linecap="round" opacity="0.5"/><line x1="19" y1="12" x2="22" y2="12" stroke="#5a7a30" stroke-width="1.2" stroke-linecap="round" opacity="0.5"/></svg></div>
+            <div class="plan-empty-t">No targets set</div>
+            <div class="plan-empty-s">Set cull targets to track your season plan against actual results.</div>
+            <button class="plan-set-btn" type="button" data-fl-action="open-targets">Set targets</button>
+          </div>
+        </div>
+      </div>
+    </div>
+    <!-- ── Syndicates (Season Plan styling: plan-card + dots + green bars + total) ── -->
+    <div class="plan-card syndicate-plan-card stats-section-wrap" id="syndicate-card-outer">
+      <div class="stats-section-toggle" id="syndicate-toggle" role="button" tabindex="0" aria-controls="syndicate-fold" aria-expanded="false">
+        <span class="stats-more-toggle-l">
+          <span class="stats-more-toggle-t">Syndicates</span>
+          <span class="stats-more-toggle-h" id="syndicate-card-sub">Group targets · invite only</span>
+          <span class="stats-more-toggle-cta" id="syndicate-more-cta">Tap to show</span>
+        </span>
+        <span class="stats-section-toggle-r">
+          <span class="stats-section-mini stats-section-mini--group" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><circle cx="9" cy="8.5" r="3" stroke="currentColor" stroke-width="1.7"/><path d="M3 18.2a5.5 5.5 0 0 1 12 0" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/><circle cx="17.5" cy="10" r="2.2" stroke="currentColor" stroke-width="1.5" opacity="0.75"/><path d="M14.8 18.2a4.2 4.2 0 0 1 6.2-2.8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" opacity="0.75"/></svg></span>
+          <button type="button" class="stats-more-chev-wrap stats-section-collapse" id="syndicate-collapse-btn" aria-expanded="false" aria-controls="syndicate-fold" aria-label="Show syndicates"><span class="stats-more-chev">▾</span></button>
+        </span>
+      </div>
+      <div class="stats-section-body" id="syndicate-fold" hidden>
+        <div class="stats-section-actions">
+          <button type="button" class="plan-edit-btn" id="syndicate-new-btn" data-fl-action="open-syndicate-create">New</button>
+        </div>
+        <div class="plan-body" id="syndicate-body">
+          <div class="plan-empty" id="syndicate-empty-state" style="padding:12px 0;">
+            <div class="plan-empty-s" style="font-size:12px;">Sign in to manage syndicate cull targets.</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="exp-block exp-block--stats-export">
+      <div class="exp-block-hdr">
+        <div class="exp-block-title">My diary exports</div>
+        <div class="exp-block-sub">Exports your personal diary data.</div>
+      </div>
+    <div class="exp-row">
+      <button class="exp-btn exp-csv" type="button" data-fl-action="open-export" data-export-fmt="csv"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12M8 11l4 4 4-4"/><path d="M5 21h14"/></svg>CSV</button>
+      <button class="exp-btn exp-pdf" type="button" data-fl-action="open-export" data-export-fmt="pdf"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12M8 11l4 4 4-4"/><path d="M5 21h14"/></svg>PDF</button>
+      <button class="exp-btn exp-sum" type="button" data-fl-action="open-summary-filter"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 3h7l5 5v13a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1z"/><path d="M14 3v5h5"/><path d="M8 11h8M8 15h6" opacity="0.65"/></svg>Summary</button>
+      <button class="exp-btn exp-larder" type="button" data-fl-action="open-export" data-export-fmt="larder"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/><path d="M8 7h8M8 11h5" opacity="0.65"/></svg>Larder Book</button>
+    </div>
+    <div class="exp-block-foot">Per-carcass trained hunter declarations (for game dealers) are on each diary entry — tap an entry, then <strong>Game dealer PDF</strong>.</div>
+    </div>
+    <div class="exp-block exp-block--syndicate exp-block--stats-export" id="syndicate-export-row" style="display:none;">
+      <div class="exp-block-hdr">
+        <div class="exp-block-title">Syndicate exports (managers)</div>
+        <div class="exp-block-sub">Exports syndicate-wide team data.</div>
+      </div>
+      <div class="exp-row exp-row--syndicate">
+        <button class="exp-btn exp-btn--syndicate exp-btn--syndicate-csv" type="button" data-fl-action="open-syndicate-export" data-export-fmt="csv"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12M8 11l4 4 4-4"/><path d="M5 21h14"/></svg><span class="exp-btn-syn-stack"><span class="exp-btn-syn-team">Team</span><span class="exp-btn-syn-kind">CSV</span></span></button>
+        <button class="exp-btn exp-btn--syndicate exp-btn--syndicate-pdf" type="button" data-fl-action="open-syndicate-export" data-export-fmt="pdf"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12M8 11l4 4 4-4"/><path d="M5 21h14"/></svg><span class="exp-btn-syn-stack"><span class="exp-btn-syn-team">Team</span><span class="exp-btn-syn-kind">PDF</span></span></button>
+        <button class="exp-btn exp-btn--syndicate exp-btn--syndicate-sum" type="button" data-fl-action="open-syndicate-export" data-export-fmt="summary"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 3h7l5 5v13a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1z"/><path d="M14 3v5h5"/><path d="M8 11h8M8 15h6" opacity="0.65"/></svg><span class="exp-btn-syn-stack"><span class="exp-btn-syn-team">Team</span><span class="exp-btn-syn-kind">Summary</span></span></button>
+        <button class="exp-btn exp-btn--syndicate exp-btn--syndicate-larder" type="button" data-fl-action="open-syndicate-export" data-export-fmt="larder" title="Team Larder Book — every member's larder entries, ground-filtered, with shooter attributed."><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 4h16v4H4zM4 10h16v10a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V10z"/><path d="M9 14h6" opacity="0.7"/></svg><span class="exp-btn-syn-stack"><span class="exp-btn-syn-team">Team</span><span class="exp-btn-syn-kind">Larder</span></span></button>
+      </div>
+    </div>
+    <div class="account-row">
+      <div class="account-av" id="account-av">?</div>
+      <div style="flex:1;">
+        <div class="account-name" id="account-name">–</div>
+        <div class="account-email" id="account-email">–</div>
+      </div>
+      <button class="signout-btn" type="button" data-fl-action="sign-out">Sign out</button>
+    </div>
+    <div class="account-row-sub">
+      <button type="button" class="signout-all-link" data-fl-action="open-signout-all" title="Invalidate the session on this device and every other device signed in to this account.">Sign out of all devices</button>
+    </div>
+    <div class="profile-card" role="group" aria-label="Profile settings">
+      <div class="profile-card-title">Profile</div>
+      <div class="profile-row">
+        <div class="profile-row-main">
+          <div class="profile-row-label">Display name</div>
+          <div class="profile-row-value" id="profile-name-value">–</div>
+        </div>
+        <button type="button" class="profile-row-btn" data-fl-action="open-name-edit" aria-label="Edit display name">Edit</button>
+      </div>
+      <div class="profile-row">
+        <div class="profile-row-main">
+          <div class="profile-row-label">Password</div>
+          <div class="profile-row-value profile-row-value--muted">••••••••</div>
+        </div>
+        <button type="button" class="profile-row-btn" data-fl-action="open-password-change" aria-label="Change password">Change</button>
+      </div>
+    </div>
+    <!-- Delete account -->
+    <div class="danger-zone">
+      <div class="danger-zone-title">Danger zone</div>
+      <div class="danger-zone-sub">Permanent account actions</div>
+      <button type="button" class="danger-zone-btn" data-fl-action="confirm-delete-account">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none"><polyline points="3,6 5,6 21,6" stroke="#c62828" stroke-width="2" stroke-linecap="round"/><path d="M19,6l-1,14a2,2,0,0,1-2,2H8a2,2,0,0,1-2-2L5,6" stroke="#c62828" stroke-width="2" fill="none" stroke-linecap="round"/><path d="M10,11v6M14,11v6" stroke="#c62828" stroke-width="2" stroke-linecap="round"/><path d="M9,6V4a1,1,0,0,1,1-1h4a1,1,0,0,1,1,1V6" stroke="#c62828" stroke-width="2" fill="none"/></svg>
+        Delete my account &amp; all data
+      </button>
+    </div>
+    <div class="diary-footer-links" role="navigation" aria-label="Help and legal links">
+      <a href="diary-guide.html" class="diary-footer-link"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/><path d="M8 7h8M8 11h5" opacity="0.55"/></svg>Diary Guide</a>
+      <span class="diary-footer-sep" aria-hidden="true">·</span>
+      <a href="mailto:firstlightdeer@gmail.com?subject=Cull%20Diary%20feedback" class="diary-footer-link"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>Send feedback</a>
+      <span class="diary-footer-sep" aria-hidden="true">·</span>
+      <a href="privacy.html" class="diary-footer-link">Privacy Policy</a>
+      <span class="diary-footer-sep" aria-hidden="true">·</span>
+      <a href="terms.html" class="diary-footer-link">Terms of Use</a>
+      <span class="diary-footer-sep" aria-hidden="true">·</span>
+      <a href="index.html" class="diary-footer-link">← First Light</a>
+    </div>
+    <div class="diary-footer-copy">
+      © 2025–2026 Sohaib Mengal · First Light · All rights reserved
+    </div>
+  </div>
+</div>
+
+<!-- Delete Account Confirmation Modal -->
+<div id="delete-account-modal" class="di-modal-ov di-modal-ov--center di-modal-ov--dark" style="display:none;">
+  <div class="di-modal-card di-modal-card--narrow">
+    <div class="di-delete-hero">
+      <div class="di-delete-icon-wrap">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none"><path d="M12 9v4M12 17h.01" stroke="#c62828" stroke-width="2" stroke-linecap="round"/><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" stroke="#c62828" stroke-width="2" fill="none"/></svg>
+      </div>
+      <div class="di-modal-title">Delete account?</div>
+      <div class="di-delete-body">This will permanently delete your account and <strong>all cull records and photos</strong>. This cannot be undone.</div>
+    </div>
+    <div class="di-delete-input-wrap">
+      <div class="di-delete-confirm-hint">Type <strong>DELETE</strong> to confirm</div>
+      <input id="delete-confirm-input" class="di-modal-input di-modal-input--center" type="text" placeholder="Type DELETE here" autocomplete="off">
+    </div>
+    <button id="delete-confirm-btn" class="di-btn-full" type="button" data-fl-action="delete-account" disabled>Delete everything</button>
+    <button type="button" class="di-btn-full di-btn-sec-tonal di-btn-sec-tonal--soft" data-fl-action="close-delete-modal">Cancel — keep my account</button>
+  </div>
+</div>
+
+<div id="signout-all-modal" class="di-modal-ov di-modal-ov--center di-modal-ov--dark" style="display:none;" role="dialog" aria-modal="true" aria-labelledby="signout-all-title">
+  <div class="di-modal-card di-modal-card--narrow">
+    <div class="di-delete-hero">
+      <div class="di-delete-icon-wrap di-delete-icon-wrap--info">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4" stroke="#5a7a30" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/><path d="M10 17l-5-5 5-5M15 12H4" stroke="#5a7a30" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </div>
+      <div class="di-modal-title" id="signout-all-title">Sign out of all devices?</div>
+      <div class="di-delete-body">This will invalidate the session on every phone, tablet, and browser currently signed in to your account — including this one. You'll need to sign in again everywhere. Use this if a device has been lost or stolen.</div>
+    </div>
+    <button id="signout-all-confirm-btn" class="di-btn-full di-btn-pri-solid" type="button" data-fl-action="confirm-signout-all">Sign out everywhere</button>
+    <button type="button" class="di-btn-full di-btn-sec-tonal di-btn-sec-tonal--soft" data-fl-action="close-signout-all">Cancel</button>
+  </div>
+</div>
+
+<!--
+  Generic themed confirm modal. One shared instance; flConfirm() mutates the
+  title / body / action-label / icon per call. Used for all destructive
+  syndicate-admin actions (revoke invite, leave, promote, delete, kick,
+  remove ground, low-storage photo drop) and any future site that wants a
+  themed "are you sure?" in place of a native window.confirm().
+-->
+<div id="fl-generic-confirm-modal" class="di-modal-ov di-modal-ov--center di-modal-ov--dark" style="display:none;" role="dialog" aria-modal="true" aria-labelledby="fl-generic-confirm-title">
+  <div class="di-modal-card di-modal-card--narrow">
+    <div class="di-delete-hero">
+      <div class="di-delete-icon-wrap" id="fl-generic-confirm-icon-wrap">
+        <svg id="fl-generic-confirm-icon" width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true"></svg>
+      </div>
+      <div class="di-modal-title" id="fl-generic-confirm-title">Are you sure?</div>
+      <div class="di-delete-body" id="fl-generic-confirm-body"></div>
+    </div>
+    <button id="fl-generic-confirm-ok" class="di-btn-full" type="button" data-fl-action="fl-generic-confirm-ok">Confirm</button>
+    <button type="button" class="di-btn-full di-btn-sec-tonal di-btn-sec-tonal--soft" data-fl-action="fl-generic-confirm-cancel">Cancel</button>
+  </div>
+</div>
+
+<div id="delete-bulk-modal" class="di-modal-ov di-modal-ov--center di-modal-ov--dark" style="display:none;" role="dialog" aria-modal="true" aria-labelledby="delete-bulk-title">
+  <div class="di-modal-card di-modal-card--narrow">
+    <div class="di-delete-hero">
+      <div class="di-delete-icon-wrap">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" stroke="#c62828" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/><path d="M10 11v6M14 11v6" stroke="#c62828" stroke-width="2" stroke-linecap="round"/></svg>
+      </div>
+      <div class="di-modal-title" id="delete-bulk-title">Delete <span id="del-bulk-count">0</span> entries?</div>
+      <div class="di-delete-body">These records and their photos will be permanently removed. This cannot be undone.</div>
+      <div class="di-del-entry-summary" id="del-bulk-summary" aria-hidden="true"></div>
+    </div>
+    <button id="delete-bulk-confirm-btn" class="di-btn-full" type="button" data-fl-action="confirm-bulk-delete">Delete entries</button>
+    <button type="button" class="di-btn-full di-btn-sec-tonal di-btn-sec-tonal--soft" data-fl-action="close-bulk-delete-modal">Cancel</button>
+  </div>
+</div>
+
+<div id="delete-entry-modal" class="di-modal-ov di-modal-ov--center di-modal-ov--dark" style="display:none;" role="dialog" aria-modal="true" aria-labelledby="delete-entry-title">
+  <div class="di-modal-card di-modal-card--narrow">
+    <div class="di-delete-hero">
+      <div class="di-delete-icon-wrap">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" stroke="#c62828" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/><path d="M10 11v6M14 11v6" stroke="#c62828" stroke-width="2" stroke-linecap="round"/></svg>
+      </div>
+      <div class="di-modal-title" id="delete-entry-title">Delete this entry?</div>
+      <div class="di-delete-body">This will permanently remove the record and its photo. This cannot be undone.</div>
+      <div class="di-del-entry-summary" id="del-entry-summary" aria-hidden="true"></div>
+    </div>
+    <button id="delete-entry-confirm-btn" class="di-btn-full" type="button" data-fl-action="confirm-delete-entry">Delete entry</button>
+    <button type="button" class="di-btn-full di-btn-sec-tonal di-btn-sec-tonal--soft" data-fl-action="close-delete-entry-modal">Cancel</button>
+  </div>
+</div>
+
+<!-- Nav -->
+<!-- Export Modal — mirrors the Summary Season modal pattern so users get a
+     consistent season+ground filter UI regardless of which export flow they
+     enter through. Populated by openExportModal(); label/button copy swap
+     between "CSV" and "PDF" at runtime based on `exportFormat`. -->
+<div id="export-modal" class="di-modal-ov di-modal-ov--bottom" style="display:none;">
+  <div class="di-modal-sheet di-modal-sheet--rounded-tl">
+    <div class="di-modal-sheet-handle"></div>
+    <div class="di-modal-sheet-body">
+      <div class="di-modal-title di-modal-title--lg" id="export-modal-title">Export PDF</div>
+      <div class="di-modal-lede">Choose season and ground to export</div>
+
+      <div class="di-modal-field-block">
+        <label class="di-modal-field-lbl di-modal-field-lbl--field" for="export-season-sel">Season</label>
+        <select id="export-season-sel" class="di-modal-select"></select>
+      </div>
+
+      <div class="di-modal-field-block di-modal-field-block--lg">
+        <label class="di-modal-field-lbl di-modal-field-lbl--field" for="export-ground-sel">Permission / Ground</label>
+        <select id="export-ground-sel" class="di-modal-select"></select>
+      </div>
+
+      <div class="di-modal-preview">
+        <div class="di-modal-preview-lbl">Entries matching selection</div>
+        <div id="export-match-count" class="di-modal-preview-val">–</div>
+      </div>
+
+      <button type="button" class="di-btn-full di-btn-pdf" data-fl-action="do-export-filtered">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 3h7l5 5v13a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1z"/><path d="M14 3v5h5"/><path d="M8 12h8M8 16h5" opacity="0.75"/></svg>
+        <span id="export-generate-lbl">Generate PDF</span>
+      </button>
+      <button type="button" class="di-btn-full di-btn-outline" data-fl-action="close-export-modal">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<div id="syndicate-export-modal" class="di-modal-ov di-modal-ov--center" style="display:none;">
+  <div class="di-modal-card">
+    <div class="di-modal-title-sans" id="syndicate-export-modal-title">Syndicate export</div>
+    <div class="di-modal-lede di-modal-lede--tight" id="syndicate-export-modal-sub">Choose syndicate and scope.</div>
+    <label class="syndicate-export-lbl" for="syndicate-export-syndicate">Syndicate</label>
+    <select id="syndicate-export-syndicate" class="syndicate-export-select"></select>
+    <label class="syndicate-export-lbl" for="syndicate-export-season">Season</label>
+    <select id="syndicate-export-season" class="syndicate-export-select"></select>
+    <div id="syndicate-export-scope-wrap" class="syndicate-export-scope">
+      <span class="syndicate-export-scope-t">List scope (CSV / PDF)</span>
+      <label class="syndicate-export-radio"><input type="radio" name="syndicate-export-scope" value="season" checked> This season only</label>
+      <label class="syndicate-export-radio"><input type="radio" name="syndicate-export-scope" value="all"> All seasons</label>
+    </div>
+    <div id="syndicate-export-summary-hint" style="display:none;">Summary uses the season selected above.</div>
+    <button type="button" class="di-btn-full di-btn-pri-solid" data-fl-action="do-syndicate-export">Export</button>
+    <button type="button" class="di-btn-full di-btn-sec-tonal" data-fl-action="close-syndicate-export-modal">Cancel</button>
+  </div>
+</div>
+
+<div class="nav" id="main-nav" style="display:none;">
+  <button class="nb on" id="n-list" type="button" data-fl-action="go" data-view="v-list"><div class="ni"><svg width="22" height="22" viewBox="0 0 24 24" fill="none"><rect x="2" y="5" width="13" height="16" rx="2" stroke="currentColor" stroke-width="1.8" fill="none"/><line x1="2" y1="5" x2="2" y2="21" stroke="currentColor" stroke-width="3" stroke-linecap="round"/><line x1="6" y1="10" x2="11" y2="10" stroke="currentColor" stroke-width="1.3" opacity="0.7"/><line x1="6" y1="13" x2="11" y2="13" stroke="currentColor" stroke-width="1.3" opacity="0.5"/><circle cx="18.5" cy="5" r="3" stroke="#c8a84b" stroke-width="1.5" fill="none"/><circle cx="18.5" cy="5" r="1" fill="#c8a84b"/><line x1="18.5" y1="1.5" x2="18.5" y2="3" stroke="#c8a84b" stroke-width="1.2" stroke-linecap="round"/><line x1="18.5" y1="7" x2="18.5" y2="8.5" stroke="#c8a84b" stroke-width="1.2" stroke-linecap="round"/><line x1="15" y1="5" x2="16.5" y2="5" stroke="#c8a84b" stroke-width="1.2" stroke-linecap="round"/><line x1="20.5" y1="5" x2="22" y2="5" stroke="#c8a84b" stroke-width="1.2" stroke-linecap="round"/></svg></div><div class="nl">Diary</div><div class="nd"></div><span class="offline-badge" id="offline-badge"></span></button>
+  <button class="nb" id="n-form" type="button" data-fl-action="open-new"><div class="ni"><svg width="22" height="22" viewBox="0 0 24 24" fill="none"><line x1="12" y1="5" x2="12" y2="19" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><line x1="5" y1="12" x2="19" y2="12" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></div><div class="nl">Add Entry</div><div class="nd"></div></button>
+  <button class="nb" id="n-stats" type="button" data-fl-action="go" data-view="v-stats"><div class="ni"><svg width="22" height="22" viewBox="0 0 24 24" fill="none"><rect x="2" y="12" width="5" height="9" rx="1.5" fill="#c8a84b" opacity="0.9"/><rect x="9.5" y="7" width="5" height="14" rx="1.5" fill="currentColor"/><rect x="17" y="16" width="5" height="5" rx="1.5" fill="#c8a84b" opacity="0.6"/></svg></div><div class="nl">Stats</div><div class="nd"></div></button>
+</div>
+
+<!-- ── Pin Drop Map ── -->
+<div class="pinmap-overlay" id="pinmap-overlay">
+  <div class="pinmap-topbar">
+    <button class="pinmap-back" type="button" data-fl-action="close-pin" aria-label="Back to form">←</button>
+    <div style="flex:1;position:relative;">
+      <input id="pinmap-search" type="text" placeholder="Search place name…"
+        style="width:100%;padding:8px 12px;border-radius:10px;border:1px solid rgba(255,255,255,0.15);background:rgba(255,255,255,0.1);color:white;font-size:13px;font-family:'DM Sans',sans-serif;outline:none;">
+      <div id="pinmap-search-results" style="display:none;position:absolute;top:calc(100% + 4px);left:0;right:0;background:#1a2e10;border-radius:10px;overflow:hidden;z-index:800;box-shadow:0 4px 20px rgba(0,0,0,0.5);max-height:200px;overflow-y:auto;"></div>
+    </div>
+  </div>
+  <div class="layer-tog" id="pin-layer-tog">
+    <button class="lt-b on" id="plt-map" type="button" data-fl-action="set-pin-layer" data-layer="map">Map</button>
+    <div class="lt-div"></div>
+    <button class="lt-b off" id="plt-sat" type="button" data-fl-action="set-pin-layer" data-layer="sat">Satellite</button>
+  </div>
+  <div id="pinmap-fallback-msg" class="pinmap-fallback-msg" role="status" aria-live="polite"></div>
+  <div id="pin-map-div" style="flex:1;"></div>
+  <div class="pinmap-hint" id="pinmap-hint">
+    <div class="pinmap-hint-txt">Drag map to position the pin</div>
+  </div>
+  <div id="centre-pin" style="position:absolute;top:50%;left:50%;transform:translate(-50%,-100%);z-index:702;pointer-events:none;margin-top:-20px;">
+    <svg xmlns="http://www.w3.org/2000/svg" width="30" height="40" viewBox="0 0 30 40">
+      <filter id="pshadow"><feDropShadow dx="0" dy="2" stdDeviation="2" flood-opacity="0.35"/></filter>
+      <path d="M15 2C8.9 2 4 6.9 4 13c0 8.7 11 25 11 25s11-16.3 11-25C26 6.9 21.1 2 15 2z" fill="#c62828" stroke="white" stroke-width="2" filter="url(#pshadow)"/>
+      <circle cx="15" cy="13" r="5" fill="white" opacity="0.95"/>
+    </svg>
+  </div>
+  <div class="pinmap-confirm">
+    <div class="pinmap-manual">
+      <div class="pinmap-manual-lbl">Decimal degrees (WGS84)</div>
+      <div class="pinmap-manual-row">
+        <input type="text" id="pinmap-manual-lat" inputmode="decimal" placeholder="Latitude" autocomplete="off" aria-label="Latitude">
+        <input type="text" id="pinmap-manual-lng" inputmode="decimal" placeholder="Longitude" autocomplete="off" aria-label="Longitude">
+        <button type="button" class="pinmap-manual-apply" data-fl-action="apply-manual-pin-coords">Apply</button>
+      </div>
+    </div>
+    <div class="pinmap-loc-row">
+      <span class="pinmap-pin-ic" aria-hidden="true" style="flex-shrink:0;color:rgba(255,255,255,0.75);"><svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21s7-4.35 7-11a7 7 0 1 0-14 0c0 6.65 7 11 7 11z"/><circle cx="12" cy="10" r="2.2" fill="currentColor" stroke="none"/></svg></span>
+      <div style="flex:1;">
+        <div class="pinmap-loc-name" id="pinmap-name">Locating…</div>
+        <div class="pinmap-loc-coords" id="pinmap-coords">–</div>
+      </div>
+    </div>
+    <button class="pinmap-confirm-btn" type="button" data-fl-action="confirm-pin">✓ Confirm location</button>
+  </div>
+</div>
+
+<!-- ── Targets Sheet ── -->
+<div class="tsheet-ov" id="tsheet-ov" data-fl-overlay="close-targets">
+  <div class="tsheet">
+    <div class="tsheet-handle"></div>
+    <div class="tsheet-hdr">
+      <div>
+        <div class="tsheet-title">Set Targets</div>
+        <div class="tsheet-sub" id="tsheet-sub">Season plan</div>
+      </div>
+      <button class="tsheet-x" type="button" data-fl-action="close-targets" aria-label="Close targets panel">✕</button>
+    </div>
+    <div class="tsheet-body">
+      <div id="copy-targets-wrap" style="display:none;margin-bottom:8px;">
+        <button class="copy-targets-btn" type="button" data-fl-action="copy-targets-prev"><svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="8" y="2" width="8" height="4" rx="1"/><path d="M6 4h12a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2z"/><path d="M9 12h6M9 16h4"/></svg>Copy from previous season</button>
+      </div>
+      <!-- Mode toggle -->
+      <div class="tmode-toggle">
+        <button class="tmode-btn on" id="tmode-season" type="button" data-fl-action="set-target-mode" data-mode="season">Season total</button>
+        <button class="tmode-btn" id="tmode-ground" type="button" data-fl-action="set-target-mode" data-mode="ground">By ground</button>
+      </div>
+      <!-- Season total mode -->
+      <div id="tmode-season-body">
+      <div id="tseason-led-hint" class="tseason-led-hint" role="note" aria-live="polite" hidden></div>
+      <div class="tgrid-hdr">
+        <div class="tgrid-col">Species</div>
+        <div class="tgrid-col tgrid-hdr-col"><span class="tg-sym">♂</span>Stag / Buck</div>
+        <div class="tgrid-col tgrid-hdr-col"><span class="tg-sym">♀</span>Hind / Doe</div>
+      </div>
+      
+      <div class="tgrid-row">
+        <div class="tgrid-sp"><div class="tgrid-dot" style="background:#c8a84b;"></div>Red Deer</div>
+        <div class="tstepper">
+          <button class="tstep-btn" type="button" data-fl-action="tstep" data-step-id="redm" data-step-delta="-1">−</button>
+          <input class="tstep-val" id="tt-redm" type="number" value="0" min="0">
+          <button class="tstep-btn" type="button" data-fl-action="tstep" data-step-id="redm" data-step-delta="1">+</button>
+        </div>
+        <div class="tstepper">
+          <button class="tstep-btn" type="button" data-fl-action="tstep" data-step-id="redf" data-step-delta="-1">−</button>
+          <input class="tstep-val" id="tt-redf" type="number" value="0" min="0">
+          <button class="tstep-btn" type="button" data-fl-action="tstep" data-step-id="redf" data-step-delta="1">+</button>
+        </div>
+      </div>
+      <div class="tgrid-row">
+        <div class="tgrid-sp"><div class="tgrid-dot" style="background:#5a7a30;"></div>Roe Deer</div>
+        <div class="tstepper">
+          <button class="tstep-btn" type="button" data-fl-action="tstep" data-step-id="roem" data-step-delta="-1">−</button>
+          <input class="tstep-val" id="tt-roem" type="number" value="0" min="0">
+          <button class="tstep-btn" type="button" data-fl-action="tstep" data-step-id="roem" data-step-delta="1">+</button>
+        </div>
+        <div class="tstepper">
+          <button class="tstep-btn" type="button" data-fl-action="tstep" data-step-id="roef" data-step-delta="-1">−</button>
+          <input class="tstep-val" id="tt-roef" type="number" value="0" min="0">
+          <button class="tstep-btn" type="button" data-fl-action="tstep" data-step-id="roef" data-step-delta="1">+</button>
+        </div>
+      </div>
+      <div class="tgrid-row">
+        <div class="tgrid-sp"><div class="tgrid-dot" style="background:#f57f17;"></div>Fallow</div>
+        <div class="tstepper">
+          <button class="tstep-btn" type="button" data-fl-action="tstep" data-step-id="fallowm" data-step-delta="-1">−</button>
+          <input class="tstep-val" id="tt-fallowm" type="number" value="0" min="0">
+          <button class="tstep-btn" type="button" data-fl-action="tstep" data-step-id="fallowm" data-step-delta="1">+</button>
+        </div>
+        <div class="tstepper">
+          <button class="tstep-btn" type="button" data-fl-action="tstep" data-step-id="fallowf" data-step-delta="-1">−</button>
+          <input class="tstep-val" id="tt-fallowf" type="number" value="0" min="0">
+          <button class="tstep-btn" type="button" data-fl-action="tstep" data-step-id="fallowf" data-step-delta="1">+</button>
+        </div>
+      </div>
+      <div class="tgrid-row">
+        <div class="tgrid-sp"><div class="tgrid-dot" style="background:#6a1b9a;"></div>Muntjac</div>
+        <div class="tstepper">
+          <button class="tstep-btn" type="button" data-fl-action="tstep" data-step-id="muntjacm" data-step-delta="-1">−</button>
+          <input class="tstep-val" id="tt-muntjacm" type="number" value="0" min="0">
+          <button class="tstep-btn" type="button" data-fl-action="tstep" data-step-id="muntjacm" data-step-delta="1">+</button>
+        </div>
+        <div class="tstepper">
+          <button class="tstep-btn" type="button" data-fl-action="tstep" data-step-id="muntjacf" data-step-delta="-1">−</button>
+          <input class="tstep-val" id="tt-muntjacf" type="number" value="0" min="0">
+          <button class="tstep-btn" type="button" data-fl-action="tstep" data-step-id="muntjacf" data-step-delta="1">+</button>
+        </div>
+      </div>
+      <div class="tgrid-row">
+        <div class="tgrid-sp"><div class="tgrid-dot" style="background:#1565c0;"></div>Sika</div>
+        <div class="tstepper">
+          <button class="tstep-btn" type="button" data-fl-action="tstep" data-step-id="sikam" data-step-delta="-1">−</button>
+          <input class="tstep-val" id="tt-sikam" type="number" value="0" min="0">
+          <button class="tstep-btn" type="button" data-fl-action="tstep" data-step-id="sikam" data-step-delta="1">+</button>
+        </div>
+        <div class="tstepper">
+          <button class="tstep-btn" type="button" data-fl-action="tstep" data-step-id="sikaf" data-step-delta="-1">−</button>
+          <input class="tstep-val" id="tt-sikaf" type="number" value="0" min="0">
+          <button class="tstep-btn" type="button" data-fl-action="tstep" data-step-id="sikaf" data-step-delta="1">+</button>
+        </div>
+      </div>
+      <div class="tgrid-row">
+        <div class="tgrid-sp"><div class="tgrid-dot" style="background:#00695c;"></div>CWD</div>
+        <div class="tstepper">
+          <button class="tstep-btn" type="button" data-fl-action="tstep" data-step-id="cwdm" data-step-delta="-1">−</button>
+          <input class="tstep-val" id="tt-cwdm" type="number" value="0" min="0">
+          <button class="tstep-btn" type="button" data-fl-action="tstep" data-step-id="cwdm" data-step-delta="1">+</button>
+        </div>
+        <div class="tstepper">
+          <button class="tstep-btn" type="button" data-fl-action="tstep" data-step-id="cwdf" data-step-delta="-1">−</button>
+          <input class="tstep-val" id="tt-cwdf" type="number" value="0" min="0">
+          <button class="tstep-btn" type="button" data-fl-action="tstep" data-step-id="cwdf" data-step-delta="1">+</button>
+        </div>
+      </div>
+      <div class="tseason-total-footer" id="tseason-total-footer" aria-live="polite">
+        <div class="tseason-total-row">
+          <span class="tseason-total-lbl">Stag / buck total</span>
+          <span class="tseason-total-val" id="tseason-total-m">0</span>
+        </div>
+        <div class="tseason-total-row">
+          <span class="tseason-total-lbl">Hind / doe total</span>
+          <span class="tseason-total-val" id="tseason-total-f">0</span>
+        </div>
+        <div class="tseason-total-grand">
+          <span class="tseason-total-grand-lbl">Season total</span>
+          <span class="tseason-total-grand-val" id="tseason-total-all">0 animals</span>
+        </div>
+      </div>
+      </div><!-- /tmode-season-body -->
+      <!-- By ground mode — rendered dynamically -->
+      <div id="tmode-ground-body" style="display:none;">
+        <div id="tground-mode-hint" class="tground-mode-hint" role="note" aria-live="polite" hidden></div>
+        <!-- Ground management bar -->
+        <div class="ground-mgmt-bar">
+          <div class="ground-mgmt-lbl" id="ground-mgmt-lbl">Your grounds</div>
+          <button class="ground-add-btn" type="button" data-fl-action="show-add-ground">＋ Add ground</button>
+        </div>
+        <!-- Add ground input (hidden by default) -->
+        <div class="ground-add-input-row" id="ground-add-row" style="display:none;">
+          <input class="ground-add-input" id="ground-add-inp" type="text" placeholder="e.g. Farm A, Woodland Block…"
+           
+            autocomplete="off">
+          <button class="ground-add-cancel" type="button" data-fl-action="hide-add-ground">✕</button>
+          <button class="ground-add-confirm" type="button" data-fl-action="confirm-add-ground">Add</button>
+        </div>
+        <div id="tground-sections"></div>
+        <div class="tunassigned" id="tunassigned-wrap">
+          <div class="tunassigned-bar">
+            <div class="tunassigned-hdr" id="tunassigned-hdr" tabindex="0" role="button" data-fl-action="toggle-unassigned" aria-expanded="false" aria-label="Show or hide unassigned buffer targets">
+              <div class="tunassigned-hdr-l">
+                <div class="tunassigned-dot" aria-hidden="true"></div>
+                <div>
+                  <div class="tunassigned-title">Unassigned buffer</div>
+                  <div class="tunassigned-summary" id="tunassigned-summary">None set — tap to add optional targets</div>
+                </div>
+              </div>
+              <span class="tground-chev-wrap tunassigned-chev-wrap" aria-hidden="true"><span class="tground-chev" id="tunassigned-chev">▾</span></span>
+            </div>
+          </div>
+          <div class="tunassigned-body" id="tunassigned-body">
+            <div class="tunassigned-sub">Animals you count in the season, but not on one of the grounds above. The app lines this up when you save.</div>
+            <div class="tgrid-hdr" style="margin-top:8px;">
+              <div class="tgrid-col">Species</div>
+              <div class="tgrid-col tgrid-hdr-col"><span class="tg-sym">♂</span>Stag / Buck</div>
+              <div class="tgrid-col tgrid-hdr-col"><span class="tg-sym">♀</span>Hind / Doe</div>
+            </div>
+            <div id="tunassigned-steppers"></div>
+          </div>
+        </div>
+        <div class="tground-rollup-wrap">
+          <div id="trollup" class="trollup"></div>
+        </div>
+      </div><!-- /tmode-ground-body -->
+      <button class="tsheet-save" type="button" data-fl-action="save-targets"><span class="di-btn-ic" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M7 18h11a4 4 0 0 0 0-8h-.5A5.5 5.5 0 0 0 7 11a4 4 0 0 0 0 7z"/></svg></span>Save targets</button>
+      <div class="tsheet-note">Targets are per season and saved to your account.</div>
+    </div>
+  </div>
+</div>
+
+<!-- ── Syndicate modal ── -->
+<div class="tsheet-ov" id="syn-ov">
+  <div class="tsheet tsheet--scroll">
+    <div class="tsheet-handle"></div>
+    <div class="tsheet-hdr">
+      <div>
+        <div class="tsheet-title" id="syn-modal-title">Syndicate</div>
+        <div class="tsheet-sub" id="syn-modal-sub"></div>
+      </div>
+      <button class="tsheet-x" type="button" data-fl-action="close-syndicate-modal" aria-label="Close syndicate panel">✕</button>
+    </div>
+    <div class="tsheet-body" id="syn-modal-body"></div>
+  </div>
+</div>
+
+<!-- ── Summary Filter Modal ── -->
+<div id="summary-filter-modal" class="di-modal-ov di-modal-ov--bottom" style="display:none;">
+  <div class="di-modal-sheet di-modal-sheet--rounded-tl">
+    <div class="di-modal-sheet-handle"></div>
+    <div class="di-modal-sheet-body">
+      <div class="di-modal-title di-modal-title--lg">Season Summary</div>
+      <div class="di-modal-lede">Choose season and ground to export</div>
+
+      <div class="di-modal-field-block">
+        <label class="di-modal-field-lbl di-modal-field-lbl--field" for="summary-season-sel">Season</label>
+        <select id="summary-season-sel" class="di-modal-select"></select>
+      </div>
+
+      <div class="di-modal-field-block di-modal-field-block--lg">
+        <label class="di-modal-field-lbl di-modal-field-lbl--field" for="summary-ground-sel">Permission / Ground</label>
+        <select id="summary-ground-sel" class="di-modal-select"></select>
+      </div>
+
+      <div id="summary-preview" class="di-modal-preview">
+        <div class="di-modal-preview-lbl">Entries matching selection</div>
+        <div id="summary-count" class="di-modal-preview-val">–</div>
+      </div>
+
+      <button type="button" class="di-btn-full di-btn-pdf" data-fl-action="do-export-summary"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 3h7l5 5v13a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1z"/><path d="M14 3v5h5"/><path d="M8 12h8M8 16h5" opacity="0.75"/></svg>Generate Summary PDF</button>
+      <button type="button" class="di-btn-full di-btn-outline" data-fl-action="close-summary-modal">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── Photo Lightbox ── -->
+<div id="photo-lightbox" class="di-lightbox" style="display:none;" data-fl-overlay="close-photo-lb">
+  <button class="di-lightbox-close" type="button" data-fl-action="close-photo-lb" aria-label="Close">×</button>
+  <img id="photo-lightbox-img" class="di-lightbox-img" src="" alt="">
+</div>
+<!--
+  diary.js is an ES module (see MODULARISATION-PLAN.md). `type="module"` makes
+  it defer by default — it runs after DOM parse, which is why any previous
+  `document.addEventListener('DOMContentLoaded', …)` inside is now wrapped in
+  `flOnReady()` so it still fires whether we're a classic script or a module.
+  Vendor libs above are still classic scripts and attach their globals (L,
+  supabase, jspdf) before this module runs, so we read them as window.*.
+-->
+<script type="module" src="diary.js"></script>
+</body>
+</html>
