@@ -191,7 +191,7 @@ option:checked{background-color:#e8f2dc;color:#15370a;}
 .hsl{font-size:7px;text-transform:uppercase;letter-spacing:0.5px;color:rgba(255,255,255,0.3);margin-top:2px;font-family:'DM Mono',monospace;}
 .list-row2{display:flex;gap:6px;align-items:center;margin-top:12px;}
 .season-sel{flex:1;background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.12);border-radius:8px;padding:7px 12px;color:rgba(255,255,255,0.8);font-size:12px;font-weight:600;font-family:'DM Sans',sans-serif;-webkit-appearance:none;outline:none;}
-.season-pill-sel{background:rgba(200,168,75,0.12);border:1px solid rgba(200,168,75,0.25);border-radius:8px;padding:5px 10px;color:var(--amber);font-size:11px;font-weight:600;font-family:'DM Mono',monospace;-webkit-appearance:none;outline:none;cursor:pointer;flex-shrink:0;}
+.season-pill-sel{background:rgba(200,168,75,0.12);border:1px solid rgba(200,168,75,0.25);border-radius:8px;padding:5px 10px;color:var(--amber);font-size:11px;font-weight:600;font-family:'DM Mono',monospace;-webkit-appearance:none;outline:none;cursor:pointer;min-width:0;}
 .hdr-btn{background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.12);border-radius:8px;padding:7px 10px;min-height:36px;color:rgba(255,255,255,0.65);font-size:13px;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;}
 .filter-bar{display:flex;gap:6px;padding:12px 14px 8px;overflow-x:auto;scrollbar-width:none;flex-shrink:0;}
 .filter-bar::-webkit-scrollbar{display:none;}
@@ -789,9 +789,14 @@ body.in-select-mode .entries{padding-bottom:92px;}
 /* ══════════════════════════════
    STATS VIEW
 ══════════════════════════════ */
-#v-stats{background:var(--cream);}
-.stats-hdr{background:linear-gradient(160deg,#0f1e0a,#0a1506);padding:54px 18px 20px;flex-shrink:0;}
-.stats-hdr h2{font-family:'Playfair Display',serif;font-size:26px;color:white;}
+#v-stats{background:var(--cream);overflow-x:hidden;}
+.stats-hdr{background:linear-gradient(160deg,#0f1e0a,#0a1506);padding:54px 18px 20px;flex-shrink:0;min-width:0;}
+/* Long <option> text ("… · Next season") makes native <select> size to the longest label;
+   without min-width:0 + a cap, the row exceeds the column — Safari shows horizontal scroll /
+   a white edge (same issue as .list-top, diary.css). */
+.stats-hdr-row{display:flex;flex-wrap:wrap;align-items:flex-end;justify-content:space-between;gap:8px 12px;min-width:0;}
+.stats-hdr-row h2{font-family:'Playfair Display',serif;font-size:26px;color:white;min-width:0;flex:1 1 auto;line-height:1.15;}
+.stats-hdr .season-pill-sel{flex:0 1 auto;max-width:min(230px,48vw);}
 .stats-hdr p{font-size:10px;color:rgba(200,168,75,0.65);text-transform:uppercase;letter-spacing:1px;margin-top:4px;font-weight:600;font-family:'DM Mono',monospace;}
 /* Extra bottom padding so export rows (esp. syndicate: label + buttons) clear the fixed nav (z-index 200) */
 .stats-scroll{flex:1;overflow-y:auto;padding-bottom:calc(120px + env(safe-area-inset-bottom, 0px));position:relative;overflow-anchor:none;}
