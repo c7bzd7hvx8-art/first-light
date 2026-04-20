@@ -1,0 +1,952 @@
+<!DOCTYPE html>
+<html lang="en-GB">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">
+<title>Cull Diary Guide — First Light</title>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;700&family=DM+Sans:wght@300;400;500;600;700&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root {
+  --forest:#1a2e1a; --deep:#0e2a08; --moss:#5a7a30; --leaf:#7adf7a;
+  --gold:#c8a84b; --amber:#f0c870; --cream:#f2efe9; --stone:#ede9e2;
+  --bark:#3d2b1f; --muted:#a0988a;
+  --blue:#1a4aaa;
+}
+*{margin:0;padding:0;box-sizing:border-box;}
+body{background:#080f08;font-family:'DM Sans',sans-serif;color:rgba(255,255,255,0.85);max-width:500px;margin:0 auto;padding:0 0 60px;}
+
+.guide-hdr{background:linear-gradient(135deg,#0f1e0a,#0a1506);padding:48px 20px 24px;border-bottom:1px solid rgba(200,168,75,0.15);}
+.guide-hdr a{display:inline-flex;align-items:center;gap:6px;font-size:11px;color:rgba(200,168,75,0.7);text-decoration:none;margin-bottom:14px;font-weight:600;font-family:'DM Mono',monospace;}
+.guide-hdr h1{font-family:'Playfair Display',serif;font-size:26px;color:white;line-height:1.2;}
+.guide-hdr p{font-size:12px;color:rgba(200,168,75,0.6);margin-top:4px;font-family:'DM Mono',monospace;text-transform:uppercase;letter-spacing:1px;}
+
+.toc{padding:20px;background:rgba(200,168,75,0.05);border-bottom:1px solid rgba(200,168,75,0.1);}
+.toc-title{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--gold);margin-bottom:10px;font-family:'DM Mono',monospace;}
+.toc a{display:block;padding:6px 0;font-size:13px;color:rgba(255,255,255,0.6);text-decoration:none;border-bottom:1px solid rgba(255,255,255,0.04);}
+.toc a:hover{color:var(--gold);}
+.toc a span{color:rgba(200,168,75,0.4);font-family:'DM Mono',monospace;font-size:11px;margin-right:8px;}
+
+.step{padding:28px 20px;border-bottom:1px solid rgba(255,255,255,0.05);}
+.step-num{display:inline-flex;align-items:center;justify-content:center;width:28px;height:28px;border-radius:50%;background:var(--moss);color:white;font-size:12px;font-weight:700;margin-bottom:10px;}
+.step h2{font-family:'Playfair Display',serif;font-size:20px;color:white;margin-bottom:6px;}
+.step h3{font-size:14px;font-weight:700;color:var(--gold);margin:18px 0 8px;font-family:'DM Mono',monospace;text-transform:uppercase;letter-spacing:0.5px;}
+.step p{font-size:13px;color:rgba(255,255,255,0.65);line-height:1.7;margin-bottom:12px;}
+.step .tip{background:rgba(200,168,75,0.08);border:1px solid rgba(200,168,75,0.15);border-radius:10px;padding:10px 14px;font-size:12px;color:rgba(255,255,255,0.6);line-height:1.6;margin:12px 0;}
+.step .tip strong{color:var(--gold);}
+.step .warn{background:rgba(255,100,100,0.06);border:1px solid rgba(255,100,100,0.12);border-radius:10px;padding:10px 14px;font-size:12px;color:rgba(255,180,160,0.8);line-height:1.6;margin:12px 0;}
+
+/* ── Mockup UI components ── */
+.mock{background:white;border-radius:16px;padding:16px;margin:14px 0;box-shadow:0 4px 20px rgba(0,0,0,0.3);}
+.mock-dark{background:#111a0b;border:1px solid rgba(255,255,255,0.08);}
+.mock-label{font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--muted);margin-bottom:8px;font-family:'DM Mono',monospace;}
+.mock-label-dark{color:rgba(200,168,75,0.5);}
+
+/* Species grid */
+.m-sp-grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;}
+.m-sp-btn{padding:10px 6px;border-radius:10px;border:1.5px solid #e0dcd6;background:white;text-align:center;font-size:12px;font-weight:600;color:var(--bark);cursor:default;}
+.m-sp-btn.on{background:var(--forest);color:white;border-color:var(--forest);}
+.m-sp-lat{font-size:9px;color:#aaa;font-style:italic;margin-top:1px;}
+.m-sp-btn.on .m-sp-lat{color:rgba(255,255,255,0.5);}
+
+/* Sex buttons */
+.m-sx-row{display:flex;gap:8px;}
+.m-sx{flex:1;padding:12px;border-radius:12px;border:1.5px solid #e0dcd6;text-align:center;font-size:13px;font-weight:600;color:var(--bark);}
+.m-sx.on{background:var(--bark);color:white;border-color:var(--bark);}
+
+/* Form fields */
+.m-ff{margin-bottom:10px;}
+.m-ff label{display:block;font-size:11px;font-weight:600;color:var(--bark);margin-bottom:4px;}
+.m-ff input,.m-ff select{width:100%;padding:10px 12px;border:1.5px solid var(--stone);border-radius:10px;font-size:13px;color:var(--bark);background:white;font-family:'DM Sans',sans-serif;}
+.m-ff-row{display:flex;gap:8px;}
+.m-ff-row .m-ff{flex:1;}
+
+/* Buttons */
+.m-btn{display:inline-flex;align-items:center;gap:6px;padding:8px 14px;border-radius:10px;font-size:12px;font-weight:600;border:none;cursor:default;}
+.m-btn-pin{background:#e8f5e0;color:#3a6020;border:1.5px solid #c8d8a8;}
+.m-btn-gps{background:#e8f0ff;color:#2a4a8a;border:1.5px solid #b0c4e8;}
+.m-btn-save{display:flex;align-items:center;justify-content:center;gap:8px;width:100%;padding:14px;background:linear-gradient(135deg,var(--moss),var(--deep));color:white;border-radius:14px;font-size:15px;font-weight:700;text-align:center;margin-top:8px;}
+
+/* Photo slot */
+.m-photo{display:flex;align-items:center;gap:10px;margin:10px 0;}
+.m-photo-box{width:80px;height:80px;border-radius:12px;background:#f5f2ee;display:flex;align-items:center;justify-content:center;font-size:24px;color:#d8d0c8;border:2px dashed #e0dcd6;}
+.m-photo-btns{display:flex;gap:6px;}
+.m-photo-btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;padding:8px 12px;border-radius:8px;font-size:11px;font-weight:700;border:none;cursor:default;}
+.m-photo-btn svg{width:14px;height:14px;flex-shrink:0;}
+
+/* Weight row */
+.m-wt-row{display:flex;gap:8px;}
+.m-wt{flex:1;}
+.m-wt label{display:block;font-size:10px;font-weight:600;color:var(--bark);margin-bottom:3px;}
+.m-wt input{width:100%;padding:9px 10px;border:1.5px solid var(--stone);border-radius:8px;font-size:13px;color:var(--bark);text-align:right;font-family:'DM Sans',sans-serif;}
+
+/* Nav bar */
+.m-nav{display:flex;background:#111a0b;border-radius:0 0 12px 12px;overflow:hidden;border-top:1px solid rgba(255,255,255,0.07);}
+.m-nav-item{flex:1;padding:10px 4px 12px;text-align:center;font-size:8px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;color:rgba(255,255,255,0.25);font-family:'DM Mono',monospace;}
+.m-nav-item.on{color:var(--leaf);}
+.m-nav-ico{display:flex;align-items:center;justify-content:center;margin-bottom:3px;color:var(--leaf);}
+.m-nav-ico svg{width:22px;height:22px;display:block;opacity:0.9;}
+.m-nav-item:not(.on) .m-nav-ico{color:rgba(255,255,255,0.35);}
+
+/* Stats card (legacy mock — prefer .m-hstats-row for diary list) */
+.m-stat-grid{display:grid;grid-template-columns:1fr 1fr;gap:1px;background:rgba(255,255,255,0.07);border-radius:10px;overflow:hidden;margin:10px 0;}
+.m-stat{padding:12px;text-align:center;background:#111a0b;}
+.m-stat-n{font-size:22px;font-weight:700;color:var(--amber);font-variant-numeric:tabular-nums;}
+.m-stat-l{font-size:7px;text-transform:uppercase;letter-spacing:0.5px;color:rgba(255,255,255,0.3);margin-top:2px;font-family:'DM Mono',monospace;}
+
+/* Diary list header mock — matches diary.css .hstats (3 columns, not 2×2) */
+.m-diary-list-mock{border-radius:16px;overflow:hidden;box-shadow:0 4px 20px rgba(0,0,0,0.35);margin:14px 0;}
+.m-diary-hdr{background:linear-gradient(160deg,#0f1e0a,#0a1506);padding:16px 16px 18px;position:relative;}
+.m-diary-hdr::after{content:'';position:absolute;bottom:0;left:0;right:0;height:1px;background:linear-gradient(to right,transparent,rgba(200,168,75,0.15),transparent);}
+.m-fl-mini{display:flex;align-items:center;gap:8px;margin-bottom:12px;padding-bottom:10px;border-bottom:1px solid rgba(255,255,255,0.06);}
+.m-fl-mini img{width:28px;height:28px;border-radius:7px;flex-shrink:0;}
+.m-fl-mini-t{font-size:11px;font-weight:700;color:rgba(255,255,255,0.85);line-height:1.2;}
+.m-fl-mini-s{font-size:9px;color:rgba(200,168,75,0.45);display:block;margin-top:2px;font-weight:600;}
+.m-list-top-m{display:flex;justify-content:space-between;align-items:flex-start;gap:8px;margin-bottom:0;min-width:0;}
+.m-list-top-m > div:first-child{min-width:0;flex:1;}
+.m-diary-title{font-family:'Playfair Display',serif;font-size:22px;color:white;line-height:1;}
+.m-diary-season-lbl{font-size:10px;color:rgba(200,168,75,0.65);text-transform:uppercase;letter-spacing:1px;margin-top:4px;font-weight:600;font-family:'DM Mono',monospace;}
+.m-hstats-row{display:flex;gap:1px;background:rgba(255,255,255,0.07);border-radius:12px;overflow:hidden;border:1px solid rgba(255,255,255,0.08);flex-shrink:0;max-width:52%;}
+@media(max-width:400px){.m-hstats-row{max-width:48%;}.m-diary-title{font-size:20px;}}
+.m-hs-cell{padding:8px 7px;text-align:center;min-width:0;flex:1;}
+.m-hs-cell + .m-hs-cell{border-left:1px solid rgba(255,255,255,0.07);}
+.m-hs-n{font-size:16px;font-weight:700;color:var(--amber);line-height:1;font-variant-numeric:tabular-nums;}
+.m-hs-l{font-size:6px;text-transform:uppercase;letter-spacing:0.4px;color:rgba(255,255,255,0.3);margin-top:2px;font-family:'DM Mono',monospace;}
+.m-list-row2-m{display:flex;gap:6px;align-items:center;margin-top:12px;}
+.m-season-sel-mock{flex:1;background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.12);border-radius:8px;padding:7px 10px;color:rgba(255,255,255,0.85);font-size:11px;font-weight:600;font-family:'DM Sans',sans-serif;}
+.m-hdr-ico-m{background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.12);border-radius:8px;padding:7px 9px;min-height:34px;display:flex;align-items:center;justify-content:center;color:rgba(200,168,75,0.75);}
+.m-hdr-ico-m svg{width:16px;height:16px;}
+.m-filter-cream{background:var(--cream);padding:10px 12px 12px;}
+.m-fab-hint{display:flex;justify-content:flex-end;gap:8px;padding:0 12px 10px;background:var(--cream);font-size:9px;font-weight:700;font-family:'DM Mono',monospace;color:rgba(26,33,0,0.35);text-transform:uppercase;letter-spacing:0.5px;}
+.m-fab-fake{width:40px;height:40px;border-radius:50%;background:linear-gradient(135deg,var(--moss),var(--deep));color:white;font-size:20px;display:flex;align-items:center;justify-content:center;box-shadow:0 4px 14px rgba(90,122,48,0.4);}
+.m-fab-q-fake{display:flex;align-items:center;gap:4px;background:rgba(14,42,8,0.9);border:1px solid rgba(200,168,75,0.3);color:var(--amber);font-size:10px;font-weight:700;padding:6px 10px;border-radius:20px;}
+
+/* Auth */
+.m-auth-tabs{display:flex;gap:0;margin-bottom:14px;}
+.m-auth-tab{flex:1;padding:10px;text-align:center;font-size:13px;font-weight:600;border-bottom:2px solid transparent;color:#aaa;cursor:default;}
+.m-auth-tab.on{color:var(--bark);border-bottom-color:var(--moss);}
+
+/* Pinned strip */
+.m-pinned{display:flex;align-items:center;gap:8px;background:#f0fae8;border:1px solid #c8e0a8;border-radius:10px;padding:8px 12px;margin:8px 0;}
+.m-pinned-name{font-size:12px;font-weight:600;color:var(--bark);}
+.m-pinned-coords{font-size:10px;color:var(--muted);font-family:'DM Mono',monospace;}
+
+/* Consent */
+.m-consent{display:flex;align-items:flex-start;gap:8px;padding:8px 0;font-size:12px;color:#888;line-height:1.5;}
+.m-consent input{margin-top:3px;accent-color:var(--moss);}
+.m-consent a{color:var(--gold);}
+
+/* Detail */
+.m-detail-hero{background:linear-gradient(135deg,#3a1a0a,#1a0a04);border-radius:12px 12px 0 0;padding:40px 16px 16px;position:relative;overflow:hidden;}
+.m-detail-species{font-family:'Playfair Display',serif;font-size:22px;color:white;}
+.m-detail-chips{display:flex;gap:6px;margin-top:8px;flex-wrap:wrap;}
+.m-dchip{display:inline-flex;align-items:center;gap:4px;font-size:9px;font-weight:700;padding:3px 8px;border-radius:20px;text-transform:uppercase;letter-spacing:0.3px;}
+.m-dchip svg{width:11px;height:11px;flex-shrink:0;}
+.m-dc-m{background:rgba(191,54,12,0.3);color:#ffcc80;border:1px solid rgba(191,54,12,0.4);}
+.m-dc-l{background:rgba(255,255,255,0.1);color:rgba(255,255,255,0.7);border:1px solid rgba(255,255,255,0.15);}
+.m-dc-w{background:rgba(90,200,90,0.15);color:#7adf7a;border:1px solid rgba(90,200,90,0.25);}
+
+.m-detail-stat{display:grid;grid-template-columns:1fr 1fr 1fr;gap:1px;background:#e8e4de;margin:0;}
+.m-ds{padding:10px;text-align:center;background:white;}
+.m-ds-v{font-size:16px;font-weight:700;color:var(--bark);}
+.m-ds-l{font-size:8px;text-transform:uppercase;color:var(--muted);font-family:'DM Mono',monospace;margin-top:2px;}
+.m-detail-sec{padding:10px 14px;background:white;border-bottom:1px solid #f0ece6;}
+.m-detail-sec-l{font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--moss);margin-bottom:4px;font-family:'DM Mono',monospace;}
+.m-detail-sec-t{font-size:13px;color:var(--bark);line-height:1.5;}
+.m-detail-dash{background:#f2efe9;padding:10px 10px 0;border-top:1px solid #ece6dd;}
+.m-detail-dash-card{background:#fff;border-radius:12px;border:1px solid #ede9e2;padding:10px;margin-bottom:8px;}
+.m-detail-dash-l{font-size:8px;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;color:#5a7a30;margin-bottom:6px;font-family:'DM Mono',monospace;}
+.m-detail-photo-row{display:flex;gap:10px;align-items:flex-start;}
+.m-detail-thumb{width:64px;height:64px;border-radius:10px;background:linear-gradient(145deg,#5c4a38,#2a1e14);flex-shrink:0;box-shadow:0 2px 8px rgba(0,0,0,0.12);}
+.m-detail-hint{font-size:9px;color:#a0988a;margin-top:4px;}
+.m-detail-kv{font-size:11px;padding:5px 0;border-bottom:1px solid #ede9e2;display:flex;justify-content:space-between;gap:8px;}
+.m-detail-kv:last-child{border-bottom:none;}
+.m-detail-k{color:#a0988a;font-weight:600;}
+.m-detail-v{font-weight:700;color:var(--bark);text-align:right;}
+
+/* Quick entry */
+.m-qs-pill{display:inline-block;padding:8px 14px;border-radius:20px;font-size:12px;font-weight:600;border:1.5px solid #e0dcd6;color:var(--bark);margin:0 4px 6px 0;}
+.m-qs-pill.on{background:var(--forest);color:white;border-color:var(--forest);}
+
+/* My diary exports — matches diary.css .exp-block--stats-export + .exp-row + .exp-btn */
+.m-exp-stats-mock{
+  position:relative;z-index:10;margin:12px 0;border-radius:14px;box-sizing:border-box;
+  border:1px solid rgba(14,42,8,0.11);background:#fff;box-shadow:0 1px 3px rgba(14,42,8,0.05);
+  padding:12px 16px 16px;
+}
+.m-exp-hdr-m{padding:2px 2px 10px;}
+.m-exp-title-m{
+  font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.55px;color:var(--bark);
+  font-family:'DM Mono',monospace;
+}
+.m-exp-sub-m{font-size:10px;color:var(--muted);margin-top:4px;line-height:1.4;}
+.m-exp-row-m{display:flex;gap:8px;align-items:stretch;}
+.m-exp-btn-m{
+  display:flex;align-items:center;justify-content:center;gap:6px;flex:1;min-width:0;
+  padding:13px 2px;border-radius:12px;font-size:12px;font-weight:700;border:none;cursor:default;
+  text-align:center;line-height:1.12;
+}
+.m-exp-btn-m svg{width:15px;height:15px;flex-shrink:0;opacity:0.92;}
+.m-exp-csv-m{background:#e8f5e9;color:#2e7d32;}
+.m-exp-pdf-m{background:#e8f0ff;color:var(--blue);}
+.m-exp-sum-m{
+  background:linear-gradient(135deg,rgba(90,122,48,0.12),rgba(14,42,8,0.08));
+  color:var(--moss);border:1px solid rgba(90,122,48,0.2);
+}
+.m-exp-larder-m{
+  background:linear-gradient(135deg,rgba(200,168,75,0.12),rgba(120,90,30,0.08));
+  color:#b08a30;border:1px solid rgba(200,168,75,0.2);
+}
+.m-exp-foot-m{
+  font-size:10px;color:var(--muted);margin-top:10px;padding:8px 10px;
+  background:rgba(90,122,48,0.06);border-radius:8px;line-height:1.45;
+}
+.m-exp-foot-m strong{color:var(--bark);font-weight:600;}
+
+/* Section number */
+.m-fsec-hdr{display:flex;align-items:center;gap:8px;margin-bottom:10px;}
+.m-fsec-num{width:22px;height:22px;border-radius:50%;background:var(--moss);color:white;font-size:10px;font-weight:700;display:flex;align-items:center;justify-content:center;}
+.m-fsec-title{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.8px;color:var(--bark);}
+
+/* Syndicate walkthrough mocks (Stats card + bottom sheet, not raster screenshots) */
+.m-stats-strip{background:var(--cream);border-radius:14px;padding:12px;margin:12px 0;border:1px solid rgba(61,43,31,0.1);}
+.m-syn-toggle{display:flex;justify-content:space-between;align-items:flex-start;gap:10px;padding:12px 14px;background:#faf8f4;border:1.5px solid #ece8e2;border-radius:14px;margin-bottom:10px;}
+.m-syn-toggle-l{min-width:0;}
+.m-syn-toggle-t{font-family:'Playfair Display',serif;font-size:17px;color:var(--bark);font-weight:700;}
+.m-syn-toggle-h{font-size:11px;color:var(--muted);display:block;margin-top:4px;}
+.m-syn-toggle-cta{font-size:10px;color:rgba(200,168,75,0.85);font-weight:700;margin-top:6px;display:block;}
+.m-syn-expanded{padding:0 4px 10px;}
+.m-nov-btn{display:inline-block;padding:6px 14px;border-radius:10px;font-size:12px;font-weight:700;background:var(--moss);color:white;border:none;}
+.m-tsheet-mock{background:#fff;border-radius:16px;overflow:hidden;border:1px solid #e0d8d0;box-shadow:0 10px 32px rgba(0,0,0,0.28);margin:14px 0;}
+.m-tsheet-top{background:linear-gradient(180deg,#faf8f4,#fff);padding:14px 16px 12px;border-bottom:1px solid #ece8e2;display:flex;justify-content:space-between;align-items:flex-start;gap:10px;}
+.m-tsheet-title{font-family:'Playfair Display',serif;font-size:19px;color:var(--bark);line-height:1.15;}
+.m-tsheet-sub{font-size:11px;color:var(--muted);margin-top:6px;}
+.m-tsheet-x{font-size:18px;color:var(--muted);padding:4px 8px;}
+.m-tsheet-body{padding:16px;background:#fff;}
+.m-syn-field-l{font-size:10px;font-weight:700;text-transform:uppercase;color:var(--muted);margin:12px 0 6px;}
+.m-syn-fake-input,.m-syn-fake-select{width:100%;padding:10px 12px;border:1.5px solid var(--stone);border-radius:10px;font-size:13px;color:var(--bark);background:#fafafa;}
+.m-syn-row{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:10px 12px;background:#faf8f4;border:1.5px solid #ece8e2;border-radius:10px;margin-bottom:8px;font-size:12px;color:var(--bark);}
+.m-syn-row small{display:block;font-size:10px;color:var(--muted);margin-top:2px;}
+.m-syn-pill{display:inline-block;padding:5px 10px;border-radius:8px;font-size:10px;font-weight:700;border:1.5px solid #2d7a1a;color:#2d7a1a;background:transparent;}
+.m-syn-invite-box{padding:10px;border:1.5px dashed #c8c8a8;border-radius:10px;background:#fffef5;font-size:12px;color:var(--bark);}
+.m-syn-modal-mock{background:#1a2110;border:1px solid rgba(200,168,75,0.2);border-radius:16px;padding:18px;margin:14px 0;max-width:100%;}
+.m-syn-modal-mock .di-modal-lede{font-size:13px;color:rgba(255,255,255,0.65);margin-bottom:12px;}
+.m-syn-modal-mock label{display:block;font-size:11px;color:rgba(200,168,75,0.75);margin-bottom:6px;}
+.m-syn-modal-mock select{width:100%;padding:10px;border-radius:10px;border:1px solid rgba(255,255,255,0.15);background:rgba(255,255,255,0.08);color:white;margin-bottom:12px;font-size:13px;}
+.m-syn-team-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px;}
+.m-syn-team-pill{background:rgba(90,122,48,0.15);border:1px solid rgba(200,168,75,0.35);border-radius:12px;padding:12px 8px;text-align:center;font-size:11px;font-weight:700;color:var(--cream);}
+.m-syn-team-pill .t{font-size:9px;font-weight:600;color:rgba(200,168,75,0.7);display:block;margin-top:4px;}
+
+/* Season Plan / targets sheet mocks (diary.css tsheet + tgrid + tmode) */
+.m-tgt-sheet-mock{background:#fff;border-radius:18px 18px 0 0;overflow:hidden;border:1px solid #e0d4c8;box-shadow:0 -4px 28px rgba(0,0,0,0.2);margin:14px 0;max-width:100%;}
+.m-tgt-handle{width:40px;height:4px;background:#ddd;border-radius:4px;margin:10px auto 0;}
+.m-tgt-hdr{display:flex;justify-content:space-between;align-items:flex-start;padding:12px 16px 8px;border-bottom:1px solid #ece8e2;background:linear-gradient(180deg,#faf8f4,#fff);}
+.m-tgt-title{font-family:'Playfair Display',serif;font-size:20px;color:var(--bark);}
+.m-tgt-sub{font-size:12px;color:var(--muted);margin-top:4px;}
+.m-tgt-body{padding:14px 16px 18px;background:#fff;}
+.m-tgt-copy-btn{display:flex;align-items:center;justify-content:center;gap:8px;width:100%;padding:10px;border-radius:10px;border:1.5px solid #c8d8a8;background:#f4faf0;font-size:12px;font-weight:700;color:#2d5a1a;margin-bottom:12px;}
+.m-tmode-row{display:flex;gap:0;margin-bottom:14px;border-radius:12px;overflow:hidden;border:1.5px solid #e0dcd6;}
+.m-tmode-btn{flex:1;padding:10px 8px;font-size:12px;font-weight:700;border:none;background:#f5f2ee;color:#888;cursor:default;}
+.m-tmode-btn.on{background:var(--moss);color:white;}
+.m-tgrid-hdr-m{display:grid;grid-template-columns:1fr 1fr 1fr;gap:4px;font-size:9px;font-weight:700;text-transform:uppercase;color:var(--muted);margin-bottom:8px;padding:0 4px;}
+.m-tgrid-hdr-m .hc{text-align:center;}
+.m-tgrid-row-m{display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;align-items:center;padding:8px 0;border-bottom:1px solid #f0ebe4;font-size:12px;}
+.m-tgrid-sp-m{display:flex;align-items:center;gap:6px;font-weight:600;color:var(--bark);}
+.m-tgrid-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0;}
+.m-tstep-m{display:flex;align-items:center;justify-content:center;gap:4px;}
+.m-tstep-m button{width:28px;height:30px;border:1px solid #ddd;border-radius:8px;background:#fafafa;font-size:16px;font-weight:700;color:var(--bark);cursor:default;}
+.m-tstep-m input{width:36px;text-align:center;border:1.5px solid var(--stone);border-radius:8px;padding:6px 4px;font-size:13px;font-weight:700;}
+.m-tgt-footer-m{margin-top:12px;padding:12px;background:#f8f5f0;border-radius:10px;font-size:12px;}
+.m-tgt-footer-m .r{display:flex;justify-content:space-between;margin-bottom:6px;color:var(--bark);}
+.m-tgt-footer-m .grand{font-weight:800;padding-top:8px;border-top:1px solid #e8e0d8;margin-top:8px;display:flex;justify-content:space-between;}
+.m-tgt-save-m{width:100%;padding:14px;margin-top:14px;border-radius:14px;border:none;background:linear-gradient(135deg,var(--moss),var(--deep));color:white;font-size:15px;font-weight:700;display:flex;align-items:center;justify-content:center;gap:8px;}
+.m-tgt-note-m{font-size:11px;color:var(--muted);text-align:center;margin-top:8px;}
+.m-ground-bar-m{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;font-size:12px;font-weight:700;color:var(--bark);}
+.m-ground-add-m{font-size:11px;font-weight:700;color:#2d7a1a;}
+.m-tground-card-m{border:1.5px solid #ece8e2;border-radius:12px;padding:10px 12px;margin-bottom:10px;background:#faf8f4;}
+.m-tground-card-m .gh{display:flex;justify-content:space-between;font-weight:700;font-size:13px;color:var(--bark);}
+.m-tunass-m{border:1.5px dashed #c4c4b8;border-radius:12px;padding:10px 12px;font-size:12px;color:var(--muted);}
+</style>
+</head>
+<body>
+
+<div class="guide-hdr">
+  <a href="diary.html">← Back to Cull Diary</a>
+  <h1>Cull Diary Guide</h1>
+  <p>Step-by-step tutorial</p>
+  <p style="font-size:11px;color:rgba(200,168,75,0.45);max-width:36em;line-height:1.55;margin-top:10px;font-family:'DM Sans',sans-serif;text-transform:none;letter-spacing:0;">Updated against the in-repo <strong style="color:rgba(200,168,75,0.65);">Cull Diary</strong> (<code>diary.html</code>). If controls look out of date, hard-refresh or wait for the service worker cache to update.</p>
+</div>
+
+<!-- Table of contents -->
+<div class="toc">
+  <div class="toc-title">Contents</div>
+  <a href="#s1"><span>01</span> Creating your account</a>
+  <a href="#s2"><span>02</span> The diary view</a>
+  <a href="#s3"><span>03</span> Adding a new entry</a>
+  <a href="#s4"><span>04</span> Quick entry</a>
+  <a href="#s5"><span>05</span> Viewing an entry</a>
+  <a href="#s6"><span>06</span> Editing &amp; deleting</a>
+  <a href="#s7"><span>07</span> Season &amp; ground management</a>
+  <a href="#s8"><span>08</span> Cull targets &amp; season plan</a>
+  <a href="#s8-locate"><span>08a</span> Season Plan card</a>
+  <a href="#s8-season-total"><span>08b</span> Set targets · Season total</a>
+  <a href="#s8-by-ground"><span>08c</span> Set targets · By ground</a>
+  <a href="#s8-chips"><span>08d</span> Overview / ground chips</a>
+  <a href="#s9"><span>09</span> Stats &amp; charts</a>
+  <a href="#s10"><span>10</span> Exporting data</a>
+  <a href="#s10-declarations"><span>10a</span> Hunter declarations &amp; consignments</a>
+  <a href="#s11"><span>11</span> Offline mode</a>
+  <a href="#s12"><span>12</span> Account &amp; privacy</a>
+  <a href="#s13"><span>13</span> Syndicates — full walkthrough</a>
+  <a href="#s13-locate"><span>13a</span> Open the Syndicates card</a>
+  <a href="#s13-create"><span>13b</span> Create a syndicate</a>
+  <a href="#s13-manage"><span>13c</span> Manage, targets &amp; invites</a>
+  <a href="#s13-join"><span>13d</span> Join with an invite link</a>
+  <a href="#s13-ground"><span>13e</span> Ground filter &amp; attribution</a>
+  <a href="#s13-teamexp"><span>13f</span> Team exports (managers)</a>
+</div>
+
+<!-- STEP 1 -->
+<div class="step" id="s1">
+  <div class="step-num">1</div>
+  <h2>Creating Your Account</h2>
+  <p>The Cull Diary requires a free account to sync your records securely across devices. Open the diary from the main First Light app by tapping <strong>Cull Diary</strong> in the header.</p>
+
+  <div class="mock">
+    <div class="m-auth-tabs">
+      <div class="m-auth-tab">Sign In</div>
+      <div class="m-auth-tab on">Create Account</div>
+    </div>
+    <div class="m-ff"><label>Email</label><input type="email" value="you@example.com" readonly></div>
+    <div class="m-ff"><label>Password</label><input type="password" value="••••••••" readonly></div>
+    <div class="m-ff"><label>Full name</label><input type="text" value="Your name" readonly></div>
+    <div class="m-consent">
+      <input type="checkbox" checked disabled>
+      <span>I agree to the <a href="privacy.html">Privacy Policy</a>. My email and diary data will be stored securely in Supabase.</span>
+    </div>
+    <div class="m-btn-save">Create Account →</div>
+  </div>
+
+  <p>After creating your account, check your email for a confirmation link. Once confirmed, sign in with your email and password.</p>
+  <p>If you forget your password, tap <strong>Forgot password?</strong> on the sign-in screen. Enter the email for your account and use the link in the reset email to choose a new password (check spam if nothing arrives).</p>
+  <div class="tip"><strong>Tip:</strong> You only need to sign in once. The app keeps you signed in between sessions automatically.</div>
+</div>
+
+<!-- STEP 2 -->
+<div class="step" id="s2">
+  <div class="step-num">2</div>
+  <h2>The Diary View</h2>
+  <p>Once signed in, you land on the <strong>diary list</strong>. Entries show as <strong>cards</strong> in a scrollable feed, grouped by month. The layout matches the mock below: a <strong>dark green header</strong> (with First Light branding), then <strong>species chips on the cream panel</strong> — not a 2×2 stats grid with a gap, and not nav fused into the header card.</p>
+
+  <div class="m-diary-list-mock">
+    <div class="m-diary-hdr">
+      <div class="m-fl-mini">
+        <img src="icon-180.png" alt="" width="28" height="28">
+        <div>
+          <div class="m-fl-mini-t">First Light</div>
+          <span class="m-fl-mini-s">Tap to return to app</span>
+        </div>
+      </div>
+      <div class="m-list-top-m">
+        <div>
+          <div class="m-diary-title">Cull Diary</div>
+          <div class="m-diary-season-lbl">2025–26 Season</div>
+        </div>
+        <div class="m-hstats-row" aria-hidden="true">
+          <div class="m-hs-cell"><div class="m-hs-n">6</div><div class="m-hs-l">Total</div></div>
+          <div class="m-hs-cell"><div class="m-hs-n">226</div><div class="m-hs-l">kg</div></div>
+          <div class="m-hs-cell"><div class="m-hs-n">4</div><div class="m-hs-l">Species</div></div>
+        </div>
+      </div>
+      <div class="m-list-row2-m">
+        <div class="m-season-sel-mock">2025–26 Season ▾</div>
+        <div class="m-hdr-ico-m" title="Diary guide"><svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/><path d="M8 7h8M8 11h6"/></svg></div>
+        <div class="m-hdr-ico-m" title="Stats"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true"><rect x="2" y="12" width="5" height="9" rx="1.5" fill="#c8a84b" opacity="0.9"/><rect x="9.5" y="7" width="5" height="14" rx="1.5" fill="white"/><rect x="17" y="16" width="5" height="5" rx="1.5" fill="#c8a84b" opacity="0.6"/></svg></div>
+      </div>
+    </div>
+    <div class="m-filter-cream">
+      <div class="mock-label" style="margin-bottom:6px;color:rgba(26,33,0,0.45);">Species filter (scrolls horizontally)</div>
+      <div style="display:flex;gap:6px;overflow-x:auto;padding-bottom:2px;scrollbar-width:none;">
+        <span style="padding:5px 13px;border-radius:20px;font-size:11px;font-weight:600;background:var(--moss);color:white;white-space:nowrap;">All</span>
+        <span style="padding:5px 13px;border-radius:20px;font-size:11px;font-weight:600;border:1.5px solid #e0d8ce;color:#888;background:white;white-space:nowrap;">Red Deer</span>
+        <span style="padding:5px 13px;border-radius:20px;font-size:11px;font-weight:600;border:1.5px solid #e0d8ce;color:#888;background:white;white-space:nowrap;">Roe Deer</span>
+        <span style="padding:5px 13px;border-radius:20px;font-size:11px;font-weight:600;border:1.5px solid #e0d8ce;color:#888;background:white;white-space:nowrap;">Fallow</span>
+        <span style="padding:5px 13px;border-radius:20px;font-size:11px;font-weight:600;border:1.5px solid #e0d8ce;color:#888;background:white;white-space:nowrap;">Sika</span>
+        <span style="padding:5px 13px;border-radius:20px;font-size:11px;font-weight:600;border:1.5px solid #e0d8ce;color:#888;background:white;white-space:nowrap;">Muntjac</span>
+        <span style="padding:5px 13px;border-radius:20px;font-size:11px;font-weight:600;border:1.5px solid #e0d8ce;color:#888;background:white;white-space:nowrap;">CWD</span>
+      </div>
+    </div>
+    <div class="m-fab-hint">
+      <span style="margin-right:auto;align-self:center;">Floating actions (above bottom nav)</span>
+      <span class="m-fab-q-fake" aria-hidden="true"><svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" width="12" height="12" aria-hidden="true"><path fill="currentColor" d="M13 1L3 15h7l-1.5 10L21 9h-8l1-8z"/></svg>Quick</span>
+      <span class="m-fab-fake" aria-hidden="true">+</span>
+    </div>
+    <div class="m-nav" style="border-radius:0;">
+      <div class="m-nav-item on"><div class="m-nav-ico"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><rect x="2" y="5" width="13" height="16" rx="2" stroke="currentColor" stroke-width="1.8" fill="none"/><line x1="2" y1="5" x2="2" y2="21" stroke="currentColor" stroke-width="3" stroke-linecap="round"/><line x1="6" y1="10" x2="11" y2="10" stroke="currentColor" stroke-width="1.3" opacity="0.7"/><line x1="6" y1="13" x2="11" y2="13" stroke="currentColor" stroke-width="1.3" opacity="0.5"/><circle cx="18.5" cy="5" r="3" stroke="#c8a84b" stroke-width="1.5" fill="none"/><circle cx="18.5" cy="5" r="1" fill="#c8a84b"/><line x1="18.5" y1="1.5" x2="18.5" y2="3" stroke="#c8a84b" stroke-width="1.2" stroke-linecap="round"/><line x1="18.5" y1="7" x2="18.5" y2="8.5" stroke="#c8a84b" stroke-width="1.2" stroke-linecap="round"/><line x1="15" y1="5" x2="16.5" y2="5" stroke="#c8a84b" stroke-width="1.2" stroke-linecap="round"/><line x1="20.5" y1="5" x2="22" y2="5" stroke="#c8a84b" stroke-width="1.2" stroke-linecap="round"/></svg></div>Diary</div>
+      <div class="m-nav-item"><div class="m-nav-ico"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><line x1="12" y1="5" x2="12" y2="19" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><line x1="5" y1="12" x2="19" y2="12" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></div>Add Entry</div>
+      <div class="m-nav-item"><div class="m-nav-ico"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><rect x="2" y="12" width="5" height="9" rx="1.5" fill="#c8a84b" opacity="0.9"/><rect x="9.5" y="7" width="5" height="14" rx="1.5" fill="currentColor"/><rect x="17" y="16" width="5" height="5" rx="1.5" fill="#c8a84b" opacity="0.6"/></svg></div>Stats</div>
+    </div>
+  </div>
+
+  <p>The <strong>three headline numbers</strong> are <strong>Total</strong> (animals), combined carcass <strong>kg</strong>, and how many <strong>species</strong> you have recorded this season — one compact row, aligned with the app.</p>
+  <p>Use the <strong>season dropdown</strong> in the header row to switch seasons. The <strong>book</strong> icon opens this guide; the <strong>chart</strong> icon jumps to Stats.</p>
+  <p>After your first entry, you also get a <strong>search</strong> bar (species, ground, tag, notes…), optional <strong>ground</strong> filter when you use more than one permission, <strong>Newest / Oldest</strong> sort, and <strong>Select</strong> for bulk CSV, <strong>Dealer PDF</strong> (consignment declaration — see <a href="#s10-declarations" style="color:var(--gold);">step 10a</a>), or delete.</p>
+  <p>When an <strong>offline</strong> queue is building, a banner appears above the entry list with <strong>Sync now</strong> once you are back online. The <strong>Diary</strong> tab can show a small offline badge when something is pending.</p>
+</div>
+
+<!-- STEP 3 -->
+<div class="step" id="s3">
+  <div class="step-num">3</div>
+  <h2>Adding a New Entry</h2>
+  <p>Tap the <strong>+</strong> button or the <strong>Add Entry</strong> tab to open the full entry form. The form has 7 sections:</p>
+
+  <h3>Photo</h3>
+  <p>Take a photo with your camera or pick one from your gallery. This is optional but useful for records.</p>
+  <div class="mock">
+    <div class="m-photo">
+      <div class="m-photo-box" style="flex-direction:column;gap:4px;font-size:9px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:0.04em;"><svg width="28" height="28" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><rect x="3" y="5" width="18" height="14" rx="2"/><line x1="5" y1="19" x2="19" y2="7"/></svg>No photo</div>
+      <div class="m-photo-btns">
+        <div class="m-photo-btn" style="background:#e8f5e0;color:#3a6020;"><svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="6" width="18" height="14" rx="2"/><circle cx="12" cy="13" r="3"/><path d="M8 6h2l1-2h4l1 2h2"/></svg>Camera</div>
+        <div class="m-photo-btn" style="background:#f7faf4;color:#3a6020;border:1px solid #b8c8a4;"><svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg>Gallery</div>
+      </div>
+    </div>
+  </div>
+
+  <h3>① Species</h3>
+  <p>Tap the species you shot. All six UK deer species are available.</p>
+  <div class="mock">
+    <div class="m-fsec-hdr"><div class="m-fsec-num">1</div><div class="m-fsec-title">Species</div></div>
+    <div class="m-sp-grid">
+      <div class="m-sp-btn on">Red Deer<div class="m-sp-lat">C. elaphus</div></div>
+      <div class="m-sp-btn">Roe Deer<div class="m-sp-lat">C. capreolus</div></div>
+      <div class="m-sp-btn">Fallow<div class="m-sp-lat">D. dama</div></div>
+      <div class="m-sp-btn">Sika<div class="m-sp-lat">C. nippon</div></div>
+      <div class="m-sp-btn">Muntjac<div class="m-sp-lat">M. reevesi</div></div>
+      <div class="m-sp-btn">CWD<div class="m-sp-lat">H. inermis</div></div>
+    </div>
+  </div>
+
+  <h3>② Sex</h3>
+  <p>Select male or female. The label adapts to the species (Stag/Hind for red and sika, Buck/Doe for roe, fallow, muntjac and CWD).</p>
+  <div class="mock">
+    <div class="m-fsec-hdr"><div class="m-fsec-num">2</div><div class="m-fsec-title">Sex</div></div>
+    <div class="m-sx-row">
+      <div class="m-sx on">♂ Stag / Buck</div>
+      <div class="m-sx">♀ Hind / Doe</div>
+    </div>
+  </div>
+
+  <h3>③ Date &amp; Time</h3>
+  <p>Auto-filled with the current date and time (in UK time). Adjust if logging a past cull.</p>
+  <div class="mock">
+    <div class="m-fsec-hdr"><div class="m-fsec-num">3</div><div class="m-fsec-title">Date &amp; Time</div></div>
+    <div class="m-ff-row">
+      <div class="m-ff"><label>Date</label><input type="text" value="2026-04-06" readonly></div>
+      <div class="m-ff"><label>Time</label><input type="text" value="06:45" readonly></div>
+    </div>
+  </div>
+
+  <h3>④ Location</h3>
+  <p>Enter a place name, use GPS for your current position, or drop a pin on the map. You can also assign the entry to a saved <strong>ground</strong> (permission/estate).</p>
+  <div class="mock">
+    <div class="m-fsec-hdr"><div class="m-fsec-num">4</div><div class="m-fsec-title">Location</div></div>
+    <div class="m-ff"><label>Place name</label><input type="text" value="Thetford Forest" readonly></div>
+    <div style="display:flex;gap:6px;margin:8px 0;">
+      <div class="m-btn m-btn-pin"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21s7-4.35 7-11a7 7 0 1 0-14 0c0 6.65 7 11 7 11z"/><circle cx="12" cy="10" r="2.2" fill="currentColor" stroke="none"/></svg>Pin</div>
+      <div class="m-btn m-btn-gps"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="3"/><line x1="12" y1="2" x2="12" y2="5"/><line x1="12" y1="19" x2="12" y2="22"/><line x1="2" y1="12" x2="5" y2="12"/><line x1="19" y1="12" x2="22" y2="12"/></svg>GPS</div>
+    </div>
+    <div class="m-pinned">
+      <span style="display:flex;flex-shrink:0;" aria-hidden="true"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21s7-4.35 7-11a7 7 0 1 0-14 0c0 6.65 7 11 7 11z"/><circle cx="12" cy="10" r="2.2" fill="currentColor" stroke="none"/></svg></span>
+      <div>
+        <div class="m-pinned-name">Thetford Forest</div>
+        <div class="m-pinned-coords">52.4321°N, 0.8234°E</div>
+      </div>
+    </div>
+    <div class="m-ff" style="margin-top:8px;"><label>Permission / Ground</label><input type="text" value="Woodland Block A" readonly></div>
+  </div>
+  <div class="tip"><strong>Tip:</strong> Tap the ground field to see your saved grounds. You can manage grounds from the Stats tab → Season Plan → Edit.</div>
+
+  <h3>⑤ Carcass Weight</h3>
+  <p>Enter the carcass weight in kilograms.</p>
+  <div class="mock">
+    <div class="m-fsec-hdr"><div class="m-fsec-num">5</div><div class="m-fsec-title">Carcass Weight (kg)</div></div>
+    <div class="m-wt-row">
+      <div class="m-wt"><label>Weight</label><input type="text" value="45" readonly></div>
+    </div>
+  </div>
+
+  <h3>⑥ Shot Details</h3>
+  <p>Record calibre (dropdown of common UK deer calibres or custom), distance, shot placement, age class, shooter name, and carcass destination.</p>
+  <div class="mock">
+    <div class="m-fsec-hdr"><div class="m-fsec-num">6</div><div class="m-fsec-title">Shot Details</div></div>
+    <div class="m-ff-row">
+      <div class="m-ff"><label>Calibre</label><select><option>.243 Win</option></select></div>
+      <div class="m-ff"><label>Distance (m)</label><input type="text" value="120" readonly></div>
+    </div>
+    <div class="m-ff-row">
+      <div class="m-ff"><label>Placement</label><select><option>Heart / Lung</option></select></div>
+      <div class="m-ff"><label>Age class</label><select><option>2–4 years</option></select></div>
+    </div>
+    <div class="m-ff"><label>Shooter</label><input type="text" value="Self" readonly style="color:#a0988a;font-style:italic;"></div>
+    <div class="m-ff"><label>Carcass destination</label><select><option>Game dealer</option></select></div>
+    <div class="m-ff"><label>Tag / carcass number (optional)</label><input type="text" value="FL-0047" readonly></div>
+  </div>
+  <p>Destination options: Self / personal use, Game dealer, Friend / family, Stalking client, Estate / landowner, Left on hill, Condemned.</p>
+  <p>The tag number links your diary entry to the physical carcass tag — useful for larder records, game dealer declarations, and DMG returns.</p>
+
+  <h3>⑦ Notes</h3>
+  <p>Free text for wind direction, approach, behaviour, conditions — anything you want to remember.</p>
+  <div class="mock">
+    <div class="m-fsec-hdr"><div class="m-fsec-num">7</div><div class="m-fsec-title">Notes</div></div>
+    <div class="m-ff"><label>Conditions / observations</label>
+      <div style="padding:10px 12px;border:1.5px solid var(--stone);border-radius:10px;font-size:13px;color:var(--bark);min-height:60px;line-height:1.5;">Light SW wind, approached from east along hedge line. Deer feeding on winter wheat. Clean heart/lung shot, dropped within 20m.</div>
+    </div>
+  </div>
+
+  <h3>Save</h3>
+  <p>Tap <strong>Save to Cloud</strong> to sync your entry to Supabase. If you're offline, it queues automatically and syncs when signal returns.</p>
+  <p>On long forms, a small <strong>progress</strong> hint under the date (e.g. which section you are in) updates as you scroll — useful on a phone in the field.</p>
+  <div class="mock">
+    <div class="m-btn-save"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M7 18h11a4 4 0 0 0 0-8 0h-.5A5.5 5.5 0 0 0 7 11a4 4 0 0 0 0 7z"/></svg>Save to Cloud</div>
+    <div style="font-size:11px;color:#a0988a;text-align:center;margin-top:6px;">Syncs to Supabase · Works offline</div>
+  </div>
+</div>
+
+<!-- STEP 4 -->
+<div class="step" id="s4">
+  <div class="step-num">4</div>
+  <h2>Quick Entry</h2>
+  <p>For speed in the field, tap the <strong>Quick</strong> pill (lightning icon) above the + button. This opens a streamlined bottom sheet — just pick species, sex, and optionally enter weight. Everything else can be added later by editing.</p>
+
+  <div class="mock">
+    <div style="font-family:'Playfair Display',serif;font-size:18px;color:var(--bark);margin-bottom:10px;">Quick Entry</div>
+    <div class="mock-label">Species</div>
+    <div style="margin-bottom:12px;">
+      <span class="m-qs-pill on">Red Deer</span>
+      <span class="m-qs-pill">Roe</span>
+      <span class="m-qs-pill">Fallow</span>
+      <span class="m-qs-pill">Sika</span>
+    </div>
+    <div class="mock-label">Sex</div>
+    <div class="m-sx-row" style="margin-bottom:12px;">
+      <div class="m-sx on" style="padding:10px;">♂ Stag</div>
+      <div class="m-sx" style="padding:10px;">♀ Hind</div>
+    </div>
+    <div class="mock-label">Carcass weight (optional)</div>
+    <div style="display:flex;align-items:center;gap:10px;background:#f8f5f0;border-radius:12px;padding:10px 14px;margin-bottom:14px;">
+      <span style="font-size:12px;font-weight:600;color:var(--bark);flex:1;">Weight</span>
+      <input type="text" value="45" readonly style="width:72px;padding:8px 10px;border:1.5px solid var(--stone);border-radius:8px;font-size:14px;text-align:right;color:var(--bark);">
+      <span style="font-size:12px;color:#a0988a;">kg</span>
+    </div>
+    <div class="m-btn-save"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M7 18h11a4 4 0 0 0 0-8 0h-.5A5.5 5.5 0 0 0 7 11a4 4 0 0 0 0 7z"/></svg>Save to Cloud</div>
+    <div style="font-size:12px;color:#a0988a;text-align:center;margin-top:8px;">+ Add full details</div>
+  </div>
+  <div class="tip"><strong>Tip:</strong> Quick entries auto-fill the date, time, and GPS location. Tap "+ Add full details" to switch to the full form.</div>
+</div>
+
+<!-- STEP 5 -->
+<div class="step" id="s5">
+  <div class="step-num">5</div>
+  <h2>Viewing an Entry</h2>
+  <p>Tap any entry card to open <strong>detail</strong>: a photo hero (species and chips), then <strong>cards</strong> on a cream background — photo thumbnail (tap for full size), when/where, weights and distance, shot and stalking, notes, and weather when saved. <strong>Edit entry</strong> sits beside the thumbnail.</p>
+  <p>At the bottom, the action bar is <strong>Edit</strong>, <strong>PDF</strong> (a simple diary-style PDF for that cull), <strong>Game dealer PDF</strong> (a <strong>trained hunter declaration</strong> for game dealers and UK wild-game food-safety paperwork), then <strong>Delete</strong>. See also step <a href="#s10-declarations" style="color:var(--gold);">10a — Hunter declarations &amp; consignments</a>.</p>
+
+  <div class="mock" style="padding:0;overflow:hidden;">
+    <div class="m-detail-hero">
+      <div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);text-align:center;opacity:0.45;color:rgba(255,255,255,0.5);"><svg width="48" height="48" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><rect x="3" y="5" width="18" height="14" rx="2"/><line x1="5" y1="19" x2="19" y2="7"/></svg><div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;margin-top:4px;">No photo</div></div>
+      <div class="m-detail-species">Red Deer Stag</div>
+      <div class="m-detail-chips">
+        <span class="m-dchip m-dc-m">♂ Stag · 2–4 years</span>
+        <span class="m-dchip m-dc-l"><svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21s7-4.35 7-11a7 7 0 1 0-14 0c0 6.65 7 11 7 11z"/><circle cx="12" cy="10" r="2.2" fill="currentColor" stroke="none"/></svg>Thetford Forest</span>
+        <span class="m-dchip m-dc-w">45 kg</span>
+      </div>
+    </div>
+    <div class="m-detail-dash">
+      <div class="m-detail-dash-card">
+        <div class="m-detail-dash-l">Photo</div>
+        <div class="m-detail-photo-row">
+          <div>
+            <div class="m-detail-thumb" aria-hidden="true"></div>
+            <div class="m-detail-hint">Tap to expand</div>
+          </div>
+          <div class="m-btn" style="flex:0 1 auto;background:#e8f5e0;color:#3a6020;justify-content:center;padding:6px 10px;font-size:10px;border-radius:8px;border:1px solid #c8d8a8;"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>Edit entry</div>
+        </div>
+      </div>
+      <div class="m-detail-dash-card">
+        <div class="m-detail-dash-l">When &amp; where</div>
+        <div class="m-detail-kv"><span class="m-detail-k">Date</span><span class="m-detail-v">Sat 6 Apr</span></div>
+        <div class="m-detail-kv"><span class="m-detail-k">Time</span><span class="m-detail-v">06:45</span></div>
+        <div class="m-detail-kv"><span class="m-detail-k">Location</span><span class="m-detail-v">Thetford Forest</span></div>
+      </div>
+      <div class="m-detail-dash-card">
+        <div class="m-detail-dash-l">Shot &amp; stalking</div>
+        <div class="m-detail-kv"><span class="m-detail-k">Calibre / range</span><span class="m-detail-v">.243 · 120m</span></div>
+        <div class="m-detail-kv"><span class="m-detail-k">Placement</span><span class="m-detail-v">Heart / Lung</span></div>
+        <div class="m-detail-kv"><span class="m-detail-k">Destination</span><span class="m-detail-v">Game dealer</span></div>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;padding:0 10px 12px;">
+        <div class="m-btn" style="background:#e8f5e0;color:#3a6020;justify-content:center;font-size:11px;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>Edit</div>
+        <div class="m-btn" style="background:#f0f0f0;color:#666;justify-content:center;font-size:11px;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>PDF</div>
+        <div class="m-btn" style="background:#fdf6e8;color:#b08a30;justify-content:center;font-size:10px;font-weight:700;">Game dealer PDF</div>
+        <div class="m-btn" style="background:#fde8e8;color:#c62828;justify-content:center;font-size:11px;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg>Delete</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- STEP 6 -->
+<div class="step" id="s6">
+  <div class="step-num">6</div>
+  <h2>Editing &amp; Deleting</h2>
+  <p>From the detail view, tap <strong>Edit</strong> to reopen the full form with all fields pre-filled. Make your changes and save. The entry updates in place — no duplicate created.</p>
+  <p>Tap <strong>Delete</strong> to permanently remove an entry. You'll be asked to confirm. Deleted entries cannot be recovered.</p>
+  <div class="warn"><strong>Warning:</strong> Deletion is permanent. If you need a record for compliance, export the entry as PDF before deleting.</div>
+</div>
+
+<!-- STEP 7 -->
+<div class="step" id="s7">
+  <div class="step-num">7</div>
+  <h2>Season &amp; Ground Management</h2>
+  <p>The diary organises entries by <strong>stalking season</strong> (August–July). Use the season dropdown in the diary header to switch between seasons.</p>
+  <p><strong>Grounds</strong> (permissions / estates) let you tag entries by where you stalk. To add or review saved grounds:</p>
+  <p>1. Open <strong>Stats</strong> → on the Season Plan card tap <strong>Set targets</strong> or <strong>Edit</strong> (wording depends on whether you already have targets).<br>
+  2. Open the <strong>By ground</strong> tab and use <strong>Add ground</strong> to name a permission.<br>
+  3. Saved grounds then appear as tappable options in the entry form’s <strong>Permission / Ground</strong> field.</p>
+  <div class="tip"><strong>Tip:</strong> Grounds persist across seasons. You can remove a ground from the targets sheet when you no longer need it in the list.</div>
+</div>
+
+<!-- STEP 8 -->
+<div class="step" id="s8">
+  <div class="step-num">8</div>
+  <h2>Cull Targets &amp; Season Plan</h2>
+  <p>Set cull targets to compare your <strong>plan</strong> to <strong>actual</strong> culls. From <strong>Stats</strong>, use <strong>Set targets</strong> or <strong>Edit</strong> on the Season Plan card (same sheet — the label depends on whether anything is set yet). The blocks below are <strong>HTML mocks</strong> aligned with <code>diary.html</code> — not PNG screenshots.</p>
+
+  <h3 id="s8-locate">Season Plan card (Stats)</h3>
+  <p>The card sits in the <strong>cream strip</strong> on Stats with your other summaries. Expand it to see <strong>targets vs actual</strong> chips and <strong>Edit</strong> (or <strong>Set targets</strong> when nothing is saved yet).</p>
+  <div class="mock-label">Mock — Season Plan card</div>
+  <div class="m-stats-strip">
+    <div class="m-syn-toggle">
+      <div class="m-syn-toggle-l">
+        <span class="m-syn-toggle-t">Season Plan</span>
+        <span class="m-syn-toggle-h">Cull targets vs actual</span>
+      </div>
+      <span style="font-size:18px;opacity:0.35;" aria-hidden="true">▼</span>
+    </div>
+    <div class="m-syn-expanded">
+      <div style="display:flex;justify-content:flex-end;margin-bottom:10px;">
+        <span class="m-nov-btn">Edit</span>
+      </div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;">
+        <div style="padding:8px 12px;border-radius:12px;background:#f0fae8;border:1px solid #c8e0a8;font-size:11px;font-weight:700;color:var(--bark);"><span style="color:var(--muted);font-weight:600;">Red</span> &nbsp;12 / 20</div>
+        <div style="padding:8px 12px;border-radius:12px;background:#faf8f4;border:1px solid #ece8e2;font-size:11px;font-weight:700;color:var(--bark);"><span style="color:var(--muted);font-weight:600;">Fallow</span> &nbsp;8 / 15</div>
+      </div>
+    </div>
+  </div>
+
+  <h3 id="s8-season-total">Season total</h3>
+  <p>Steppers for each species (bucks / does — labels follow the species) set your <strong>headline season plan</strong>. A footer under the grid shows total bucks, does, and animals. The sheet opens on this tab first.</p>
+  <div class="mock-label">Mock — Set targets · Season total</div>
+  <div class="mock" style="padding:0;background:#e8e4dc;overflow:hidden;">
+    <div class="m-tgt-sheet-mock" style="margin:0;">
+      <div class="m-tgt-handle"></div>
+      <div class="m-tgt-hdr">
+        <div>
+          <div class="m-tgt-title">Set Targets</div>
+          <div class="m-tgt-sub">Season plan</div>
+        </div>
+      </div>
+      <div class="m-tgt-body">
+        <div class="m-tgt-copy-btn">📋 Copy from previous season</div>
+        <div class="m-tmode-row">
+          <button type="button" class="m-tmode-btn on">Season total</button>
+          <button type="button" class="m-tmode-btn">By ground</button>
+        </div>
+        <div class="m-tgrid-hdr-m"><span>Species</span><span class="hc">Bucks</span><span class="hc">Does</span></div>
+        <div class="m-tgrid-row-m">
+          <div class="m-tgrid-sp-m"><span class="m-tgrid-dot" style="background:#8B4513;"></span>Red</div>
+          <div class="m-tstep-m"><button type="button">−</button><input type="text" value="5" readonly><button type="button">+</button></div>
+          <div class="m-tstep-m"><button type="button">−</button><input type="text" value="15" readonly><button type="button">+</button></div>
+        </div>
+        <div class="m-tgrid-row-m" style="border-bottom:none;">
+          <div class="m-tgrid-sp-m"><span class="m-tgrid-dot" style="background:#C4A574;"></span>Fallow</div>
+          <div class="m-tstep-m"><button type="button">−</button><input type="text" value="3" readonly><button type="button">+</button></div>
+          <div class="m-tstep-m"><button type="button">−</button><input type="text" value="12" readonly><button type="button">+</button></div>
+        </div>
+        <div class="m-tgt-footer-m">
+          <div class="r"><span>Total bucks</span><span>8</span></div>
+          <div class="r"><span>Total does</span><span>27</span></div>
+          <div class="grand"><span>Season total</span><span>35</span></div>
+        </div>
+        <button type="button" class="m-tgt-save-m">💾 Save targets</button>
+        <p class="m-tgt-note-m">Targets are optional — use what fits your ground.</p>
+      </div>
+    </div>
+  </div>
+
+  <h3 id="s8-by-ground">By ground</h3>
+  <p>After you save at least one <strong>named ground</strong>, use this tab to split targets by permission. <strong>Unassigned buffer</strong> is for animals you still count in the season but have not parked on a named ground — the app explains how it lines up with the headline when you save.</p>
+  <p>While the sheet is open, <strong>Season total</strong> and <strong>By ground</strong> stay aligned in the background. If you close with changes you have not saved, you will be asked to confirm.</p>
+  <div class="mock-label">Mock — Set targets · By ground</div>
+  <div class="mock" style="padding:0;background:#e8e4dc;overflow:hidden;">
+    <div class="m-tgt-sheet-mock" style="margin:0;">
+      <div class="m-tgt-handle"></div>
+      <div class="m-tgt-hdr">
+        <div>
+          <div class="m-tgt-title">Set Targets</div>
+          <div class="m-tgt-sub">Season plan</div>
+        </div>
+      </div>
+      <div class="m-tgt-body">
+        <div class="m-tmode-row">
+          <button type="button" class="m-tmode-btn">Season total</button>
+          <button type="button" class="m-tmode-btn on">By ground</button>
+        </div>
+        <div class="m-ground-bar-m"><span>Grounds</span><span class="m-ground-add-m">＋ Add ground</span></div>
+        <div class="m-tground-card-m">
+          <div class="gh"><span>Woodland Block</span><span>▼</span></div>
+          <div style="font-size:11px;color:var(--muted);margin-top:6px;">Red, Fallow — set bucks/does per species here</div>
+        </div>
+        <div class="m-tunass-m"><strong>Unassigned buffer</strong> — spare head not yet on a named ground</div>
+        <button type="button" class="m-tgt-save-m">💾 Save targets</button>
+      </div>
+    </div>
+  </div>
+
+  <h3 id="s8-chips">Plan chips on Stats</h3>
+  <p>When grounds or ground targets exist, chips appear <strong>above</strong> the Season Plan card — e.g. <strong>Overview</strong> plus each ground (and <strong>Unassigned</strong> where it applies). <strong>Overview</strong> can follow the <strong>sum of ground targets</strong> when that is how you are running the season; tapping a ground filters the plan and stats to that place.</p>
+  <div class="mock-label">Mock — chips above the plan (compact)</div>
+  <div class="m-stats-strip">
+    <div style="display:flex;gap:6px;margin-bottom:12px;flex-wrap:wrap;">
+      <div style="padding:6px 12px;border-radius:20px;font-size:11px;font-weight:600;background:var(--moss);color:white;">Overview</div>
+      <div style="padding:6px 12px;border-radius:20px;font-size:11px;font-weight:600;border:1.5px solid rgba(61,43,31,0.2);color:var(--muted);">Muntjac Alley</div>
+      <div style="padding:6px 12px;border-radius:20px;font-size:11px;font-weight:600;border:1.5px solid rgba(61,43,31,0.2);color:var(--muted);">Soignee Wood</div>
+    </div>
+    <div class="m-syn-toggle" style="margin-bottom:0;">
+      <div class="m-syn-toggle-l">
+        <span class="m-syn-toggle-t">Season Plan</span>
+        <span class="m-syn-toggle-h">Cull targets vs actual · follows selected chip</span>
+      </div>
+      <span style="font-size:18px;opacity:0.35;" aria-hidden="true">▼</span>
+    </div>
+  </div>
+  <p><strong>Past seasons</strong> are read-only for targets.</p>
+  <div class="tip"><strong>Tip:</strong> Tap <strong>Save targets</strong> when you are finished — that writes to the cloud and closes the sheet.</div>
+</div>
+
+<!-- STEP 9 -->
+<div class="step" id="s9">
+  <div class="step-num">9</div>
+  <h2>Stats &amp; Charts</h2>
+  <p>The <strong>Stats</strong> tab shows season totals, the cull map, your plan card, and deeper breakdowns. The <strong>season</strong> selector on Stats matches your diary season.</p>
+
+  <h3>Cull map</h3>
+  <p>Every entry with a pin appears on the <strong>interactive map</strong>. Use <strong>Map</strong> / <strong>Satellite</strong> to change the base layer. Under the map, the <strong>species chips</strong> control which pins are shown <em>and</em> they rebuild <strong>all stats and charts below</strong> for that species (or <strong>All</strong>). Those chips are separate from the <strong>Diary</strong> tab species filter, which only narrows the entry list — choose the same species under the map if you want stats to match what you were viewing in the list.</p>
+
+  <h3>Charts &amp; breakdowns</h3>
+  <p>Below the plan / exports area, open <strong>Charts &amp; breakdowns</strong> to reveal sections such as:</p>
+  <p>• <strong>Monthly cull</strong> — activity through the season<br>
+  • <strong>Cull by ground</strong> — when you use grounds<br>
+  • <strong>Species</strong> and <strong>sex</strong> splits<br>
+  • <strong>Age class</strong>, <strong>shooter</strong>, <strong>carcass destination</strong><br>
+  • <strong>Calibre</strong> and <strong>shot distance</strong> (when those fields are filled on entries)</p>
+  <p>Each block respects your current season on Stats and the <strong>map species chip</strong> (see above). Empty sections show a short “no data” message.</p>
+
+  <h3>Always visible on Stats</h3>
+  <p>• <strong>Headline counters</strong> (animals, kg, etc.) — follow the <strong>map species chip</strong> once you change it from <strong>All</strong><br>
+  • <strong>Season Plan</strong> — targets vs actuals; the <strong>Overview / ground</strong> chips above the plan choose which permission’s entries count as “actual” (separate from the map species filter)<br>
+  • <strong>Syndicates</strong> card — shared team targets when you belong to a syndicate (see step 13)<br>
+  • <strong>Exports</strong> — personal CSV / PDF / Summary / Larder; dealer declarations (step <a href="#s10-declarations" style="color:var(--gold);">10a</a>)</p>
+</div>
+
+<!-- STEP 10 -->
+<div class="step" id="s10">
+  <div class="step-num">10</div>
+  <h2>Exporting Data</h2>
+  <p>On the <strong>Stats</strong> tab, scroll to <strong>My diary exports</strong>. The four actions sit in <strong>one horizontal row</strong> (narrow tiles, icon + label) — same order and colours as in the app mock below. Under the row, a short note points you to <strong>Game dealer PDF</strong> on each entry.</p>
+
+  <div class="m-exp-stats-mock">
+    <div class="m-exp-hdr-m">
+      <div class="m-exp-title-m">My diary exports</div>
+      <div class="m-exp-sub-m">Exports your personal diary data.</div>
+    </div>
+    <div class="m-exp-row-m" aria-hidden="true">
+      <span class="m-exp-btn-m m-exp-csv-m"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12M8 11l4 4 4-4"/><path d="M5 21h14"/></svg>CSV</span>
+      <span class="m-exp-btn-m m-exp-pdf-m"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12M8 11l4 4 4-4"/><path d="M5 21h14"/></svg>PDF</span>
+      <span class="m-exp-btn-m m-exp-sum-m"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M7 3h7l5 5v13a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1z"/><path d="M14 3v5h5"/><path d="M8 11h8M8 15h6" opacity="0.65"/></svg>Summary</span>
+      <span class="m-exp-btn-m m-exp-larder-m"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/><path d="M8 7h8M8 11h5" opacity="0.65"/></svg>Larder Book</span>
+    </div>
+    <div class="m-exp-foot-m">Per-carcass trained hunter declarations (for game dealers) are on each diary entry — tap an entry, then <strong>Game dealer PDF</strong>.</div>
+  </div>
+
+  <h3>How each export works</h3>
+  <p><strong>CSV</strong>, <strong>PDF</strong>, and <strong>Larder Book</strong> open the same <strong>bottom sheet</strong>: <strong>Season</strong>, <strong>Permission / Ground</strong>, then <strong>Entries matching selection</strong> (live count) before you generate. <em>All Seasons</em> appears when your history is loaded. UTF-8 CSV opens cleanly in Excel; PDF is a simple formatted list; <strong>Larder Book</strong> is a dedicated PDF for larder / game-handling style records (entries marked <em>Left on hill</em> are not included).</p>
+  <p><strong>Summary</strong> opens a <strong>different</strong> sheet (same season + ground idea) to build the <strong>Season Summary PDF</strong> — header stats, species breakdown, plan progress, and a full entry table — good for estates or DMGs.</p>
+
+  <h3>Elsewhere in the app</h3>
+  <p>• <strong>Entry detail</strong> — <strong>PDF</strong> vs <strong>Game dealer PDF</strong> (see <a href="#s10-declarations" style="color:var(--gold);">declarations &amp; consignments</a> below).<br>
+  • <strong>Diary list → Select</strong> — multi-select entries for <strong>CSV</strong>, <strong>Dealer PDF</strong> (consignment declaration for several carcasses at once), or <strong>Delete</strong>.<br>
+  • <strong>Syndicate exports</strong> (managers only) — team-wide CSV / PDF / Summary / Larder under Stats; see step 13.</p>
+
+  <h3 id="s10-declarations">Trained hunter declarations &amp; consignments</h3>
+  <p>These are <strong>not</strong> the same as the big <strong>Stats</strong> exports above — they are legal-style PDFs built from your entries for game dealers and food-safety traceability.</p>
+  <p><strong>One carcass — trained hunter declaration.</strong> Open any entry → <strong>Game dealer PDF</strong>. That downloads a <strong>trained hunter declaration</strong> for that single cull, using the details you saved (species, shot, destination, tag, abnormalities, etc.). The plain <strong>PDF</strong> button next to it is only a simple diary record of the same entry — useful for your files, but different in purpose.</p>
+  <p><strong>Many carcasses, one delivery — consignment declaration.</strong> On the diary list, tap <strong>Select</strong>, tick every entry that is leaving in the <strong>same consignment</strong> to the game dealer, then <strong>Dealer PDF</strong>. The app produces <strong>one PDF covering the whole batch</strong> (one declaration block and signature line for the delivery). This matches how assimilated <strong>Reg.&nbsp;(EC) No&nbsp;853/2004</strong> paperwork often expects <em>one</em> declaration per consignment rather than one PDF per carcass. Entries marked <strong>Left on hill</strong> are excluded; if none of your selection qualify, the app will tell you.</p>
+  <p>These PDFs support your records workflow — they do not replace professional legal or food-business advice.</p>
+
+  <div class="tip"><strong>Tip:</strong> If you are offline, exports that need a full history may fall back to the season already loaded on the device — the app will say so in a toast.</div>
+</div>
+
+<!-- STEP 11 -->
+<div class="step" id="s11">
+  <div class="step-num">11</div>
+  <h2>Offline Mode</h2>
+  <p>The diary works without signal. When you're offline:</p>
+  <p>• New entries are saved to a <strong>local queue</strong> on your device<br>
+  • A banner shows how many entries are queued and storage used<br>
+  • When signal returns, entries sync automatically<br>
+  • If storage runs low, photos are stripped to save space (you'll be notified on sync)</p>
+  <div class="warn"><strong>Note:</strong> Photos are large. If you're offline for extended periods, the app may need to strip photos from queued entries to stay within browser storage limits. Entries themselves are always preserved.</div>
+</div>
+
+<!-- STEP 12 -->
+<div class="step" id="s12">
+  <div class="step-num">12</div>
+  <h2>Account &amp; Privacy</h2>
+  <p>Your diary data is stored securely in Supabase with row-level security — only you can access your entries. No one else, including the developer, can see your data.</p>
+  <p>From the Stats tab, scroll to the bottom to find:</p>
+  <p>• <strong>Sign out</strong> — signs you out on this device<br>
+  • <strong>Delete account</strong> — permanently removes your account and all diary data</p>
+  <p>For full details, read the <a href="privacy.html" style="color:var(--gold);">Privacy Policy</a>.</p>
+</div>
+
+<!-- STEP 13 -->
+<div class="step" id="s13">
+  <div class="step-num">13</div>
+  <h2>Syndicates — full walkthrough</h2>
+  <p><strong>Syndicates</strong> let a small team share <strong>group cull targets</strong> next to your personal diary. Access is <strong>invite-only</strong>. The layouts below are <strong>HTML mocks</strong> matched to the real Cull Diary (<code>diary.html</code> / <code>diary.js</code>) — not PNG screenshots, but the same labels and flow.</p>
+  <div class="warn"><strong>Online</strong> — creating, joining, and syncing syndicates needs a live session. <strong>Sign in</strong> first.</div>
+
+  <h3 id="s13-locate">Where to find syndicates</h3>
+  <p><strong>Stats</strong> tab → scroll until you see the <strong>Syndicates</strong> card (it sits <em>above</em> <strong>My diary exports</strong>). It is <strong>collapsed</strong> by default — tap the header row or “Tap to show” to expand.</p>
+  <div class="mock-label">Mock — Stats area (syndicate card)</div>
+  <div class="m-stats-strip">
+    <div class="m-syn-toggle">
+      <div class="m-syn-toggle-l">
+        <span class="m-syn-toggle-t">Syndicates</span>
+        <span class="m-syn-toggle-h">Group targets · invite only</span>
+        <span class="m-syn-toggle-cta">Tap to show ▾</span>
+      </div>
+      <span style="font-size:20px;opacity:0.35;" aria-hidden="true">👥</span>
+    </div>
+    <div class="m-syn-expanded">
+      <div style="display:flex;justify-content:flex-end;margin-bottom:10px;">
+        <span class="m-nov-btn">New</span>
+      </div>
+      <div style="padding:12px 0;font-size:12px;color:var(--muted);text-align:center;border:1px dashed #d4cfc4;border-radius:10px;">Your syndicates list appears here after you create or join one.</div>
+    </div>
+  </div>
+  <p>• <strong>New</strong> (green) opens the create sheet (next section).<br>
+  • After you have teams, each syndicate appears as a <strong>tappable row</strong> with progress — tap to open <strong>manage</strong>.</p>
+
+  <h3 id="s13-create">Create a syndicate</h3>
+  <p>Tap <strong>New</strong> → bottom sheet opens with title <strong>New syndicate</strong> / subtitle <strong>Create a group and set targets</strong>.</p>
+  <ol style="margin:0 0 12px 18px;padding:0;font-size:13px;color:rgba(255,255,255,0.65);line-height:1.75;">
+    <li><strong>Name</strong> — e.g. “North Block syndicate”.</li>
+    <li><strong>Allocation</strong> — <em>Group total (shared pool)</em> or <em>Per-member allocations</em> (manager sets each member’s caps separately).</li>
+    <li><strong>Ground filter (optional)</strong> — pick a saved permission, or <strong>Other / new ground…</strong> to type a label. Only entries whose <strong>Permission / Ground</strong> matches <strong>exactly</strong> (same spelling) count toward this team’s totals. Leave empty to count all members’ qualifying entries.</li>
+    <li>Tap <strong>Create syndicate</strong>. On success, the <strong>manage</strong> sheet opens for that team.</li>
+  </ol>
+  <div class="mock-label">Mock — “New syndicate” sheet (fields)</div>
+  <div class="m-tsheet-mock">
+    <div class="m-tsheet-top">
+      <div>
+        <div class="m-tsheet-title">New syndicate</div>
+        <div class="m-tsheet-sub">Create a group and set targets</div>
+      </div>
+      <span class="m-tsheet-x">✕</span>
+    </div>
+    <div class="m-tsheet-body">
+      <div class="m-syn-field-l">Name</div>
+      <div class="m-syn-fake-input">North Block syndicate</div>
+      <div class="m-syn-field-l">Allocation</div>
+      <div class="m-syn-fake-select">Group total (shared pool) ▾</div>
+      <div class="m-syn-field-l">Ground filter (optional)</div>
+      <div class="m-syn-fake-select">Woodland Block A ▾</div>
+      <p style="font-size:11px;color:var(--muted);margin:0 0 10px;line-height:1.55;">Entries must match this ground label to count. Empty = all grounds.</p>
+      <div class="m-btn-save" style="margin-top:4px;">Create syndicate</div>
+    </div>
+  </div>
+
+  <h3 id="s13-manage">Manage: members, targets &amp; invites</h3>
+  <p>Open a syndicate from the list → sheet title shows the <strong>syndicate name</strong>; subtitle shows <strong>Manager</strong> or <strong>Member</strong> and the current season.</p>
+  <p><strong>Managers</strong> see:</p>
+  <p>• <strong>Members</strong> — each active member with role; <strong>Promote</strong> / <strong>Remove</strong> (demote another manager only if there are two or more managers). You cannot remove the sole manager. <strong>Leave</strong> at the bottom if you are a member; managers must <strong>promote someone else</strong> before leaving.<br>
+  • <strong>Group targets</strong> — species/sex steppers for the <strong>current season</strong> + <strong>Save targets</strong> (group mode).<br>
+  • <strong>Per-member allocations</strong> — choose a member, set their allocation grid, <strong>Save allocations for member</strong> (individual mode).<br>
+  • <strong>Invite link</strong> — <strong>Generate new invite link</strong>; copy URL; list of <strong>active invites</strong> with uses left, expiry, <strong>Copy</strong> / <strong>Revoke</strong>.<br>
+  • <strong>Manager · culled by member</strong> — read-only log of team culls for oversight.<br>
+  • <strong>Delete syndicate</strong> (destructive).</p>
+  <p><strong>Members</strong> (non-managers) see progress copy and can <strong>Leave</strong> — they do not edit team targets.</p>
+  <div class="mock-label">Mock — manage sheet fragments</div>
+  <div class="m-tsheet-mock">
+    <div class="m-tsheet-top">
+      <div>
+        <div class="m-tsheet-title">North Block</div>
+        <div class="m-tsheet-sub">Manager · 2025–26 Season</div>
+      </div>
+      <span class="m-tsheet-x">✕</span>
+    </div>
+    <div class="m-tsheet-body">
+      <div style="font-size:11px;font-weight:700;margin-bottom:8px;color:var(--bark);">Members</div>
+      <div class="m-syn-row">
+        <div><strong>You</strong> <small>Manager · Joined 1 Apr 2026</small></div>
+        <span style="font-size:10px;color:var(--muted);">Only manager</span>
+      </div>
+      <div class="m-syn-row">
+        <div><strong>A. Keeper</strong> <small>Member · Joined 8 Apr 2026</small></div>
+        <span class="m-syn-pill">Promote</span>
+      </div>
+      <div class="m-syn-invite-box" style="margin-top:14px;">
+        <strong style="font-size:11px;">Invite link</strong>
+        <p style="font-size:11px;color:var(--muted);margin:6px 0 8px;">Generate a link and send it to members. They must be signed in to accept.</p>
+        <div style="padding:8px;background:#f0f4e8;border-radius:8px;font-size:11px;font-weight:700;color:#2d5a1a;">Generate new invite link</div>
+      </div>
+      <div class="m-btn" style="width:100%;margin-top:14px;justify-content:center;border:1.5px solid #c62828;color:#c62828;background:transparent;">Delete syndicate</div>
+      <div class="m-btn" style="width:100%;margin-top:8px;justify-content:center;border:1.5px solid #e0dcd6;background:#faf8f4;color:var(--bark);">Leave syndicate</div>
+    </div>
+  </div>
+
+  <h3 id="s13-join">Join with an invite link</h3>
+  <p>Your manager sends a URL (time- and use-limited). Open it <strong>while signed in</strong> to the same browser / PWA — the app accepts the invite and adds you to the syndicate. If the link expired or was revoked, ask for a new one.</p>
+
+  <h3 id="s13-ground">Ground filter &amp; syndicate attribution</h3>
+  <p>• <strong>Ground filter</strong> on the syndicate only affects <strong>which of your diary entries</strong> count toward <strong>that team’s</strong> plan — it does not rename your grounds globally.<br>
+  • On <strong>Add entry / Edit entry</strong>, use <strong>Permission / Ground</strong> and <strong>Syndicate attribution (optional)</strong>. A cull can count toward <strong>at most one</strong> syndicate; leave personal-only if you want no team credit.<br>
+  • The ground dropdown groups <strong>Syndicate permissions</strong> vs <strong>My permissions</strong> so you can see which labels match a team filter. If the text does not match the syndicate’s filter <strong>exactly</strong>, the cull may not count toward the team.</p>
+
+  <h3 id="s13-teamexp">Team exports (managers only)</h3>
+  <p>If you are a <strong>manager</strong>, a second block appears under your personal exports: <strong>Syndicate exports (managers)</strong> — <strong>Team CSV</strong>, <strong>Team PDF</strong>, <strong>Team Summary</strong>, <strong>Team Larder</strong>. These pull <strong>team-wide</strong> diary data (every member), not just your rows.</p>
+  <p>Tapping one opens a modal: pick <strong>Syndicate</strong>, <strong>Season</strong>, and (for CSV/PDF list) <strong>This season only</strong> vs <strong>All seasons</strong>. Summary follows the season shown.</p>
+  <div class="mock-label">Mock — syndicate export modal</div>
+  <div class="m-syn-modal-mock">
+    <div style="font-family:'DM Sans',sans-serif;font-size:17px;font-weight:700;color:white;margin-bottom:4px;">Syndicate export</div>
+    <div class="di-modal-lede di-modal-lede--tight" style="color:rgba(255,255,255,0.55);font-size:12px;">Choose syndicate and scope.</div>
+    <label for="mock-syn-x">Syndicate</label>
+    <select id="mock-syn-x" aria-hidden="true"><option>North Block</option></select>
+    <label for="mock-syn-sea">Season</label>
+    <select id="mock-syn-sea" aria-hidden="true"><option>2025–26 Season</option></select>
+    <div style="font-size:11px;color:rgba(200,168,75,0.7);margin:8px 0 6px;">List scope (CSV / PDF)</div>
+    <label style="display:flex;align-items:center;gap:8px;margin-bottom:6px;">○ This season only</label>
+    <label style="display:flex;align-items:center;gap:8px;margin-bottom:12px;">○ All seasons</label>
+    <div style="padding:12px;background:var(--moss);color:white;border-radius:12px;text-align:center;font-weight:700;">Export</div>
+  </div>
+  <div class="tip"><strong>Tip:</strong> Non-managers never see this block. Your personal <strong>My diary exports</strong> (CSV, PDF, Summary, Larder, …) are unchanged.</div>
+</div>
+
+<div style="text-align:center;padding:30px 20px;border-top:1px solid rgba(255,255,255,0.06);">
+  <p style="font-size:11px;color:rgba(255,255,255,0.2);">© 2025–2026 Sohaib Mengal · First Light · All rights reserved</p>
+  <a href="diary.html" style="display:inline-block;margin-top:10px;font-size:12px;color:var(--gold);text-decoration:none;">← Back to Cull Diary</a>
+</div>
+
+</body>
+</html>
