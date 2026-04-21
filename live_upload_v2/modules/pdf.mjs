@@ -88,7 +88,11 @@ export function hasValue(v) {
 export function pdfSafeText(v) {
   if (v == null || v === '') return '';
   let s = String(v);
-  s = s.replace(/blob:[^\s)\]]+/gi, '');
+  // Blob URLs are never portable in exports. Allow whitespace / line breaks
+  // after "blob:" (copy-paste and soft-wrap often insert space or \n before https).
+  s = s.replace(/blob:\s*https?:\/\/\S+/gi, '');
+  // Opaque blob:… (e.g. blob:null/…) and any remaining blob: fragment
+  s = s.replace(/blob:\s*\S+/gi, '');
   s = s.replace(/data:image\/[^;]+;base64,[A-Za-z0-9+/=\s]+/gi, '[image data omitted]');
   s = s.replace(/\s{2,}/g, ' ').trim();
   return s;
@@ -486,7 +490,7 @@ export function buildSimpleDiaryPDF({ entries, label, season, filenameSlug }) {
     let headerTail = dateStr;
     if (timeStr) headerTail += ' · ' + timeStr;
     doc.text(
-      (i + 1) + '. ' + e.species + ' (' + sexLabel(e.sex, e.species) + ') · ' + headerTail,
+      (i + 1) + '. ' + pdfSafeText(e.species) + ' (' + sexLabel(e.sex, e.species) + ') · ' + headerTail,
       14, y
     );
 

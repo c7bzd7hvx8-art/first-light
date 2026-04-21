@@ -83,7 +83,8 @@ import {
   buildSeasonSummaryPDF,
   buildSyndicateSeasonSummaryPDF,
   syndicateFileSlug as flSyndicateFileSlug,
-  userProfileDisplayName as flUserProfileDisplayName
+  userProfileDisplayName as flUserProfileDisplayName,
+  pdfSafeText as flPdfSafeText
 } from './modules/pdf.mjs';
 // Phase-2 / Commits I–L: 9 PDF exports live in pdf.mjs. All rich / compliance
 // rendering (header bands, palettes, signature blocks, page footers) is now
@@ -4359,7 +4360,7 @@ function triggerCsvDownload(rowLines, filename) {
  */
 // SPEC: lib/fl-pure.mjs#csvField — RFC-4180 quoting, CR/LF squash, + formula-injection guard. Tests pin this.
 function csvField(v) {
-  var raw = v === null || v === undefined ? '' : String(v);
+  var raw = v === null || v === undefined ? '' : flPdfSafeText(String(v));
   var first = raw.charAt(0);
   var needsGuard = first === '=' || first === '+' || first === '-' || first === '@' || first === '\t' || first === '\r';
   var guarded = needsGuard ? "'" + raw : raw;
