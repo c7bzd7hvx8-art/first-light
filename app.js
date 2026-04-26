@@ -261,6 +261,27 @@ function initIndexFlActions() {
         var cm = document.getElementById('changelog-modal');
         if (cm) cm.style.display = 'flex';
         break;
+      case 'scroll-to-install': {
+        // Card lives under Field Guide (`#tab-shots`); that panel is display:none until active,
+        // so scrollIntoView does nothing in Chrome/Edge until we switch tabs first.
+        if (typeof switchMainTab === 'function') {
+          switchMainTab('shots');
+        }
+        var ins = document.getElementById('install-instructions');
+        if (ins) {
+          var reduceMotion = typeof window.matchMedia === 'function' &&
+            window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+          var runScroll = function() {
+            ins.scrollIntoView({ behavior: reduceMotion ? 'auto' : 'smooth', block: 'start' });
+            ins.classList.add('install-pulse');
+            setTimeout(function() { ins.classList.remove('install-pulse'); }, 1600);
+          };
+          requestAnimationFrame(function() {
+            requestAnimationFrame(runScroll);
+          });
+        }
+        break;
+      }
       case 'close-changelog':
         var cmClose = document.getElementById('changelog-modal');
         if (cmClose) cmClose.style.display = 'none';
