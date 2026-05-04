@@ -5,7 +5,7 @@
 // the cache strings (`v7.34`) because they were three separate literals.
 // Bumping triggers the `activate` step to sweep old caches and reload clients
 // via the `controllerchange` path in diary.js.
-const SW_VERSION = '8.94';
+const SW_VERSION = '9.40';
 const STATIC_CACHE  = 'first-light-static-v'  + SW_VERSION;
 const RUNTIME_CACHE = 'first-light-runtime-v' + SW_VERSION;
 
@@ -51,6 +51,31 @@ const PRECACHE_URLS = [
   './deerschool.js',
   './questions.js',
   './diary-guide.html',
+  // Per-species deer illustrations for the calculator's anatomy panel.
+  // Add additional species PNGs here as they land in species/aimthedeer/.
+  './species/aimthedeer/reddeer.svg',
+  './species/aimthedeer/roedeer.svg',
+  './species/aimthedeer/fallow.svg',
+  './species/aimthedeer/sika.svg',
+  './species/aimthedeer/muntjac.svg',
+  './species/aimthedeer/cwd.svg',
+  // Ballistic calculator. Standalone — no dependency on diary state
+  // or auth, but every file the calculator needs at boot must be
+  // precached so the calculator is fully usable offline like the
+  // rest of the app.
+  './ballistics.html',
+  './ballistics.css',
+  './lib/fl-ballistics.js',
+  './lib/fl-ammo.js',
+  './lib/fl-deer-law.js',
+  './lib/fl-anatomy.js',
+  './lib/fl-lead-free-matcher.js',
+  './data/ammo-loads.json',
+  './modules/ballistics-ui.js',
+  './modules/ballistics-compliance.js',
+  './modules/ballistics-rangecard.js',
+  './modules/ballistics-init.js',
+  './modules/dope-card.js',
   'https://firstlightdeer.co.uk/species/UKDTR_logo.JPG',
   'https://firstlightdeer.co.uk/species/bds_logo.jpg',
   'https://firstlightdeer.co.uk/species/basc_logo.png',

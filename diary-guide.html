@@ -305,6 +305,7 @@ body{background:#080f08;font-family:'DM Sans',sans-serif;color:rgba(255,255,255,
   <a href="#s13-join"><span>13d</span> Join with an invite link</a>
   <a href="#s13-ground"><span>13e</span> Ground filter &amp; attribution</a>
   <a href="#s13-teamexp"><span>13f</span> Team exports (managers)</a>
+  <a href="#s13-msg"><span>13g</span> Syndicate messaging</a>
 </div>
 
 <!-- STEP 1 -->
@@ -439,11 +440,16 @@ body{background:#080f08;font-family:'DM Sans',sans-serif;color:rgba(255,255,255,
 
   <h3>③ Date &amp; Time</h3>
   <p>Auto-filled with the current date and time (in UK time). Adjust if logging a past cull.</p>
+  <p><strong>Outing start</strong> and <strong>Outing finish</strong> are <strong>optional</strong> — fill them when you are tracking <strong>hours stalked</strong> (DMG and government funding reports often require this rather than just shot times). The same two fields appear on <strong>blank-day</strong> entries.</p>
   <div class="mock">
     <div class="m-fsec-hdr"><div class="m-fsec-num">3</div><div class="m-fsec-title">Date &amp; Time</div></div>
     <div class="m-ff-row">
       <div class="m-ff"><label>Date</label><input type="text" value="2026-04-06" readonly></div>
       <div class="m-ff"><label>Time</label><input type="text" value="06:45" readonly></div>
+    </div>
+    <div class="m-ff-row">
+      <div class="m-ff"><label>Outing start <small style="font-weight:400;color:var(--muted);font-style:italic;">(optional)</small></label><input type="text" value="06:00" readonly></div>
+      <div class="m-ff"><label>Outing finish <small style="font-weight:400;color:var(--muted);font-style:italic;">(optional)</small></label><input type="text" value="10:30" readonly></div>
     </div>
   </div>
 
@@ -787,6 +793,7 @@ body{background:#080f08;font-family:'DM Sans',sans-serif;color:rgba(255,255,255,
 
   <h3>How each export works</h3>
   <p><strong>CSV</strong>, <strong>PDF</strong>, and <strong>Larder Book</strong> open the same <strong>bottom sheet</strong>: <strong>Season</strong>, <strong>Permission / Ground</strong>, then <strong>Entries matching selection</strong> (live count) before you generate. <em>All Seasons</em> appears when your history is loaded. UTF-8 CSV opens cleanly in Excel; PDF is a simple formatted list; <strong>Larder Book</strong> is a dedicated PDF for larder / game-handling style records (entries marked <em>Left on hill</em> are not included).</p>
+  <p>The CSV includes <strong>Latitude</strong> / <strong>Longitude</strong> columns (populated when you saved a GPS pin or used the GPS button on Location) and <strong>Outing start</strong> / <strong>Outing finish</strong> times — useful for DMG and government funding reports that need GPS evidence or hours-stalked figures. The single-entry PDF and the diary PDF list the outing window in each entry's meta line; other PDFs (Larder, Game Dealer, Consignment, Season Summary) are deliberately unchanged.</p>
   <p><strong>Summary</strong> opens a <strong>different</strong> sheet (same season + ground idea) to build the <strong>Season Summary PDF</strong> — header stats, species breakdown, plan progress, and a full entry table — good for estates or DMGs.</p>
 
   <h3>Elsewhere in the app</h3>
@@ -948,6 +955,21 @@ body{background:#080f08;font-family:'DM Sans',sans-serif;color:rgba(255,255,255,
     <div style="padding:12px;background:var(--moss);color:white;border-radius:12px;text-align:center;font-weight:700;">Export</div>
   </div>
   <div class="tip"><strong>Tip:</strong> Non-managers never see this block. Your personal <strong>My diary exports</strong> (CSV, PDF, Summary, Larder, …) are unchanged.</div>
+
+  <h3 id="s13-msg">Syndicate messaging</h3>
+  <p>Each syndicate has a single <strong>rolling thread</strong> for team chat — manager announcements and member discussion mixed together. Useful for "I'm out at North Wood today", "saw a roe doe by the larch", weekend plans, and so on. The thread is <strong>polled</strong>, not real-time — the app refreshes when you open the manage sheet or the Stats card.</p>
+
+  <p><strong>Where to find it</strong> — open a syndicate from the Stats card, then look for the <strong>Messages</strong> section in the manage sheet. The syndicate row on Stats shows an <strong>unread chip</strong> next to the team name — <strong>red</strong> when there are new messages since you last looked, <strong>green</strong> once you are caught up. Tap the chip directly to jump straight to the thread.</p>
+
+  <p><strong>Posting</strong> — type into the box and tap <strong>Post</strong>. Messages are <strong>500 characters max</strong>, <strong>cannot be edited</strong> after posting (write twice, post once), and are stamped with your member name and role at the time of posting (so a future role change does not rewrite history).</p>
+
+  <p><strong>Pinned messages</strong> — managers can <strong>pin up to 3 messages</strong> at once (a 📌 indicator marks them). Useful for stuck-at-the-top notices like "weekend cull plan" or "ground rules". Soft-deleting a pinned message auto-unpins it. Members cannot pin or unpin.</p>
+
+  <p><strong>Soft delete</strong> — your own messages can be removed; managers can remove anyone's. Removed messages no longer render but stay in the database with a deletion stamp, so the audit trail is preserved.</p>
+
+  <p><strong>What you see</strong> — the thread fetches the most recent <strong>30 messages</strong> in a fixed scroll region. Older messages remain in the database for audit but are not shown in the UI, to keep the sheet quick on mobile.</p>
+
+  <div class="tip"><strong>Tip:</strong> The unread chip clears once you've opened and scrolled the thread, and turns red again when a new message lands.</div>
 </div>
 
 <div style="text-align:center;padding:30px 20px;border-top:1px solid rgba(255,255,255,0.06);">

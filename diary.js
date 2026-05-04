@@ -21,7 +21,7 @@ import {
   validateDisplayName,
   validatePasswordChange,
 } from './modules/profile.mjs';
-import { isBlankDayEntry, blankDaySummaryText } from './lib/fl-pure.mjs';
+import { isBlankDayEntry, blankDaySummaryText, formatRelativeTime } from './lib/fl-pure.mjs';
 
 // Tag that the client-side error logger writes into
 // public.app_errors.app_version. Bumped in lock-step with SW_VERSION in
@@ -29,7 +29,7 @@ import { isBlankDayEntry, blankDaySummaryText } from './lib/fl-pure.mjs';
 // after a deploy can be filtered down to the new build. Hand-maintained
 // (two strings, but cheap to update; see PROJECT-LOG on the error-logger
 // rollout).
-const FL_APP_VERSION = '7.86';
+const FL_APP_VERSION = '7.97';
 import {
   wxCodeLabel,
   windDirLabel,
@@ -1038,6 +1038,18 @@ function initDiaryFlUi() {
         break;
       case 'synd-tstep':
         syndTstep(el.getAttribute('data-step-id'), parseInt(el.getAttribute('data-step-delta'), 10));
+        break;
+      case 'synd-post-message':
+        void postSyndicateMessage();
+        break;
+      case 'synd-delete-message':
+        void softDeleteSyndicateMessage(el.getAttribute('data-message-id'));
+        break;
+      case 'synd-pin-message':
+        void pinSyndicateMessage(el.getAttribute('data-message-id'));
+        break;
+      case 'synd-unpin-message':
+        void unpinSyndicateMessage(el.getAttribute('data-message-id'));
         break;
       case 'pinmap-select':
         pinmapSelectResult(
@@ -2309,10 +2321,10 @@ function seasonDates(season) {
 
 // Season list + cards + stats + map: omit weather_data (JSONB can be large). Hydrate in openDetail.
 var CULL_ENTRY_LIST_COLUMNS =
-  'id,user_id,species,sex,date,time,location_name,lat,lng,weight_kg,' +
+  'id,user_id,species,sex,date,time,outing_start_time,outing_end_time,location_name,lat,lng,weight_kg,' +
   'calibre,distance_m,shot_placement,age_class,notes,shooter,ground,destination,tag_number,abnormalities,abnormalities_other,syndicate_id,photo_url,is_blank,created_at';
 var CULL_ENTRY_LIST_COLUMNS_LEGACY =
-  'id,user_id,species,sex,date,time,location_name,lat,lng,weight_kg,' +
+  'id,user_id,species,sex,date,time,outing_start_time,outing_end_time,location_name,lat,lng,weight_kg,' +
   'calibre,distance_m,shot_placement,age_class,notes,shooter,ground,destination,abnormalities,abnormalities_other,syndicate_id,photo_url,is_blank,created_at';
 
 async function loadEntries() {
@@ -3262,6 +3274,12 @@ async function openNewEntry() {
   var _get = function(t){ return _ukParts.find(function(p){ return p.type===t; }).value; };
   document.getElementById('f-date').value = _get('year') + '-' + _get('month') + '-' + _get('day');
   document.getElementById('f-time').value = _get('hour') + ':' + _get('minute');
+  // Outing-window fields are intentionally left blank on a new entry. Pre-
+  // filling from the previous entry was considered but skipped — stalkers
+  // jump between locations on the same day and stale times would mislead.
+  ['f-outing-start','f-outing-end'].forEach(function(id) {
+    var el = document.getElementById(id); if (el) el.value = '';
+  });
   ['f-location','f-dist','f-notes'].forEach(function(id){ document.getElementById(id).value = ''; }); setCalibreValue('');
   var shooterEl = document.getElementById('f-shooter');
   if (shooterEl) { shooterEl.value = 'Self'; shooterEl.classList.add('shooter-self'); }
@@ -3335,6 +3353,13 @@ async function openEditEntry(id) {
   document.getElementById('sx-f').classList.toggle('on', !formIsBlank && e.sex === 'f');
   document.getElementById('f-date').value = e.date || '';
   document.getElementById('f-time').value = e.time || '';
+  // Outing window — Postgres `time` columns serialise as 'HH:MM:SS' but the
+  // <input type="time"> happily accepts the trailing seconds, so no slicing
+  // needed. Empty string when null so the field stays clear.
+  var osEl = document.getElementById('f-outing-start');
+  var oeEl = document.getElementById('f-outing-end');
+  if (osEl) osEl.value = e.outing_start_time || '';
+  if (oeEl) oeEl.value = e.outing_end_time || '';
   document.getElementById('f-location').value = e.location_name || '';
   if (e.lat != null && e.lng != null) {
     formPinLat = e.lat; formPinLng = e.lng;
@@ -3477,6 +3502,16 @@ function resetPhotoSlot() {
 
 var lastGpsLat = null, lastGpsLng = null;
 
+
+/** Read the value of one of the outing-time `<input type="time">` fields.
+ *  Returns null when the input is empty / missing — keeps DB writes clean
+ *  (Postgres `time` column accepts NULL but not the empty string). */
+function getOutingTimeValue(id) {
+  var el = document.getElementById(id);
+  if (!el) return null;
+  var v = (el.value || '').trim();
+  return v || null;
+}
 
 function handleCalibreSelect(sel) {
   var custom = document.getElementById('f-calibre');
@@ -3725,6 +3760,8 @@ async function saveEntry() {
         sex: null,
         date: dateVal,
         time: document.getElementById('f-time').value,
+        outing_start_time: getOutingTimeValue('f-outing-start'),
+        outing_end_time: getOutingTimeValue('f-outing-end'),
         location_name: document.getElementById('f-location').value,
         lat: formPinLat || lastGpsLat || null,
         lng: formPinLng || lastGpsLng || null,
@@ -3751,6 +3788,8 @@ async function saveEntry() {
         sex: formSex,
         date: dateVal,
         time: document.getElementById('f-time').value,
+        outing_start_time: getOutingTimeValue('f-outing-start'),
+        outing_end_time: getOutingTimeValue('f-outing-end'),
         location_name: document.getElementById('f-location').value,
         lat: formPinLat || lastGpsLat || null,
         lng: formPinLng || lastGpsLng || null,
@@ -3803,6 +3842,8 @@ async function saveEntry() {
         sex:             null,
         date:            dateVal,
         time:            document.getElementById('f-time').value,
+        outing_start_time: getOutingTimeValue('f-outing-start'),
+        outing_end_time:   getOutingTimeValue('f-outing-end'),
         location_name:   document.getElementById('f-location').value,
         lat:             formPinLat || lastGpsLat || null,
         lng:             formPinLng || lastGpsLng || null,
@@ -3829,6 +3870,8 @@ async function saveEntry() {
         sex:             formSex,
         date:            dateVal,
         time:            document.getElementById('f-time').value,
+        outing_start_time: getOutingTimeValue('f-outing-start'),
+        outing_end_time:   getOutingTimeValue('f-outing-end'),
         location_name:   document.getElementById('f-location').value,
         lat:             formPinLat || lastGpsLat || null,
         lng:             formPinLng || lastGpsLng || null,
@@ -4427,8 +4470,12 @@ async function openExportModal(format) {
   if (navigator.onLine) {
     try {
       showToast('⏳ Loading diary…');
+      // Column list mirrors what exportCSVData / buildSimpleDiaryPDF read.
+      // `lat` / `lng` are needed for the GPS columns in CSV exports (added
+      // for DMG funding reports). `is_blank` is needed so the "Is blank day"
+      // CSV column reflects reality — without it every row read "no".
       var r = await sb.from('cull_entries')
-        .select('date, time, species, sex, location_name, ground, weight_kg, tag_number, calibre, distance_m, shot_placement, age_class, shooter, destination, notes, abnormalities, abnormalities_other')
+        .select('date, time, outing_start_time, outing_end_time, species, sex, location_name, lat, lng, ground, weight_kg, tag_number, calibre, distance_m, shot_placement, age_class, shooter, destination, notes, abnormalities, abnormalities_other, is_blank')
         .eq('user_id', currentUser.id)
         .order('date', { ascending: false });
       if (r.error) throw r.error;
@@ -4582,11 +4629,20 @@ function exportCSV() {
 }
 
 function exportCSVData(entries, label) {
-  var headers = ['Date','Time','Is blank day','Species','Sex','Location','Ground','Weight(kg)','Tag','Calibre','Distance(m)','Placement','Age class','Shooter','Destination','Notes'];
+  // Headers ordered so location-related fields group together (Location text
+  // → Latitude → Longitude → Ground). Coordinates are exported alongside the
+  // place name because government / DMG funding reports need the numeric
+  // values for spatial analysis — place names alone are too ambiguous.
+  var headers = ['Date','Time','Outing start','Outing finish','Is blank day','Species','Sex','Location','Latitude','Longitude','Ground','Weight(kg)','Tag','Calibre','Distance(m)','Placement','Age class','Shooter','Destination','Notes'];
   var rows = entries.map(function(e) {
     return [
-      csvField(e.date), csvField(e.time), csvField(isBlankDayEntry(e) ? 'yes' : 'no'), csvField(e.species),
-      csvField(sexLabel(e.sex, e.species)), csvField(e.location_name), csvField(e.ground||''),
+      csvField(e.date), csvField(e.time),
+      csvField(formatCsvTime(e.outing_start_time)),
+      csvField(formatCsvTime(e.outing_end_time)),
+      csvField(isBlankDayEntry(e) ? 'yes' : 'no'), csvField(e.species),
+      csvField(sexLabel(e.sex, e.species)), csvField(e.location_name),
+      csvField(formatCsvCoord(e.lat)), csvField(formatCsvCoord(e.lng)),
+      csvField(e.ground||''),
       csvField(e.weight_kg), csvField(e.tag_number||''),
       csvField(e.calibre), csvField(e.distance_m), csvField(e.shot_placement),
       csvField(e.age_class), csvField(e.shooter||'Self'), csvField(e.destination||''), csvField(e.notes)
@@ -4594,6 +4650,29 @@ function exportCSVData(entries, label) {
   });
   triggerCsvDownload([headers.join(',')].concat(rows), 'cull-diary-' + label + '.csv');
   showToast('✅ CSV downloaded — ' + entries.length + ' entries');
+}
+
+/** Format a stored lat/lng for CSV. 6dp ≈ 11 cm — way more than the GPS pin's
+ *  actual accuracy, but the standard for spreadsheets / GIS imports. Empty
+ *  string when no pin was recorded so a CSV parser sees a blank cell, not
+ *  "0" / "null". */
+function formatCsvCoord(v) {
+  if (v === null || v === undefined || v === '') return '';
+  var n = Number(v);
+  if (!Number.isFinite(n)) return '';
+  return n.toFixed(6);
+}
+
+/** Trim a Postgres `time` column value to HH:MM for CSV. The DB returns
+ *  'HH:MM:SS' (or 'HH:MM:SS.SSSSSS') but stalkers don't enter seconds and
+ *  funding spreadsheets are tidier without them. Null / empty → blank cell. */
+function formatCsvTime(v) {
+  if (v === null || v === undefined || v === '') return '';
+  var s = String(v).trim();
+  var m = s.match(/^(\d{1,2}):(\d{2})/);
+  if (!m) return s;
+  var h = m[1].length === 1 ? '0' + m[1] : m[1];
+  return h + ':' + m[2];
 }
 
 /**
@@ -7291,10 +7370,21 @@ function openSynModal() {
 }
 
 function closeSynModal() {
+  // Snapshot first: the manage sheet sets syndicateEditingId, the create sheet
+  // doesn't. Only re-render Stats cards when we were *viewing* a syndicate so
+  // the unread chip ("2 new") clears immediately. The create-sheet close path
+  // is covered by saveSyndicateCreate / its callers.
+  var wasViewing = !!syndicateEditingId;
   var ov = document.getElementById('syn-ov');
   if (ov) { ov.classList.remove('open'); document.body.style.overflow = ''; }
   syndicateEditingId = null;
   syndicateAllocMemberId = null;
+  if (wasViewing && typeof renderSyndicateSection === 'function') {
+    // Fire-and-forget: re-fetches summary + unread counts for each syndicate
+    // card so the chip on the syndicate the user just viewed clears now,
+    // without waiting for a Stats tab re-entry.
+    void renderSyndicateSection();
+  }
 }
 
 function syndKeyToInputId(key) { return 'syntt-' + key; }
@@ -7631,9 +7721,26 @@ async function renderOneSyndicateCard(row) {
   }
   var sub = (s.allocation_mode === 'group' ? 'Group targets' : 'Individual allocations') +
     (s.ground_filter ? ' · ' + s.ground_filter : '');
-  var btn = isMgr
-    ? '<button type="button" class="plan-edit-btn" data-fl-action="open-syndicate-manage" data-syndicate-id="' + esc(s.id) + '">Manage</button>'
-    : '<button type="button" class="plan-edit-btn" data-fl-action="open-syndicate-manage" data-syndicate-id="' + esc(s.id) + '">View</button>';
+  // Cheap unread check: one bounded query per card. `syndicate_messages` may
+  // not be deployed yet on every project; the helper swallows errors so this
+  // gracefully degrades to "no badge" if the RLS / table are missing.
+  var unreadCount = 0;
+  try { unreadCount = await syndicateUnreadMessageCount(s.id); } catch (_) {}
+  var unreadNoun = unreadCount === 1 ? 'message' : 'messages';
+  var unreadLabel = (unreadCount > 9 ? '9+' : String(unreadCount)) + ' new ' + unreadNoun;
+  // Pip is a button — tapping it opens the manage sheet (where the messages
+  // section lives) so the user doesn't have to read the chip then aim at the
+  // separate Manage / View button.
+  var pip = unreadCount > 0
+    ? '<button type="button" class="synd-unread-pip" '
+      + 'data-fl-action="open-syndicate-manage" data-syndicate-id="' + esc(s.id) + '" '
+      + 'title="' + unreadLabel + ' — open thread" aria-label="' + unreadLabel + ' — open thread">'
+      + esc(unreadLabel) + '</button>'
+    : '';
+  var btnLabel = isMgr ? 'Manage' : 'View';
+  var btn = '<div class="synd-block-cta">' + pip
+    + '<button type="button" class="plan-edit-btn" data-fl-action="open-syndicate-manage" data-syndicate-id="' + esc(s.id) + '">' + btnLabel + '</button>'
+    + '</div>';
   return '<div class="synd-block">'
     + '<div class="synd-block-hdr">'
     + '<div><div class="synd-block-title">' + esc(s.name) + '</div>'
@@ -7815,6 +7922,20 @@ async function openSyndicateManageSheet(sid) {
   if (tr.data) tr.data.forEach(function(row) { targets[row.species + '-' + row.sex] = row.target; });
 
   var bodyHtml = '';
+
+  // Messages section — single rolling thread visible to both members and
+  // managers. Section content is injected asynchronously after the sheet's
+  // innerHTML is set; the placeholder keeps tab order and CSS layout stable.
+  bodyHtml += '<div class="synd-msg-section-wrap">'
+    + '<div class="synd-msg-section-hdr">'
+    + '<div class="synd-msg-section-title">Messages</div>'
+    + '<div class="synd-msg-section-sub">Single thread visible to every active member</div>'
+    + '</div>'
+    + '<div id="syn-msg-section" class="synd-msg-section-body">'
+    + '<div class="synd-msg-loading">Loading messages…</div>'
+    + '</div>'
+    + '</div>';
+
   if (isMgr && memberRows && memberRows.length) {
     var sortedMembers = memberRows.slice().sort(function(a, b) {
       if (a.role !== b.role) return a.role === 'manager' ? -1 : 1;
@@ -7968,6 +8089,10 @@ async function openSyndicateManageSheet(sid) {
     smb.innerHTML = bodyHtml;
     enhanceKeyboardClickables(smb);
   }
+
+  // Fire-and-forget — messages render after the rest of the sheet is visible
+  // so the user sees targets / members immediately, then the thread fills in.
+  void renderSyndicateMessagesSection(s, isMgr);
 
   if (s.allocation_mode === 'individual' && isMgr) {
     var sel = document.getElementById('syn-alloc-member');
@@ -8235,6 +8360,406 @@ async function syndRemoveMember(userId) {
   statsNeedsFullRebuild = true;
   await renderSyndicateSection();
   await openSyndicateManageSheet(syndicateEditingId);
+}
+
+// ── Syndicate messages — single rolling thread per syndicate ────────────────
+// Schema + RLS in scripts/syndicate-messages.sql. v1 scope: members + managers
+// post; managers can soft-delete anyone's message; authors can soft-delete
+// their own. No edit. 500-char body cap (DB CHECK + client validation). UK
+// time labels rendered via formatRelativeTime (lib/fl-pure.mjs).
+
+var SYNDICATE_MESSAGE_BODY_MAX = 500;
+/** Cap on messages rendered + fetched per open of the manage sheet. Keeps the
+ *  section bounded so targets / members / invites stay reachable below it.
+ *  At 30, an active syndicate's last few weeks of chat is visible; older
+ *  history is intentionally not paginated in v1 (add later if asked). */
+var SYNDICATE_MESSAGE_FETCH_LIMIT = 30;
+/** Max simultaneously-pinned messages per syndicate. Client-validated only;
+ *  enforcement at the DB level would cost a count subquery on every UPDATE
+ *  for a UX nicety that isn't a security boundary. */
+var SYNDICATE_MESSAGE_PIN_MAX = 3;
+/** Last-rendered manager flag for the open manage sheet — used by post / delete handlers. */
+var syndicateManageSheetIsManager = false;
+/** Last-fetched messages for the open sheet, keyed by id. Lets the delete
+ *  handler check authorship without re-fetching. */
+var syndicateMessageCache = {};
+
+function syndicateMessageSeenKey(syndicateId) {
+  if (!currentUser || !syndicateId) return null;
+  return 'fl_synd_msg_seen:' + currentUser.id + ':' + syndicateId;
+}
+
+function getSyndicateMessageSeenAt(syndicateId) {
+  var key = syndicateMessageSeenKey(syndicateId);
+  if (!key) return 0;
+  try {
+    var raw = localStorage.getItem(key);
+    if (!raw) return 0;
+    var n = Date.parse(raw);
+    return Number.isFinite(n) ? n : 0;
+  } catch (_) { return 0; }
+}
+
+function setSyndicateMessageSeenAt(syndicateId, isoTs) {
+  var key = syndicateMessageSeenKey(syndicateId);
+  if (!key) return;
+  try { localStorage.setItem(key, isoTs); } catch (_) { /* private mode */ }
+}
+
+/** London wall-clock parts for formatRelativeTime — same Intl pattern as the
+ *  diary's date pre-fill. Returns y, m, d, h, mi, dow (0..6 Sun..Sat). */
+function syndicateLondonParts(d) {
+  try {
+    var fmt = new Intl.DateTimeFormat('en-GB', {
+      timeZone: 'Europe/London',
+      year:'numeric', month:'2-digit', day:'2-digit',
+      hour:'2-digit', minute:'2-digit', hour12:false,
+      weekday:'short'
+    });
+    var parts = fmt.formatToParts(d);
+    var get = function(t) {
+      var p = parts.find(function(x) { return x.type === t; });
+      return p ? p.value : '';
+    };
+    var dowMap = { Sun:0, Mon:1, Tue:2, Wed:3, Thu:4, Fri:5, Sat:6 };
+    return {
+      y:  parseInt(get('year'), 10),
+      m:  parseInt(get('month'), 10),
+      d:  parseInt(get('day'), 10),
+      h:  parseInt(get('hour'), 10),
+      mi: parseInt(get('minute'), 10),
+      dow: dowMap[get('weekday')] || 0,
+    };
+  } catch (_) {
+    return null;
+  }
+}
+
+/** Render the messages section into `#syn-msg-section` inside the manage sheet.
+ *  Idempotent — safe to call after a post / delete to refresh in place. */
+async function renderSyndicateMessagesSection(syndicate, isMgr) {
+  if (!sb || !currentUser || !syndicate) return;
+  var section = document.getElementById('syn-msg-section');
+  if (!section) return;
+
+  syndicateManageSheetIsManager = !!isMgr;
+
+  // Fetch the newest N messages (deleted included so the timeline reads
+  // coherently). Index idx_syndicate_messages_lookup makes this O(log n).
+  // N = SYNDICATE_MESSAGE_FETCH_LIMIT — bounded so the section can't push
+  // targets / members / invites off-screen for managers.
+  // Order: pinned messages first (newest pin first), then chronological.
+  // `nullsFirst: false` puts NULL pinned_at values LAST, which means
+  // unpinned messages sit below the pinned block. Combined with the
+  // created_at tiebreaker, the order is exactly what the user sees on
+  // chat apps: stickies on top, recent feed below.
+  var r = await sb.from('syndicate_messages')
+    .select('id, user_id, author_name, author_role, body, created_at, deleted_at, pinned_at')
+    .eq('syndicate_id', syndicate.id)
+    .order('pinned_at', { ascending: false, nullsFirst: false })
+    .order('created_at', { ascending: false })
+    .limit(SYNDICATE_MESSAGE_FETCH_LIMIT);
+
+  var rows = (r && !r.error && r.data) ? r.data : [];
+  syndicateMessageCache = {};
+  rows.forEach(function(m) { syndicateMessageCache[m.id] = m; });
+
+  var now = diaryNow();
+  var html = '';
+  // Composer (top — see openSyndicateManageSheet plan).
+  html += '<div class="synd-msg-compose">'
+    + '<textarea id="syn-msg-input" maxlength="' + SYNDICATE_MESSAGE_BODY_MAX + '" '
+    + 'placeholder="Type a message (max ' + SYNDICATE_MESSAGE_BODY_MAX + ' chars)…" '
+    + 'rows="3" class="synd-msg-input"></textarea>'
+    + '<div class="synd-msg-compose-row">'
+    + '<span id="syn-msg-charcount" class="synd-msg-charcount">' + SYNDICATE_MESSAGE_BODY_MAX + ' left</span>'
+    + '<button type="button" class="synd-msg-post-btn" data-fl-action="synd-post-message">Post</button>'
+    + '</div>'
+    + '</div>';
+
+  if (r && r.error) {
+    html += '<div class="synd-msg-error">⚠️ ' + esc(r.error.message || 'Could not load messages') + '</div>';
+    section.innerHTML = html;
+    return;
+  }
+
+  if (!rows.length) {
+    html += '<div class="synd-msg-empty">No messages yet — be the first to post.</div>';
+    section.innerHTML = html;
+    bindSyndicateMessageComposer();
+    return;
+  }
+
+  // Internal scroll container so the section is bounded — managers can still
+  // reach targets / members / invites below without scrolling past every chat.
+  // Count currently-pinned visible messages so the Pin button can hide
+  // itself when the cap is reached (3 max). Excludes deleted messages —
+  // the trigger auto-unpins those server-side, but we still defend in
+  // depth here.
+  var pinnedCount = rows.reduce(function(acc, m) {
+    return acc + (m.pinned_at && !m.deleted_at ? 1 : 0);
+  }, 0);
+
+  html += '<div class="synd-msg-list-scroll"><div class="synd-msg-list">';
+  rows.forEach(function(m) {
+    var isDel = !!m.deleted_at;
+    var isPinned = !!m.pinned_at && !isDel;
+    var canDelete = !isDel && (m.user_id === currentUser.id || isMgr);
+    var canPin = isMgr && !isDel;
+    var canPinNew = canPin && !isPinned && pinnedCount < SYNDICATE_MESSAGE_PIN_MAX;
+    var canUnpin = canPin && isPinned;
+    var roleBadge = (!isDel && m.author_role === 'manager')
+      ? '<span class="synd-msg-mgr-badge" title="Manager">Manager</span>'
+      : '';
+    var pinPill = isPinned
+      ? '<span class="synd-msg-pin-pill" title="Pinned by manager" aria-label="Pinned message">📌 Pinned</span>'
+      : '';
+    var when = '';
+    var ts = m.created_at ? Date.parse(m.created_at) : NaN;
+    if (Number.isFinite(ts)) {
+      when = formatRelativeTime(new Date(ts), now, syndicateLondonParts) || '';
+    }
+    var nameDisp = (!isDel && m.user_id === currentUser.id)
+      ? esc(m.author_name || 'You') + ' <span class="synd-msg-you">(you)</span>'
+      : esc(m.author_name || 'Former member');
+
+    html += '<div class="synd-msg' + (isDel ? ' synd-msg--deleted' : '')
+      + (m.author_role === 'manager' && !isDel ? ' synd-msg--mgr' : '')
+      + (isPinned ? ' synd-msg--pinned' : '')
+      + '">';
+    html += '<div class="synd-msg-hdr">';
+    html += '<div class="synd-msg-author">' + nameDisp + roleBadge + pinPill + '</div>';
+    html += '<div class="synd-msg-meta">' + esc(when);
+    if (canPinNew) {
+      html += ' · <button type="button" class="synd-msg-pin" data-fl-action="synd-pin-message" '
+        + 'data-message-id="' + esc(m.id) + '">Pin</button>';
+    } else if (canUnpin) {
+      html += ' · <button type="button" class="synd-msg-pin" data-fl-action="synd-unpin-message" '
+        + 'data-message-id="' + esc(m.id) + '">Unpin</button>';
+    }
+    if (canDelete) {
+      html += ' · <button type="button" class="synd-msg-del" data-fl-action="synd-delete-message" '
+        + 'data-message-id="' + esc(m.id) + '">Delete</button>';
+    }
+    html += '</div>';
+    html += '</div>';
+    if (isDel) {
+      html += '<div class="synd-msg-body synd-msg-body--deleted">[message removed]</div>';
+    } else {
+      // Body is plain text; esc() handles HTML, then we convert newlines to <br>.
+      html += '<div class="synd-msg-body">' + esc(m.body || '').replace(/\n/g, '<br>') + '</div>';
+    }
+    html += '</div>';
+  });
+  html += '</div></div>';
+  if (isMgr && pinnedCount >= SYNDICATE_MESSAGE_PIN_MAX) {
+    html += '<div class="synd-msg-pin-hint">Pin limit reached (' + SYNDICATE_MESSAGE_PIN_MAX
+      + ' max). Unpin one to add another.</div>';
+  }
+  // Hint when the fetch hit the cap — there may be older messages we didn't
+  // load. Shown only at exactly the limit; if the syndicate has fewer, hide it.
+  if (rows.length >= SYNDICATE_MESSAGE_FETCH_LIMIT) {
+    html += '<div class="synd-msg-older-hint">Showing latest ' + SYNDICATE_MESSAGE_FETCH_LIMIT
+      + ' messages. Older history is not loaded.</div>';
+  }
+
+  section.innerHTML = html;
+  bindSyndicateMessageComposer();
+  enhanceKeyboardClickables(section);
+
+  // Mark all visible messages as seen. +1ms buffer is critical: Postgres
+  // timestamptz has microsecond precision, but JS Date.parse / toISOString
+  // truncate to milliseconds. Without the buffer, the same row would still
+  // satisfy `gt('created_at', seenIso)` on the next unread check (because
+  // 14:00:00.123456 > 14:00:00.123 in the DB even though they round to the
+  // same millisecond in JS), so the pip would never clear without a hard
+  // refresh.
+  var newestMs = rows.reduce(function(acc, m) {
+    var t = m.created_at ? Date.parse(m.created_at) : NaN;
+    if (!Number.isFinite(t)) return acc;
+    return (acc == null || t > acc) ? t : acc;
+  }, null);
+  if (newestMs != null) {
+    setSyndicateMessageSeenAt(syndicate.id, new Date(newestMs + 1).toISOString());
+  }
+}
+
+/** Wire the textarea's char-count update. Called after every (re)render. */
+function bindSyndicateMessageComposer() {
+  var input = document.getElementById('syn-msg-input');
+  var counter = document.getElementById('syn-msg-charcount');
+  if (!input || !counter) return;
+  function update() {
+    var n = (input.value || '').length;
+    var left = SYNDICATE_MESSAGE_BODY_MAX - n;
+    counter.textContent = left + ' left';
+    counter.classList.toggle('synd-msg-charcount--warn', left < 50);
+    counter.classList.toggle('synd-msg-charcount--over', left < 0);
+  }
+  input.addEventListener('input', update);
+  update();
+}
+
+async function postSyndicateMessage() {
+  if (!sb || !currentUser || !syndicateEditingId) return;
+  var input = document.getElementById('syn-msg-input');
+  var btn = document.querySelector('[data-fl-action="synd-post-message"]');
+  if (!input) return;
+  var body = (input.value || '').trim();
+  if (!body) {
+    showToast('⚠️ Type a message first');
+    return;
+  }
+  if (body.length > SYNDICATE_MESSAGE_BODY_MAX) {
+    showToast('⚠️ Too long — max ' + SYNDICATE_MESSAGE_BODY_MAX + ' chars');
+    return;
+  }
+  if (!navigator.onLine) {
+    showToast('⚠️ Connect to post a message');
+    return;
+  }
+  if (btn) { btn.disabled = true; btn.textContent = 'Posting…'; }
+
+  // Snapshot author identity at insert time. The DB CHECK in the WITH CHECK
+  // RLS clause pins author_role to actual role, so a member faking 'manager'
+  // gets rejected by Postgres rather than silently inserted.
+  var authorName = syndicateDisplayNameFromUser(currentUser);
+  var authorRole = syndicateManageSheetIsManager ? 'manager' : 'member';
+  try {
+    var r = await sb.from('syndicate_messages').insert({
+      syndicate_id: syndicateEditingId,
+      user_id: currentUser.id,
+      author_name: authorName,
+      author_role: authorRole,
+      body: body,
+    });
+    if (r.error) throw r.error;
+    input.value = '';
+    var sr = await sb.from('syndicates').select('*').eq('id', syndicateEditingId).single();
+    if (!sr.error && sr.data) {
+      await renderSyndicateMessagesSection(sr.data, syndicateManageSheetIsManager);
+    }
+    showToast('✅ Message posted');
+  } catch (e) {
+    showToast('⚠️ ' + ((e && e.message) || 'Could not post'));
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = 'Post'; }
+  }
+}
+
+async function softDeleteSyndicateMessage(messageId) {
+  if (!sb || !currentUser || !syndicateEditingId || !messageId) return;
+  var cached = syndicateMessageCache[messageId];
+  var isOwn = cached && cached.user_id === currentUser.id;
+  // Confirm only when deleting someone else's (manager moderating). Self-delete
+  // is a low-stakes undo-by-repost — toast is enough.
+  if (!isOwn) {
+    if (!(await flConfirm({
+      title: 'Delete this message?',
+      body: 'It will be replaced with "[message removed]" for everyone in the syndicate. The author can still see who posted it.',
+      action: 'Delete message',
+      tone: 'warn'
+    }))) return;
+  }
+  // RLS: syndicate_messages_update_self_or_manager. Trigger
+  // tr_syndicate_messages_immutable enforces "only deleted_at may change".
+  var r = await sb.from('syndicate_messages')
+    .update({ deleted_at: new Date().toISOString() })
+    .eq('id', messageId)
+    .is('deleted_at', null);
+  if (r.error) {
+    showToast('⚠️ ' + (r.error.message || 'Could not delete'));
+    return;
+  }
+  showToast('🗑 Message removed');
+  var sr = await sb.from('syndicates').select('*').eq('id', syndicateEditingId).single();
+  if (!sr.error && sr.data) {
+    await renderSyndicateMessagesSection(sr.data, syndicateManageSheetIsManager);
+  }
+}
+
+async function pinSyndicateMessage(messageId) {
+  if (!sb || !currentUser || !syndicateEditingId || !messageId) return;
+  if (!syndicateManageSheetIsManager) {
+    showToast('⚠️ Only managers can pin messages');
+    return;
+  }
+  // Client-side cap: count currently-pinned non-deleted messages from the
+  // last render. The trigger doesn't enforce a max; we just keep the UI
+  // honest. Race condition (two managers pinning at the same moment) is
+  // handled gracefully — both succeed, the cap is briefly exceeded, and
+  // the next render reflects reality.
+  var pinned = Object.keys(syndicateMessageCache).reduce(function(acc, k) {
+    var m = syndicateMessageCache[k];
+    return acc + (m && m.pinned_at && !m.deleted_at ? 1 : 0);
+  }, 0);
+  if (pinned >= SYNDICATE_MESSAGE_PIN_MAX) {
+    showToast('⚠️ Pin limit reached (' + SYNDICATE_MESSAGE_PIN_MAX + ' max) — unpin one first');
+    return;
+  }
+  // RLS: syndicate_messages_update_self_or_manager. Trigger
+  // tr_syndicate_messages_immutable enforces "only managers may set
+  // pinned_at to non-null".
+  var r = await sb.from('syndicate_messages')
+    .update({ pinned_at: new Date().toISOString() })
+    .eq('id', messageId)
+    .is('deleted_at', null);
+  if (r.error) {
+    showToast('⚠️ ' + (r.error.message || 'Could not pin'));
+    return;
+  }
+  showToast('📌 Message pinned');
+  var sr = await sb.from('syndicates').select('*').eq('id', syndicateEditingId).single();
+  if (!sr.error && sr.data) {
+    await renderSyndicateMessagesSection(sr.data, syndicateManageSheetIsManager);
+  }
+}
+
+async function unpinSyndicateMessage(messageId) {
+  if (!sb || !currentUser || !syndicateEditingId || !messageId) return;
+  if (!syndicateManageSheetIsManager) {
+    showToast('⚠️ Only managers can unpin messages');
+    return;
+  }
+  // RLS + trigger as for pin, but going non-null → null. Trigger gates
+  // the change to managers; we don't need a confirm modal — unpinning
+  // is reversible (just pin again).
+  var r = await sb.from('syndicate_messages')
+    .update({ pinned_at: null })
+    .eq('id', messageId);
+  if (r.error) {
+    showToast('⚠️ ' + (r.error.message || 'Could not unpin'));
+    return;
+  }
+  showToast('📌 Message unpinned');
+  var sr = await sb.from('syndicates').select('*').eq('id', syndicateEditingId).single();
+  if (!sr.error && sr.data) {
+    await renderSyndicateMessagesSection(sr.data, syndicateManageSheetIsManager);
+  }
+}
+
+/** Per-syndicate: how many unread messages from other members are newer than
+ *  the user's last seen timestamp? Capped at 50 (the badge shows "9+" beyond
+ *  9 anyway, and we don't want a 1000-row scan if someone joins a long-running
+ *  thread). Returns 0 on any error so the badge fails closed. */
+async function syndicateUnreadMessageCount(syndicateId) {
+  if (!sb || !currentUser || !syndicateId) return 0;
+  var seenIso = (function() {
+    var ms = getSyndicateMessageSeenAt(syndicateId);
+    return ms ? new Date(ms).toISOString() : '1970-01-01T00:00:00Z';
+  })();
+  // Data-based check (rather than count: 'exact') — robust across supabase-js
+  // versions and lets us return an actual number for the badge. limit(50) is
+  // ample headroom; the messages list itself fetches 100.
+  var r = await sb.from('syndicate_messages')
+    .select('id')
+    .eq('syndicate_id', syndicateId)
+    .is('deleted_at', null)
+    .neq('user_id', currentUser.id) // your own posts shouldn't count as unread
+    .gt('created_at', seenIso)
+    .limit(50);
+  if (r.error) return 0;
+  return Array.isArray(r.data) ? r.data.length : 0;
 }
 
 /**

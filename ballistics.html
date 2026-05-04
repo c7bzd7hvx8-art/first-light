@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="en-GB">
+<head>
+<meta charset="UTF-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; base-uri 'self'; form-action 'self'; object-src 'none'; script-src 'self' https://cdnjs.cloudflare.com; connect-src 'self' https://api.open-meteo.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data:; worker-src 'self';">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">
+<link rel="apple-touch-icon" href="icon-180.png">
+<title>Ballistic Calculator — First Light</title>
+<meta name="description" content="UK deer stalking ballistic calculator: factory ammunition library, atmospheric correction, statutory energy thresholds, dope card export.">
+<meta name="theme-color" content="#1a2e1a">
+<meta name="color-scheme" content="dark">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;600;700&family=DM+Sans:wght@300;400;500;600;700&family=DM+Mono:wght@400;500&display=swap">
+<!-- jsPDF for the dope card export. Loaded as a classic script; the dope-card
+     module reads window.jspdf at use time. -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js" integrity="sha384-JcnsjUPPylna1s1fvi1u12X5qjY5OL56iySh75FdtrwhO/SWXgMjoVqcKyIIWOLk" crossorigin="anonymous"></script>
+<link rel="stylesheet" href="./ballistics.css">
+</head>
+<body>
+
+<div class="bx-toast" id="bx-toast" role="status" aria-live="polite"></div>
+
+<header class="bx-hdr">
+  <a href="./" class="bx-hdr-back">← First Light</a>
+  <h1>Ballistic Calculator <span class="bx-hdr-version">v1.0&nbsp;beta</span></h1>
+  <div class="bx-hdr-sub">UK Deer Stalking</div>
+</header>
+
+<div id="bx-law-banner">
+  <strong>Pre-release.</strong> Statutory energy thresholds in this calculator have not yet been independently verified
+  against current UK legislation. Use as guidance only; check your equipment against the statutory minimums for your
+  jurisdiction before any shot.
+</div>
+
+<div id="bx-profile-bar"></div>
+
+<section class="bx-range">
+  <div id="bx-range-display"></div>
+  <input type="range" id="bx-range-slider" min="25" max="500" step="5" value="100" aria-label="Target range (metres)">
+  <div class="bx-range-tools">
+    <button id="bx-range-from-reticle" type="button" class="bx-link">Estimate from reticle</button>
+  </div>
+</section>
+
+<div class="bx-cond-row">
+  <div id="bx-conditions-strip"></div>
+  <button id="bx-conditions-edit" type="button">Edit</button>
+</div>
+
+<div id="bx-output"></div>
+
+<div class="bx-chart-wrap">
+  <div class="bx-chart-label">Drop curve · 25–400m</div>
+  <canvas id="bx-drop-chart"></canvas>
+</div>
+
+<section class="bx-bottom">
+  <div class="bx-field">
+    <label for="bx-jurisdiction">Jurisdiction</label>
+    <select id="bx-jurisdiction" aria-label="Jurisdiction for legal energy thresholds"></select>
+  </div>
+  <div class="bx-field">
+    <label>Anatomical hold</label>
+    <button class="bx-btn bx-btn-secondary" id="bx-anatomy-open" type="button" aria-label="Configure anatomical hold reference">Aim on the deer…</button>
+  </div>
+</section>
+
+<section class="bx-export">
+  <div class="bx-export-label">Print a dope card for your rifle case</div>
+  <div class="bx-export-buttons">
+    <button class="bx-btn bx-btn-secondary" id="bx-export-a6" type="button">A6 (rifle case)</button>
+    <button class="bx-btn bx-btn-secondary" id="bx-export-a4" type="button">A4 (cabinet)</button>
+  </div>
+</section>
+
+<div class="bx-version-strip">
+  <span>App <strong>v1.0&nbsp;beta</strong></span>
+  <span class="bx-sep">·</span>
+  <span>Data <strong id="bx-version-data">—</strong></span>
+  <span class="bx-sep">·</span>
+  <span>Verification round <strong id="bx-version-round">—</strong></span>
+</div>
+
+<div class="bx-disclaimer">
+  <div class="bx-disclaimer-title">Important — read before use</div>
+  <p><strong>This calculator is a planning aid for trained stalkers, not a substitute for fieldcraft, training, or judgement.</strong>
+  You are responsible for every shot. Verify that your ammunition meets the legal calibre, bullet,
+  and energy requirements for your species and jurisdiction; that your rifle is correctly zeroed for
+  the ammunition you are using; and that any shot you take is safe, ethical, and within your competence.</p>
+  <p><strong>Ballistic data is from manufacturers' test barrels.</strong>
+  Test barrels are typically 24″ and may not match the velocity or accuracy of your rifle, which is
+  often shorter. Real-world drops will differ from the calculator's predictions, sometimes by enough
+  to miss at range. <strong>Chronograph your loads where possible</strong> and re-zero whenever you change
+  ammunition, even between two loads with similar nominal specs.</p>
+  <p>Trajectories are computed using standard G1/G7 drag models and ICAO standard atmosphere where
+  conditions are not provided. Wind drift assumes a full crosswind. Predictions become unreliable as
+  the bullet approaches transonic velocity (~1125&nbsp;fps); the calculator will warn you when this
+  applies. Statutory thresholds reflect UK deer law as encoded at the data version shown — the law
+  can change, and the stalker should check the current statutory text for borderline shots.</p>
+</div>
+
+<div id="bx-modal"></div>
+
+<script type="module" src="./modules/ballistics-init.js"></script>
+
+</body>
+</html>

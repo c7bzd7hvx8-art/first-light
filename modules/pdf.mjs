@@ -504,6 +504,14 @@ export function buildSimpleDiaryPDF({ entries, label, season, filenameSlug }) {
     doc.setFontSize(9);
 
     const meta = [];
+    // Outing window — applies to both cull entries and blank days. Both halves
+    // optional; we render an em-dash placeholder for the missing side so the
+    // funder reading this can still see the half that was filled.
+    if (e.outing_start_time || e.outing_end_time) {
+      const os = fmtEntryTimeShort(e.outing_start_time) || '—';
+      const oe = fmtEntryTimeShort(e.outing_end_time) || '—';
+      meta.push('Outing: ' + os + '–' + oe);
+    }
     if (e.ground)        meta.push('Ground: ' + pdfSafeText(e.ground));
     if (e.location_name) meta.push('Location: ' + pdfSafeText(e.location_name));
     if (!isBlankDayEntry(e)) {
@@ -600,6 +608,8 @@ export function buildSingleEntryPDF({ entry }) {
   const fields = [
     ['Date', dateCell],
     ['Time', timeCell],
+    ['Outing start', fmtEntryTimeShort(entry.outing_start_time)],
+    ['Outing finish', fmtEntryTimeShort(entry.outing_end_time)],
     ['Location', pdfSafeText(entry.location_name)],
     ['Ground', pdfSafeText(entry.ground)],
     ['Age class', pdfSafeText(entry.age_class)],
