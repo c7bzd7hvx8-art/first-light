@@ -1232,6 +1232,13 @@
   the flag is missing). Flip the flag in DevTools to dogfood.
 -->
 <script type="module">
+  // URL escape hatch for mobile dogfooding without a JS console:
+  // `?stand=1` (or just `?stand`) flips the persistent localStorage flag.
+  // Use `?stand=0` to turn it off again.
+  const _urlFlag = new URLSearchParams(location.search).get('stand');
+  if (_urlFlag === '1' || _urlFlag === '') localStorage.setItem('fl_stand_planner_flag', '1');
+  else if (_urlFlag === '0') localStorage.removeItem('fl_stand_planner_flag');
+
   if (localStorage.getItem('fl_stand_planner_flag') === '1') {
     const navBtn = document.getElementById('n-stand');
     if (navBtn) navBtn.style.display = '';
