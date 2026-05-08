@@ -1227,55 +1227,12 @@
 
 <!--
   Wind & Stand Planner bootstrap. Phase-1 soft-launch: the planner only
-  shows when `localStorage.fl_stand_planner_flag === '1'`. Default off so
-  cold-start cost is unaffected (the modules aren't even imported when
-  the flag is missing). Flip the flag in DevTools to dogfood.
+  shows when localStorage.fl_stand_planner_flag === '1' (or the URL has
+  ?stand=1). Default off so cold-start cost is unaffected — the planner
+  modules aren't even imported when the flag is missing. The bootstrap
+  is in a separate file because the page CSP forbids inline scripts.
 -->
-<script type="module">
-  // URL escape hatch for mobile dogfooding without a JS console:
-  // `?stand=1` (or just `?stand`) flips the persistent localStorage flag.
-  // Use `?stand=0` to turn it off again.
-  const _urlFlag = new URLSearchParams(location.search).get('stand');
-  if (_urlFlag === '1' || _urlFlag === '') localStorage.setItem('fl_stand_planner_flag', '1');
-  else if (_urlFlag === '0') localStorage.removeItem('fl_stand_planner_flag');
-
-  if (localStorage.getItem('fl_stand_planner_flag') === '1') {
-    const navBtn = document.getElementById('n-stand');
-    if (navBtn) navBtn.style.display = '';
-    try {
-      const planner = await import('./modules/stand-planner.mjs');
-      const standView = document.getElementById('v-stand');
-      planner.initStandPlanner(standView, {
-        // onAddStand stays a stub for now — wiring it to the diary.js
-        // pin-drop overlay (#pinmap-overlay, see ~5689) is the next
-        // increment. Until then, users add stands via Supabase directly.
-        onAddStand: () => {
-          alert('Add-stand UI lands in the next increment.\n\nFor now, insert into public.stands in the Supabase dashboard with your lat/lng and preferred_approach_deg, then refresh.');
-        }
-      });
-      // Refresh button
-      const r = document.getElementById('stand-refresh');
-      if (r) r.addEventListener('click', () => planner.refreshStandPlanner());
-      // Layer toggle
-      const layerTog = document.getElementById('stand-layer-tog');
-      if (layerTog) {
-        layerTog.querySelectorAll('[data-stand-layer]').forEach(btn => {
-          btn.addEventListener('click', async () => {
-            const mode = btn.getAttribute('data-stand-layer');
-            layerTog.querySelectorAll('[data-stand-layer]').forEach(b => {
-              b.classList.toggle('on', b === btn);
-              b.classList.toggle('off', b !== btn);
-            });
-            const m = await import('./modules/stand-ui-map.mjs');
-            m.setLayerMode(mode);
-          });
-        });
-      }
-    } catch (e) {
-      console.warn('[stand-planner] failed to boot', e);
-    }
-  }
-</script>
+<script type="module" src="modules/stand-boot.mjs"></script>
 
 <script data-goatcounter="https://firstlightdeer.goatcounter.com/count" async src="https://gc.zgo.at/count.js"></script>
 </body>
