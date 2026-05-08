@@ -94,6 +94,18 @@ export function initSwBridge() {
   // via app.js — duplicate register is a no-op).
   if (!('serviceWorker' in navigator)) return;
 
+  // Skip SW registration on third-party preview hosts (raw.githack,
+  // Cloudflare Pages, Netlify, GitHub Pages, localhost). Reasoning:
+  // these hosts proxy our static files for branch previews; once the
+  // SW is registered there it caches files aggressively and intercepts
+  // every subsequent request, making rapid iteration painful (every
+  // push needs the user to manually clear site data). The check is
+  // *purely hostname-based* and excludes the production domain, so
+  // this is a no-op when the same code runs on firstlightdeer.co.uk —
+  // no flag to flip on merge, no risk of carrying preview behaviour
+  // into prod.
+  if (isPreviewHost(location.hostname)) return;
+
   // Snapshot the controller present when the page loaded. If this page
   // never had a controller (= first install / first visit) we must NOT
   // prompt for reload on the first controllerchange — that's just the
@@ -121,4 +133,26 @@ export function initSwBridge() {
       });
     }).catch(function() { /* file:// or blocked */ });
   });
+}
+
+/**
+ * True iff `hostname` is a known third-party static-hosting preview
+ * surface where SW registration would cause stale-cache headaches
+ * during iterative pushes. Production (firstlightdeer.co.uk) and any
+ * other domain returns false → SW registers normally.
+ *
+ * Add new preview hosts here when adopting them; the check is
+ * deliberately allowlist-style so an unrecognised host falls through
+ * to the prod path.
+ */
+function isPreviewHost(hostname) {
+  if (!hostname) return false;
+  if (hostname === 'localhost' || hostname === '127.0.0.1') return true;
+  if (hostname === 'raw.githack.com' || hostname.endsWith('.raw.githack.com')) return true;
+  if (hostname === 'rawcdn.githack.com' || hostname.endsWith('.rawcdn.githack.com')) return true;
+  if (hostname.endsWith('.pages.dev')) return true;       // Cloudflare Pages
+  if (hostname.endsWith('.netlify.app')) return true;     // Netlify
+  if (hostname.endsWith('.vercel.app')) return true;      // Vercel
+  if (hostname.endsWith('.github.io')) return true;       // GitHub Pages
+  return false;
 }

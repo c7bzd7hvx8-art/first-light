@@ -3574,7 +3574,23 @@ document.addEventListener('DOMContentLoaded', function() {
 });
 
 // ── block ──
-if ('serviceWorker' in navigator) {
+// Hostname allowlist mirrors modules/sw-bridge.mjs#isPreviewHost — skip SW
+// registration on preview hosts (raw.githack, *.pages.dev, *.netlify.app,
+// *.vercel.app, *.github.io, localhost) so iterative branch previews don't
+// get stuck behind stale caches. Production (firstlightdeer.co.uk) does
+// not match and registers normally.
+function _flIsPreviewHost(h) {
+  if (!h) return false;
+  if (h === 'localhost' || h === '127.0.0.1') return true;
+  if (h === 'raw.githack.com' || h.endsWith('.raw.githack.com')) return true;
+  if (h === 'rawcdn.githack.com' || h.endsWith('.rawcdn.githack.com')) return true;
+  if (h.endsWith('.pages.dev')) return true;
+  if (h.endsWith('.netlify.app')) return true;
+  if (h.endsWith('.vercel.app')) return true;
+  if (h.endsWith('.github.io')) return true;
+  return false;
+}
+if ('serviceWorker' in navigator && !_flIsPreviewHost(location.hostname)) {
   window.addEventListener('load', function() {
     navigator.serviceWorker.register('./sw.js').then(function(reg) {
       ui.updatePwaStatus();
