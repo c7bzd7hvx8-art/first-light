@@ -762,6 +762,45 @@
   </div>
 </div>
 
+<!-- ══ STANDS (Wind & Stand Planner) ══ -->
+<!-- Phase-1 rollout is gated on localStorage.fl_stand_planner_flag === '1' —
+     the boot script at the bottom of this file shows the nav button and
+     wires the controller only when the flag is on. See PLAN §6. -->
+<div id="v-stand" class="view">
+  <div class="list-hdr">
+    <div class="list-top">
+      <div>
+        <div class="list-title">Stands</div>
+        <div class="list-season" id="stand-subtitle">Wind &amp; Stand Planner</div>
+      </div>
+      <button class="hdr-btn" type="button" id="stand-refresh" aria-label="Refresh forecast" title="Refresh forecast"><svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M21 12a9 9 0 1 1-3-6.7" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><path d="M21 4v5h-5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+    </div>
+    <div class="list-row2" id="stand-tabs" style="gap:6px;">
+      <button class="fc on" type="button" data-stand-tab="tonight">Tonight</button>
+      <button class="fc"    type="button" data-stand-tab="map">Map</button>
+      <button class="fc"    type="button" data-stand-tab="list">My stands</button>
+    </div>
+  </div>
+
+  <div id="stand-tonight-section">
+    <div id="stand-card"></div>
+    <div id="stand-scrubber"></div>
+  </div>
+
+  <div id="stand-map-section" style="display:none;">
+    <div class="layer-tog" id="stand-layer-tog" style="margin:8px 12px;">
+      <button class="lt-b on"  type="button" data-stand-layer="map">Map</button>
+      <div class="lt-div"></div>
+      <button class="lt-b off" type="button" data-stand-layer="sat">Satellite</button>
+    </div>
+    <div id="stand-map" style="height:62vh;margin:0 12px;border-radius:12px;overflow:hidden;"></div>
+  </div>
+
+  <div id="stand-list-section" style="display:none;">
+    <div id="stand-list"></div>
+  </div>
+</div>
+
 <!-- Delete Account Confirmation Modal -->
 <div id="delete-account-modal" class="di-modal-ov di-modal-ov--center di-modal-ov--dark" style="display:none;">
   <div class="di-modal-card di-modal-card--narrow">
@@ -904,6 +943,7 @@
 <div class="nav" id="main-nav" style="display:none;">
   <button class="nb on" id="n-list" type="button" data-fl-action="go" data-view="v-list"><div class="ni"><svg width="22" height="22" viewBox="0 0 24 24" fill="none"><rect x="2" y="5" width="13" height="16" rx="2" stroke="currentColor" stroke-width="1.8" fill="none"/><line x1="2" y1="5" x2="2" y2="21" stroke="currentColor" stroke-width="3" stroke-linecap="round"/><line x1="6" y1="10" x2="11" y2="10" stroke="currentColor" stroke-width="1.3" opacity="0.7"/><line x1="6" y1="13" x2="11" y2="13" stroke="currentColor" stroke-width="1.3" opacity="0.5"/><circle cx="18.5" cy="5" r="3" stroke="#c8a84b" stroke-width="1.5" fill="none"/><circle cx="18.5" cy="5" r="1" fill="#c8a84b"/><line x1="18.5" y1="1.5" x2="18.5" y2="3" stroke="#c8a84b" stroke-width="1.2" stroke-linecap="round"/><line x1="18.5" y1="7" x2="18.5" y2="8.5" stroke="#c8a84b" stroke-width="1.2" stroke-linecap="round"/><line x1="15" y1="5" x2="16.5" y2="5" stroke="#c8a84b" stroke-width="1.2" stroke-linecap="round"/><line x1="20.5" y1="5" x2="22" y2="5" stroke="#c8a84b" stroke-width="1.2" stroke-linecap="round"/></svg></div><div class="nl">Diary</div><div class="nd"></div><span class="offline-badge" id="offline-badge"></span></button>
   <button class="nb" id="n-form" type="button" data-fl-action="open-new"><div class="ni"><svg width="22" height="22" viewBox="0 0 24 24" fill="none"><line x1="12" y1="5" x2="12" y2="19" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><line x1="5" y1="12" x2="19" y2="12" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></div><div class="nl">Add Entry</div><div class="nd"></div></button>
+  <button class="nb" id="n-stand" type="button" data-fl-action="go" data-view="v-stand" style="display:none;"><div class="ni"><svg width="22" height="22" viewBox="0 0 24 24" fill="none"><path d="M12 3v18M3 12h18" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" opacity="0.35"/><circle cx="12" cy="12" r="3" fill="#c8a84b"/><path d="M12 4l3 3M12 20l3-3M4 12l3 3M20 12l-3 3" stroke="#c8a84b" stroke-width="1.6" stroke-linecap="round"/></svg></div><div class="nl">Stands</div><div class="nd"></div></button>
   <button class="nb" id="n-stats" type="button" data-fl-action="go" data-view="v-stats"><div class="ni"><svg width="22" height="22" viewBox="0 0 24 24" fill="none"><rect x="2" y="12" width="5" height="9" rx="1.5" fill="#c8a84b" opacity="0.9"/><rect x="9.5" y="7" width="5" height="14" rx="1.5" fill="currentColor"/><rect x="17" y="16" width="5" height="5" rx="1.5" fill="#c8a84b" opacity="0.6"/></svg></div><div class="nl">Stats</div><div class="nd"></div></button>
 </div>
 
@@ -1184,6 +1224,52 @@
   supabase, jspdf) before this module runs, so we read them as window.*.
 -->
 <script type="module" src="diary.js"></script>
+
+<!--
+  Wind & Stand Planner bootstrap. Phase-1 soft-launch: the planner only
+  shows when `localStorage.fl_stand_planner_flag === '1'`. Default off so
+  cold-start cost is unaffected (the modules aren't even imported when
+  the flag is missing). Flip the flag in DevTools to dogfood.
+-->
+<script type="module">
+  if (localStorage.getItem('fl_stand_planner_flag') === '1') {
+    const navBtn = document.getElementById('n-stand');
+    if (navBtn) navBtn.style.display = '';
+    try {
+      const planner = await import('./modules/stand-planner.mjs');
+      const standView = document.getElementById('v-stand');
+      planner.initStandPlanner(standView, {
+        // onAddStand stays a stub for now — wiring it to the diary.js
+        // pin-drop overlay (#pinmap-overlay, see ~5689) is the next
+        // increment. Until then, users add stands via Supabase directly.
+        onAddStand: () => {
+          alert('Add-stand UI lands in the next increment.\n\nFor now, insert into public.stands in the Supabase dashboard with your lat/lng and preferred_approach_deg, then refresh.');
+        }
+      });
+      // Refresh button
+      const r = document.getElementById('stand-refresh');
+      if (r) r.addEventListener('click', () => planner.refreshStandPlanner());
+      // Layer toggle
+      const layerTog = document.getElementById('stand-layer-tog');
+      if (layerTog) {
+        layerTog.querySelectorAll('[data-stand-layer]').forEach(btn => {
+          btn.addEventListener('click', async () => {
+            const mode = btn.getAttribute('data-stand-layer');
+            layerTog.querySelectorAll('[data-stand-layer]').forEach(b => {
+              b.classList.toggle('on', b === btn);
+              b.classList.toggle('off', b !== btn);
+            });
+            const m = await import('./modules/stand-ui-map.mjs');
+            m.setLayerMode(mode);
+          });
+        });
+      }
+    } catch (e) {
+      console.warn('[stand-planner] failed to boot', e);
+    }
+  }
+</script>
+
 <script data-goatcounter="https://firstlightdeer.goatcounter.com/count" async src="https://gc.zgo.at/count.js"></script>
 </body>
 </html>

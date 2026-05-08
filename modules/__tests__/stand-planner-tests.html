@@ -1,0 +1,216 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Wind &amp; Stand Planner — test harness</title>
+<style>
+  body { font: 13px/1.5 -apple-system, "DM Sans", sans-serif; background: #1a1a1a; color: #e8e8e8; padding: 20px; max-width: 980px; margin: 0 auto; }
+  h1 { font-size: 18px; color: #c8a84b; margin: 0 0 4px; }
+  h2 { font-size: 13px; color: #c8a84b; text-transform: uppercase; letter-spacing: 0.6px; margin: 24px 0 8px; }
+  .row { display: flex; gap: 8px; align-items: center; padding: 4px 8px; border-bottom: 1px solid rgba(255,255,255,0.06); }
+  .pass { color: #3fae5e; }
+  .fail { color: #e57373; font-weight: 700; }
+  .lbl { flex: 1; }
+  .v   { color: rgba(255,255,255,0.7); font-family: "DM Mono", monospace; font-size: 11px; }
+  .summary { margin-top: 18px; padding: 10px 14px; border-radius: 8px; }
+  .summary.ok   { background: rgba(63,174,94,0.18); color: #3fae5e; }
+  .summary.bad  { background: rgba(229,115,115,0.18); color: #e57373; }
+  code { background: rgba(255,255,255,0.06); padding: 1px 5px; border-radius: 4px; }
+  .hint { font-size: 11px; color: rgba(255,255,255,0.4); margin-top: 2px; }
+</style>
+</head>
+<body>
+<h1>Wind &amp; Stand Planner — test harness</h1>
+<div class="hint">
+  Open this page directly (file:// or any static server). The harness imports the
+  same modules diary.html does and asserts the planner is consistent with PLAN §7.
+  No app.js comparison is performed — see <code>NOTES</code> at the bottom.
+</div>
+
+<h2>sun-times.mjs</h2>
+<div id="t-sun"></div>
+
+<h2>activity-engine.mjs</h2>
+<div id="t-engine"></div>
+
+<h2>stand-rank.mjs</h2>
+<div id="t-rank"></div>
+
+<h2>geometry (cone destination math)</h2>
+<div id="t-geom"></div>
+
+<div id="summary" class="summary"></div>
+
+<script type="module">
+import { calcSunTime, toMinutes, addMins, fmtMins, inWindow } from '../sun-times.mjs';
+import { getMoonPhase, getSolunar, RUT_CALENDAR, scoreDay, hourlyActivityScore } from '../activity-engine.mjs';
+import { angularDiff, windAlignment, historyMatch, score, bestStandForSlot, destinationPoint, bearingTo } from '../stand-rank.mjs';
+
+let pass = 0, fail = 0;
+
+function check(host, label, ok, detail) {
+  const row = document.createElement('div');
+  row.className = 'row';
+  row.innerHTML = '<span class="lbl ' + (ok ? 'pass' : 'fail') + '">'
+    + (ok ? '✓' : '✗') + ' ' + label + '</span>'
+    + '<span class="v">' + (detail != null ? String(detail) : '') + '</span>';
+  document.getElementById(host).appendChild(row);
+  ok ? pass++ : fail++;
+}
+
+function near(a, b, eps = 0.5) {
+  return typeof a === 'number' && typeof b === 'number' && Math.abs(a - b) <= eps;
+}
+
+// ── sun-times ────────────────────────────────────────────────
+{
+  // June solstice in central UK — sunrise around 04:43 BST, sunset 21:21 BST
+  const d = new Date(Date.UTC(2026, 5, 21, 12, 0, 0));
+  const sr = calcSunTime(d, 54.5, -2.3, true);
+  const ss = calcSunTime(d, 54.5, -2.3, false);
+  check('t-sun', 'calcSunTime sunrise (June, 54.5°N) returns Date', sr instanceof Date, sr ? sr.toISOString() : null);
+  check('t-sun', 'calcSunTime sunset  (June, 54.5°N) returns Date', ss instanceof Date, ss ? ss.toISOString() : null);
+  check('t-sun', 'sunrise < sunset', sr < ss, '');
+
+  check('t-sun', 'fmtMins(0) === 00:00',  fmtMins(0)  === '00:00', fmtMins(0));
+  check('t-sun', 'fmtMins(1439) === 23:59', fmtMins(1439) === '23:59', fmtMins(1439));
+  check('t-sun', 'fmtMins(null) === --:--', fmtMins(null) === '--:--', fmtMins(null));
+
+  check('t-sun', 'inWindow handles midnight wrap', inWindow(60, 1380, 120) === true, '01:00 in 23:00–02:00');
+  check('t-sun', 'inWindow excludes outside',     inWindow(180, 1380, 120) === false, '03:00 in 23:00–02:00');
+
+  const t = new Date(Date.UTC(2026, 0, 15, 9, 30, 0));
+  const t2 = addMins(t, 90);
+  check('t-sun', 'addMins(+90)', t2 - t === 90 * 60000, (t2 - t) + ' ms');
+
+  // toMinutes uses Europe/London — when GMT (Jan), 09:30 UTC === 09:30 London
+  check('t-sun', 'toMinutes Jan 09:30 UTC = 570 (GMT)', toMinutes(t) === 570, toMinutes(t));
+}
+
+// ── activity-engine ──────────────────────────────────────────
+{
+  // Moon phase known reference: 2024-08-19 was a full moon
+  const fullMoon = new Date(Date.UTC(2024, 7, 19, 18, 26, 0));
+  const m = getMoonPhase(fullMoon);
+  check('t-engine', 'Full moon ≥ 95% illumination',  m.illumination >= 95, m.illumination + '%');
+  check('t-engine', 'Full moon name is "Full Moon"', m.name === 'Full Moon', m.name);
+
+  // Rut calendar — October Red 30
+  check('t-engine', 'RUT_CALENDAR[10][0] === 30 (Red rut peak)', RUT_CALENDAR[10][0] === 30, RUT_CALENDAR[10][0]);
+
+  const sol = getSolunar(fullMoon, 54.5, -2.3);
+  check('t-engine', 'getSolunar returns 4 windows', !!(sol.major1 && sol.major2 && sol.minor1 && sol.minor2), '');
+
+  // scoreDay smoke test
+  const day = new Date(Date.UTC(2026, 9, 20, 12, 0, 0)); // 20 Oct 2026
+  const wxDay = { tempMax: 12, tempMin: 4, windMax: 14, gustMax: 22, precip: 0.2, pressure: 1018, prevPressure: 1014 };
+  const sd = scoreDay(day, 54.5, -2.3, wxDay);
+  check('t-engine', 'scoreDay returns object', sd && typeof sd.bestScore === 'number', sd ? sd.bestScore : null);
+  check('t-engine', 'October scoreDay > 50 (Red rut + cool temp + falling press → high)', sd && sd.bestScore > 50, sd ? sd.bestScore : null);
+
+  // hourlyActivityScore — dawn hour vs noon hour
+  const wxHour = { temp: 6, wind: 12, gustRatio: 0.2, precip: 0.1, postRain: false };
+  const dawnH = hourlyActivityScore(7, day, 54.5, -2.3, wxHour);
+  const noonH = hourlyActivityScore(13, day, 54.5, -2.3, wxHour);
+  check('t-engine', 'Dawn hour score > Noon hour score', dawnH > noonH, dawnH + ' vs ' + noonH);
+}
+
+// ── stand-rank ───────────────────────────────────────────────
+{
+  check('t-rank', 'angularDiff(10, 350) === 20', angularDiff(10, 350) === 20, angularDiff(10, 350));
+  check('t-rank', 'angularDiff(0, 180) === 180', angularDiff(0, 180) === 180, angularDiff(0, 180));
+
+  const stand = { id: 'a', name: 'Test', lat: 54.5, lng: -2.3, preferred_approach_deg: 0 };
+  // Deer come FROM bearing 0 (north). Ideal wind FROM 0° → scent blows
+  // south, away from approaching deer. Worst wind is from 180° → scent
+  // blows north, straight at the deer.
+  const slotIdeal = { date: new Date(), hour: 7, windDeg: 0, windMph: 10 };
+  check('t-rank', 'windAlignment ideal direction at 10 mph ≈ 1.0', near(windAlignment(stand, slotIdeal), 1.0, 0.05), windAlignment(stand, slotIdeal).toFixed(3));
+
+  const slotWorst = { date: new Date(), hour: 7, windDeg: 180, windMph: 10 };
+  check('t-rank', 'windAlignment worst (carrying scent at deer) ≈ 0',
+    near(windAlignment(stand, slotWorst), 0, 0.05),
+    windAlignment(stand, slotWorst).toFixed(3));
+
+  // Speed-multiplier knees
+  const slotCalm = { date: new Date(), hour: 7, windDeg: 0, windMph: 1 };
+  const slotMid  = { date: new Date(), hour: 7, windDeg: 0, windMph: 12 };
+  const slotGale = { date: new Date(), hour: 7, windDeg: 0, windMph: 30 };
+  const calmA = windAlignment(stand, slotCalm);
+  const midA  = windAlignment(stand, slotMid);
+  const galeA = windAlignment(stand, slotGale);
+  check('t-rank', 'calm < mid (3 mph knee penalises swirl)', calmA < midA, calmA.toFixed(2) + ' vs ' + midA.toFixed(2));
+  check('t-rank', 'gale < mid (25 mph knee penalises spook)', galeA < midA, galeA.toFixed(2) + ' vs ' + midA.toFixed(2));
+
+  // historyMatch — empty entries → 0.3
+  const ctxNone = { entries: [] };
+  check('t-rank', 'historyMatch with no nearby entries === 0.3',
+    near(historyMatch(stand, slotIdeal, ctxNone), 0.3, 0.001),
+    historyMatch(stand, slotIdeal, ctxNone).toFixed(3));
+
+  // historyMatch — perfect matches → ≥ 0.8
+  const ctxPerfect = { entries: Array.from({ length: 5 }, () => ({
+    lat: 54.5, lng: -2.3,
+    weather_data: { wind_dir: slotIdeal.windDeg },
+    created_at: slotIdeal.date.toISOString()
+  })) };
+  const hm = historyMatch(stand, slotIdeal, ctxPerfect);
+  check('t-rank', 'historyMatch with 5 perfect matches ≥ 0.8', hm >= 0.8, hm.toFixed(3));
+
+  // Composite score sanity
+  const r = score(stand, slotIdeal, ctxNone);
+  check('t-rank', 'score returns total in 0..100',
+    typeof r.total === 'number' && r.total >= 0 && r.total <= 100, r.total);
+
+  // bestStandForSlot picks the better-aligned of two stands
+  const standA = { id: 'a', name: 'A', lat: 54.5, lng: -2.3, preferred_approach_deg: 0 };
+  const standB = { id: 'b', name: 'B', lat: 54.5, lng: -2.3, preferred_approach_deg: 180 };
+  // Wind from 0 → ideal for A (deer-from-N, scent goes S), worst for B (deer-from-S, scent goes at them)
+  const best = bestStandForSlot([standA, standB], slotIdeal, ctxNone);
+  check('t-rank', 'bestStandForSlot picks the wind-aligned stand', best && best.stand.id === 'a', best ? best.stand.id : null);
+}
+
+// ── geometry ─────────────────────────────────────────────────
+{
+  // Walk 500 m east from (54, -2). Expected lat ≈ 54.0000, lng ≈ -1.99237.
+  const [lat, lng] = destinationPoint(54, -2, 90, 500);
+  check('t-geom', 'destination 500 m east of (54,-2): lat ≈ 54',
+    near(lat, 54, 0.0005), lat.toFixed(6));
+  check('t-geom', 'destination 500 m east of (54,-2): lng ≈ -1.9924',
+    near(lng, -1.99237, 0.001), lng.toFixed(5));
+
+  // Bearing back from destination to origin should be ~270° (W)
+  const [lat2, lng2] = destinationPoint(54, -2, 90, 500);
+  const back = bearingTo(lat2, lng2, 54, -2);
+  check('t-geom', 'bearingTo back is ≈ 270°', near(back, 270, 1), back.toFixed(2));
+}
+
+// ── summary ──────────────────────────────────────────────────
+{
+  const s = document.getElementById('summary');
+  if (fail === 0) {
+    s.className = 'summary ok';
+    s.textContent = '✓ ' + pass + ' tests passed';
+  } else {
+    s.className = 'summary bad';
+    s.textContent = '✗ ' + fail + ' failed, ' + pass + ' passed';
+  }
+}
+</script>
+
+<h2>Notes</h2>
+<div class="hint">
+  <strong>Parity with app.js</strong>: this harness does <em>not</em> compare module
+  output to <code>app.js</code> values. The <code>activity-engine.mjs</code> functions
+  are byte-for-byte ports of the <code>app.js</code> originals (see PLAN §3), but a
+  cross-check requires running <code>app.js</code> in the same page and exercising
+  the home-page banner state. That's a manual one-shot — see PLAN §7 "Extraction
+  parity". Until then, this harness asserts the modules are <em>internally</em>
+  correct.
+  <br><br>
+  <strong>To run</strong>: open this file via the same dev server you serve
+  diary.html from (modules need real HTTP + same-origin). The summary block at the
+  bottom turns green when all assertions pass.
+</div>
+</body>
+</html>

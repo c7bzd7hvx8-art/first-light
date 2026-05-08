@@ -5,7 +5,7 @@
 // the cache strings (`v7.34`) because they were three separate literals.
 // Bumping triggers the `activate` step to sweep old caches and reload clients
 // via the `controllerchange` path in diary.js.
-const SW_VERSION = '9.40';
+const SW_VERSION = '9.41';
 const STATIC_CACHE  = 'first-light-static-v'  + SW_VERSION;
 const RUNTIME_CACHE = 'first-light-runtime-v' + SW_VERSION;
 
@@ -37,6 +37,15 @@ const PRECACHE_URLS = [
   './modules/photos.mjs',
   './modules/stats.mjs',
   './modules/pdf.mjs',
+  // Wind & Stand Planner modules — gated by localStorage flag in diary.html
+  // but precached unconditionally so the first-time toggle works offline.
+  './modules/sun-times.mjs',
+  './modules/activity-engine.mjs',
+  './modules/stand-data.mjs',
+  './modules/stand-rank.mjs',
+  './modules/stand-ui-card.mjs',
+  './modules/stand-ui-map.mjs',
+  './modules/stand-planner.mjs',
   './privacy.html',
   './terms.html',
   './manifest.json',
