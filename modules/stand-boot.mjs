@@ -15,16 +15,36 @@
 //     scoring, map rendering).
 
 const URL_FLAG_KEY = 'fl_stand_planner_flag';
+const LOCAL_MODE_KEY = 'fl_stand_local_mode';
 
-// URL escape hatch: ?stand=1 (or ?stand) flips the persistent flag,
-// ?stand=0 clears it. Lets us toggle from mobile Safari without DevTools.
+// URL escape hatch:
+//   ?stand=1     (or ?stand)  → enable planner
+//   ?stand=0                  → disable planner
+//   ?stand=local              → enable planner + local-only test mode
+//                                (saves to localStorage, skips Supabase)
+//   ?stand=remote             → enable planner + clear local mode
 const _urlFlag = new URLSearchParams(location.search).get('stand');
-if (_urlFlag === '1' || _urlFlag === '') localStorage.setItem(URL_FLAG_KEY, '1');
-else if (_urlFlag === '0') localStorage.removeItem(URL_FLAG_KEY);
+if (_urlFlag === '1' || _urlFlag === '') {
+  localStorage.setItem(URL_FLAG_KEY, '1');
+} else if (_urlFlag === '0') {
+  localStorage.removeItem(URL_FLAG_KEY);
+} else if (_urlFlag === 'local') {
+  localStorage.setItem(URL_FLAG_KEY, '1');
+  localStorage.setItem(LOCAL_MODE_KEY, '1');
+} else if (_urlFlag === 'remote') {
+  localStorage.setItem(URL_FLAG_KEY, '1');
+  localStorage.removeItem(LOCAL_MODE_KEY);
+}
 
 if (localStorage.getItem(URL_FLAG_KEY) === '1') {
   const navBtn = document.getElementById('n-stand');
   if (navBtn) navBtn.style.display = '';
+
+  // Show the local-mode badge if the flag is set. Polled because the
+  // auto-fallback path (stand-data.mjs flips it on missing-table errors)
+  // can switch us to local mode AFTER the planner has already loaded.
+  reflectLocalModeBadge();
+  setInterval(reflectLocalModeBadge, 1500);
 
   // Wire sub-tab switching synchronously — no controller required, so
   // the user gets responsive tabs even if the planner module 404s,
@@ -34,6 +54,13 @@ if (localStorage.getItem(URL_FLAG_KEY) === '1') {
   // Lazily import the controller. Any failure leaves the static fallback
   // content (see diary.html #stand-card) visible to the user.
   loadController();
+}
+
+function reflectLocalModeBadge() {
+  const badge = document.getElementById('stand-mode-badge');
+  if (!badge) return;
+  const on = localStorage.getItem(LOCAL_MODE_KEY) === '1';
+  badge.style.display = on ? '' : 'none';
 }
 
 function wireBareTabs() {
@@ -108,4 +135,3 @@ async function loadController() {
     }
   }
 }
-

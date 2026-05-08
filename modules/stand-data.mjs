@@ -17,6 +17,13 @@
 //     created_at, updated_at
 //   }
 //
+// Local-only test mode: when localStorage.fl_stand_local_mode === '1'
+// (or the URL flag ?stand=local is used), all CRUD writes bypass Supabase
+// and persist purely to localStorage. Lets you exercise the full planner
+// UI on a device where scripts/stands.sql hasn't been run yet. Auto-
+// activated as a fallback when an upsert fails because the table
+// doesn't exist.
+//
 // Public API
 //   loadStands()       → Promise<Stand[]> — Supabase select, with localStorage fallback.
 //   loadStandsCache()  → Stand[]          — synchronous read of the cache.
@@ -24,10 +31,33 @@
 //   deleteStand(id)    → Promise<void>    — delete by id; refreshes cache.
 //   loadCullEntriesNear(lat, lng, radiusMeters)
 //                      → Promise<Entry[]> — for §4 historyMatch scoring.
+//   isLocalMode()      → boolean          — true when local-only mode active.
+//   setLocalMode(on)   → void             — flip the persistent flag.
 
 import { sb } from './supabase.mjs';
 
 const CACHE_KEY = 'fl_stands_v1';
+const LOCAL_MODE_KEY = 'fl_stand_local_mode';
+
+export function isLocalMode() {
+  try { return localStorage.getItem(LOCAL_MODE_KEY) === '1'; } catch (_) { return false; }
+}
+
+export function setLocalMode(on) {
+  try {
+    if (on) localStorage.setItem(LOCAL_MODE_KEY, '1');
+    else localStorage.removeItem(LOCAL_MODE_KEY);
+  } catch (_) { /* ignore quota */ }
+}
+
+function genId() {
+  if (typeof crypto !== 'undefined' && crypto.randomUUID) return crypto.randomUUID();
+  // RFC4122 v4 fallback
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, c => {
+    const r = Math.random() * 16 | 0;
+    return (c === 'x' ? r : (r & 0x3 | 0x8)).toString(16);
+  });
+}
 
 function readCache() {
   try {
@@ -51,13 +81,23 @@ export function loadStandsCache() {
 }
 
 export async function loadStands() {
-  if (!sb) return readCache();
+  // In local mode (or when Supabase is unavailable) the cache IS the
+  // source of truth.
+  if (isLocalMode() || !sb) return readCache();
   try {
     const { data, error } = await sb
       .from('stands')
       .select('*')
       .order('created_at', { ascending: false });
-    if (error) throw error;
+    if (error) {
+      // If the table doesn't exist, silently flip into local mode so
+      // the planner stays usable. The form's save flow does the same.
+      if (isMissingTableError(error)) {
+        setLocalMode(true);
+        return readCache();
+      }
+      throw error;
+    }
     const stands = data || [];
     writeCache(stands);
     return stands;
@@ -67,17 +107,27 @@ export async function loadStands() {
 }
 
 export async function upsertStand(stand) {
+  // Local-only path: generate id+timestamps, write to cache, return.
+  if (isLocalMode()) return upsertLocal(stand);
+
   if (!sb) throw new Error('Supabase not initialised');
   const payload = { ...stand, updated_at: new Date().toISOString() };
-  // Strip id when it's missing/null so the DB generates a uuid.
   if (!payload.id) delete payload.id;
   const { data, error } = await sb
     .from('stands')
     .upsert(payload, { onConflict: 'id' })
     .select()
     .single();
-  if (error) throw error;
-  // Refresh local cache lazily — caller will usually re-list anyway.
+  if (error) {
+    // Auto-fallback: if the table is missing, switch into local mode and
+    // retry without Supabase so the user gets a saved row instead of an
+    // error message.
+    if (isMissingTableError(error)) {
+      setLocalMode(true);
+      return upsertLocal(stand);
+    }
+    throw error;
+  }
   const cache = readCache();
   const idx = cache.findIndex(s => s.id === data.id);
   if (idx >= 0) cache[idx] = data; else cache.unshift(data);
@@ -86,10 +136,61 @@ export async function upsertStand(stand) {
 }
 
 export async function deleteStand(id) {
+  if (isLocalMode()) {
+    writeCache(readCache().filter(s => s.id !== id));
+    return;
+  }
   if (!sb) throw new Error('Supabase not initialised');
   const { error } = await sb.from('stands').delete().eq('id', id);
-  if (error) throw error;
+  if (error) {
+    if (isMissingTableError(error)) {
+      setLocalMode(true);
+      writeCache(readCache().filter(s => s.id !== id));
+      return;
+    }
+    throw error;
+  }
   writeCache(readCache().filter(s => s.id !== id));
+}
+
+function upsertLocal(stand) {
+  const now = new Date().toISOString();
+  const cache = readCache();
+  let saved;
+  if (stand.id) {
+    const idx = cache.findIndex(s => s.id === stand.id);
+    saved = { ...stand, updated_at: now };
+    if (idx >= 0) {
+      saved = { ...cache[idx], ...saved };
+      cache[idx] = saved;
+    } else {
+      saved.created_at = saved.created_at || now;
+      cache.unshift(saved);
+    }
+  } else {
+    saved = {
+      ...stand,
+      id: genId(),
+      user_id: 'local',
+      created_at: now,
+      updated_at: now,
+      _local: true
+    };
+    cache.unshift(saved);
+  }
+  writeCache(cache);
+  return Promise.resolve(saved);
+}
+
+function isMissingTableError(err) {
+  if (!err) return false;
+  const msg = (err.message || '') + ' ' + (err.details || '') + ' ' + (err.hint || '');
+  // Postgres "relation does not exist" + PostgREST "schema cache" variants
+  return /relation .*stands.* does not exist/i.test(msg)
+      || /could not find the table/i.test(msg)
+      || /schema cache/i.test(msg)
+      || err.code === '42P01'
+      || err.code === 'PGRST205';
 }
 
 // ── Cull-entry lookup for history-match scoring ───────────────

@@ -12,7 +12,7 @@
 // Returns a Promise<Stand | null>: resolves to the saved row from
 // Supabase, or null if the user cancelled.
 
-import { upsertStand } from './stand-data.mjs';
+import { upsertStand, isLocalMode } from './stand-data.mjs';
 
 const SPECIES = ['Red', 'Fallow', 'Sika', 'Roe', 'Muntjac', 'CWD'];
 
@@ -202,8 +202,11 @@ async function save() {
   };
   if (id) payload.id = id;
 
-  // Need the user_id for insert (RLS WITH CHECK enforces auth.uid() = user_id).
-  if (!id) {
+  // Need the user_id for insert when going through Supabase (RLS WITH
+  // CHECK enforces auth.uid() = user_id). Local-only mode generates
+  // a placeholder user_id inside stand-data.upsertLocal — skip the
+  // auth check so the form is usable without sign-in.
+  if (!id && !isLocalMode()) {
     try {
       const sbMod = await import('./supabase.mjs');
       const sb = sbMod.sb;
