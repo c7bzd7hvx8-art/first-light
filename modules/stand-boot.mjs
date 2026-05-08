@@ -64,13 +64,13 @@ function wireBareTabs() {
 async function loadController() {
   try {
     const planner = await import('./stand-planner.mjs');
+    const formMod = await import('./stand-ui-form.mjs');
     const standView = document.getElementById('v-stand');
     planner.initStandPlanner(standView, {
-      // onAddStand stays a stub for now — wiring it to the diary.js
-      // pin-drop overlay (#pinmap-overlay, see ~5689) is the next
-      // increment. Until then, users add stands via Supabase directly.
-      onAddStand: () => {
-        alert('Add-stand UI lands in the next increment.\n\nFor now, insert into public.stands in the Supabase dashboard with your lat/lng and preferred_approach_deg, then refresh.');
+      // Open the add/edit form. Optional `existing` arg pre-fills it.
+      onAddStand: async (existing) => {
+        const saved = await formMod.openStandForm(existing || null);
+        if (saved) await planner.refreshStandPlanner();
       }
     });
     // Bridge the bare-tab event to the controller's repaint.
