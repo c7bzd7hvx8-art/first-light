@@ -97,7 +97,14 @@ async function loadController() {
       // Open the add/edit form. Optional `existing` arg pre-fills it.
       onAddStand: async (existing) => {
         const saved = await formMod.openStandForm(existing || null);
-        if (saved) await planner.refreshStandPlanner();
+        if (saved) {
+          // Switch to "My stands" tab so the just-saved row is the
+          // first thing the user sees — confirms persistence even if
+          // the Tonight forecast is still loading.
+          const listBtn = document.querySelector('[data-stand-tab="list"]');
+          if (listBtn) listBtn.click();
+          await planner.refreshStandPlanner();
+        }
       }
     });
     // Bridge the bare-tab event to the controller's repaint.

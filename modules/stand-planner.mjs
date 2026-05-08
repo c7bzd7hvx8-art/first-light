@@ -102,7 +102,7 @@ export async function refreshStandPlanner() {
   paintForActiveTab();
 }
 
-// ── Tabs ──────────────────────────────────────────────────────
+// ── Tabs ──────────────────────────────────────
 function wireTabs() {
   const tabs = document.getElementById(state.opts.tabsId);
   if (!tabs) return;
@@ -132,9 +132,26 @@ function paintForActiveTab() {
   if (mapSection)     mapSection.style.display     = state.activeTab === 'map'     ? '' : 'none';
   if (listSection)    listSection.style.display    = state.activeTab === 'list'    ? '' : 'none';
 
-  if (state.activeTab === 'tonight') paintTonight(tonightEl, scrubEl);
-  else if (state.activeTab === 'map') paintMap();
-  else if (state.activeTab === 'list') paintList(listEl);
+  // Paint ALL three tabs, not just the active one. The hidden tabs cost
+  // ~nothing to render and this guarantees that when the user switches
+  // tabs they see fresh content immediately — no race with the bare-tab
+  // bridge in stand-boot.mjs, no first-paint blank.
+  if (tonightEl && scrubEl) paintTonight(tonightEl, scrubEl);
+  if (listEl) paintList(listEl);
+  if (state.activeTab === 'map') paintMap();   // map is heavier; only paint when visible
+  updateDiagBadge();
+}
+
+// Visible state-of-world tag rendered into the Stands header subtitle.
+// Lets a mobile user (no DevTools) see if the cache actually has stands,
+// whether the forecast loaded, and how many slots got built. Updated on
+// every paint.
+function updateDiagBadge() {
+  const el = document.getElementById('stand-subtitle');
+  if (!el) return;
+  const fc = state.forecast ? 'fc✓' : 'fc·';
+  const sl = state.slots && state.slots.length ? state.slots.length + ' slots' : 'no slots';
+  el.textContent = 'Wind & Stand Planner · ' + state.stands.length + ' stand' + (state.stands.length === 1 ? '' : 's') + ' · ' + fc + ' · ' + sl;
 }
 
 function paintTonight(cardEl, scrubEl) {
@@ -199,7 +216,7 @@ function paintList(listEl) {
   });
 }
 
-// ── GPS + forecast ────────────────────────────────────────────
+// ── GPS + forecast ───────────────────────────────────
 function ensurePosition() {
   if (state.position) return Promise.resolve(state.position);
   return new Promise(resolve => {
@@ -268,7 +285,7 @@ async function loadHistoryForStands() {
   state.cullEntries = await loadCullEntriesNear(cx, cy, 5000);
 }
 
-// ── Slot construction ─────────────────────────────────────────
+// ── Slot construction ────────────────────────────────
 // Builds the next 14 slots: today's dawn (if not passed), today's dusk,
 // then dawn+dusk for each of the next 6 days. Trimmed to <= 14 entries.
 function buildSlots() {
