@@ -4,7 +4,8 @@
 // Pure DOM in/out: caller passes containers and state, this module
 // fills them in. No Supabase, no fetch — stand-planner.mjs owns those.
 
-import { fmtMins, windDirArrow } from './activity-engine.mjs';
+import { windDirArrow } from './activity-engine.mjs';
+import { fmtMins } from './sun-times.mjs';
 
 const DAY_NAMES = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
 

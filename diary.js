@@ -1330,8 +1330,8 @@ async function probeEarliestEntryDate() {
 // ════════════════════════════════════
 // ROUTING
 // ════════════════════════════════════
-var VIEWS = ['v-auth','v-list','v-form','v-detail','v-stats'];
-var NAV_MAP = {'v-list':'n-list','v-form':'n-form','v-stats':'n-stats'};
+var VIEWS = ['v-auth','v-list','v-form','v-detail','v-stats','v-stand'];
+var NAV_MAP = {'v-list':'n-list','v-form':'n-form','v-stats':'n-stats','v-stand':'n-stand'};
 var formDirty = false;
 /** After loadEntries / sign-out; cleared at end of buildStats — avoids full stats rebuild on every Stats tab visit. */
 var statsNeedsFullRebuild = true;
