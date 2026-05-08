@@ -5,7 +5,7 @@
 // the cache strings (`v7.34`) because they were three separate literals.
 // Bumping triggers the `activate` step to sweep old caches and reload clients
 // via the `controllerchange` path in diary.js.
-const SW_VERSION = '9.46';
+const SW_VERSION = '9.47';
 const STATIC_CACHE  = 'first-light-static-v'  + SW_VERSION;
 const RUNTIME_CACHE = 'first-light-runtime-v' + SW_VERSION;
 
@@ -196,8 +196,33 @@ async function networkFirst(request, cacheName) {
   }
 }
 
+// Self-unregister on preview hosts (raw.githack, *.pages.dev, etc.).
+// When the production codebase is loaded via a preview host, this SW
+// would otherwise stick around indefinitely (browser does not auto-
+// remove SWs even when the page that registered them stops doing so).
+// Detecting a preview host inside the SW itself lets us tear down
+// caches and unregister, so iterative branch previews don't compound
+// the stale-cache problem. No-op on production (firstlightdeer.co.uk).
+function _swIsPreviewHost(h) {
+  if (!h) return false;
+  if (h === 'localhost' || h === '127.0.0.1') return true;
+  if (h === 'raw.githack.com' || h.endsWith('.raw.githack.com')) return true;
+  if (h === 'rawcdn.githack.com' || h.endsWith('.rawcdn.githack.com')) return true;
+  if (h.endsWith('.pages.dev')) return true;
+  if (h.endsWith('.netlify.app')) return true;
+  if (h.endsWith('.vercel.app')) return true;
+  if (h.endsWith('.github.io')) return true;
+  return false;
+}
+const _IS_PREVIEW = _swIsPreviewHost(self.location.hostname);
+
 // Install: precache app shell + CDN libraries
 self.addEventListener('install', async event => {
+  if (_IS_PREVIEW) {
+    // Don't waste the network precaching a build we're about to unregister.
+    event.waitUntil(self.skipWaiting());
+    return;
+  }
   event.waitUntil(
     (async () => {
       const cache = await caches.open(STATIC_CACHE);
@@ -212,8 +237,20 @@ self.addEventListener('install', async event => {
   );
 });
 
-// Activate: delete old caches
+// Activate: delete old caches (and on preview hosts, tear ourselves down)
 self.addEventListener('activate', async event => {
+  if (_IS_PREVIEW) {
+    event.waitUntil((async () => {
+      try {
+        const keys = await caches.keys();
+        await Promise.all(keys.map(k => caches.delete(k)));
+        await self.registration.unregister();
+        const clients = await self.clients.matchAll({ type: 'window' });
+        clients.forEach(c => { try { c.navigate(c.url); } catch (_) {} });
+      } catch (e) { console.warn('[SW] preview-host teardown failed', e); }
+    })());
+    return;
+  }
   event.waitUntil(
     (async () => {
       const keys = await caches.keys();
@@ -227,6 +264,9 @@ self.addEventListener('activate', async event => {
 
 // Fetch handler
 self.addEventListener('fetch', event => {
+  // On preview hosts the SW is mid-teardown — don't intercept anything
+  // so the browser falls through to the network for every request.
+  if (_IS_PREVIEW) return;
   const { request } = event;
   if (request.method !== 'GET') return;
 
