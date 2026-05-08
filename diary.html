@@ -783,7 +783,18 @@
   </div>
 
   <div id="stand-tonight-section">
-    <div id="stand-card"></div>
+    <div id="stand-card">
+      <!-- Static fallback: shown by default before the controller paints.
+           If the controller fails to boot the user still sees this. -->
+      <div style="text-align:center;padding:40px 20px;">
+        <div style="font-size:32px;margin-bottom:10px;">🌬️</div>
+        <div style="font-size:16px;font-weight:700;color:#fff;margin-bottom:6px;">No stands yet</div>
+        <div style="font-size:13px;color:rgba(255,255,255,0.55);margin-bottom:18px;line-height:1.5;">
+          Save your high seats and we'll rank them for tonight's wind, moon and recent sightings.
+        </div>
+        <div style="font-size:10px;color:rgba(200,168,75,0.55);font-family:'DM Mono',monospace;letter-spacing:0.5px;text-transform:uppercase;">Initialising…</div>
+      </div>
+    </div>
     <div id="stand-scrubber"></div>
   </div>
 
@@ -797,7 +808,11 @@
   </div>
 
   <div id="stand-list-section" style="display:none;">
-    <div id="stand-list"></div>
+    <div id="stand-list">
+      <div style="text-align:center;color:rgba(255,255,255,0.5);font-size:13px;padding:30px 20px;">
+        Sign in and run <code style="background:rgba(255,255,255,0.08);padding:1px 5px;border-radius:4px;">scripts/stands.sql</code> in Supabase to start saving stands.
+      </div>
+    </div>
   </div>
 </div>
 

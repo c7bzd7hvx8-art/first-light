@@ -76,6 +76,15 @@ export function initStandPlanner(rootEl, opts = {}) {
   }
 }
 
+/** Switch active tab without re-running the load. Called from the
+    bare-tab bridge in stand-boot.mjs so the section show/hide stays
+    in sync with whatever dynamic content the controller paints. */
+export function setActiveTab(tab) {
+  if (!tab || tab === state.activeTab) return;
+  state.activeTab = tab;
+  paintForActiveTab();
+}
+
 /** Force a full refresh: GPS, stands, forecast, cull entries, repaint. */
 export async function refreshStandPlanner() {
   await ensurePosition();
