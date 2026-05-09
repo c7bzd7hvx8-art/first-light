@@ -1,0 +1,321 @@
+<!DOCTYPE html>
+<html lang="en-GB">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Wind &amp; Stand Planner — Implementation Plan</title>
+<style>
+  :root {
+    --bg: #0f1a0c;
+    --bg-2: #16261a;
+    --bg-3: #1c2a18;
+    --fg: #e8e4d8;
+    --fg-dim: rgba(232, 228, 216, 0.65);
+    --fg-mute: rgba(232, 228, 216, 0.4);
+    --gold: #c8a84b;
+    --gold-soft: rgba(200, 168, 75, 0.18);
+    --gold-line: rgba(200, 168, 75, 0.3);
+    --rule: rgba(255, 255, 255, 0.08);
+    --code-bg: rgba(0, 0, 0, 0.35);
+    --warn: #e0a040;
+    --serif: "Playfair Display", "Iowan Old Style", Georgia, serif;
+    --sans: "DM Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    --mono: "DM Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; background: var(--bg); color: var(--fg); font: 15px/1.65 var(--sans); -webkit-text-size-adjust: 100%; -webkit-font-smoothing: antialiased; text-rendering: optimizeLegibility; }
+  body { padding: max(env(safe-area-inset-top), 16px) 0 max(env(safe-area-inset-bottom), 32px); }
+  .wrap { max-width: 760px; margin: 0 auto; padding: 0 18px; }
+  header.hero { border-bottom: 1px solid var(--rule); padding: 28px 0 22px; margin-bottom: 24px; }
+  .crumb { font: 600 10px/1 var(--mono); text-transform: uppercase; letter-spacing: 1.2px; color: var(--gold); margin-bottom: 8px; }
+  h1 { font: 700 28px/1.2 var(--serif); margin: 0 0 6px; color: #fff; letter-spacing: -0.4px; }
+  .sub { color: var(--fg-dim); font-size: 14px; }
+  section { margin: 32px 0; }
+  hr.rule { border: 0; border-top: 1px solid var(--rule); margin: 32px 0; }
+  h2 { font: 700 19px/1.3 var(--serif); color: var(--gold); margin: 0 0 6px; letter-spacing: -0.2px; }
+  h2 .num { display: inline-block; color: var(--fg-mute); font: 600 11px/1 var(--mono); letter-spacing: 1.2px; text-transform: uppercase; margin-right: 8px; vertical-align: 3px; }
+  h3 { font: 700 14px/1.3 var(--sans); color: #fff; margin: 22px 0 6px; text-transform: uppercase; letter-spacing: 0.6px; font-size: 11px; }
+  p { margin: 0 0 14px; }
+  p + ul, p + ol, ul + p, ol + p { margin-top: 14px; }
+  ul, ol { margin: 0 0 14px; padding-left: 20px; }
+  li { margin: 0 0 6px; }
+  strong { color: #fff; font-weight: 700; }
+  em { color: var(--fg-dim); font-style: italic; }
+  a { color: var(--gold); text-decoration: underline; text-decoration-color: var(--gold-line); text-underline-offset: 2px; }
+  code { font: 500 13px/1.4 var(--mono); background: var(--code-bg); color: #d8c98e; padding: 1px 6px; border-radius: 4px; border: 1px solid var(--rule); word-break: break-word; }
+  pre { background: var(--code-bg); border: 1px solid var(--rule); border-left: 3px solid var(--gold-line); border-radius: 8px; padding: 14px 16px; margin: 14px 0 18px; overflow-x: auto; -webkit-overflow-scrolling: touch; font: 500 12.5px/1.5 var(--mono); color: #d8d2c0; }
+  pre code { background: transparent; border: none; padding: 0; color: inherit; font-size: inherit; }
+  pre .kw { color: #c8a84b; }
+  pre .str { color: #b8d49a; }
+  pre .com { color: rgba(232, 228, 216, 0.45); font-style: italic; }
+  pre .fn { color: #e8d59a; }
+  .table-wrap { margin: 14px 0 18px; overflow-x: auto; -webkit-overflow-scrolling: touch; border: 1px solid var(--rule); border-radius: 8px; background: var(--bg-2); }
+  table { border-collapse: collapse; width: 100%; min-width: 480px; font-size: 13px; }
+  th, td { text-align: left; padding: 10px 14px; vertical-align: top; border-bottom: 1px solid var(--rule); }
+  th { background: rgba(200, 168, 75, 0.08); color: var(--gold); font: 600 10px/1.3 var(--mono); text-transform: uppercase; letter-spacing: 0.8px; border-bottom: 1px solid var(--gold-line); white-space: nowrap; }
+  tbody tr:last-child td { border-bottom: none; }
+  td:first-child { white-space: nowrap; }
+  td code { font-size: 12px; }
+  .callout { background: var(--gold-soft); border: 1px solid var(--gold-line); border-radius: 10px; padding: 12px 16px; margin: 16px 0; font-size: 13.5px; }
+  .callout strong { color: var(--gold); }
+  nav.toc { background: var(--bg-2); border: 1px solid var(--rule); border-radius: 10px; padding: 14px 16px; margin: 0 0 28px; }
+  nav.toc h2 { font: 600 10px/1 var(--mono); text-transform: uppercase; letter-spacing: 1.2px; color: var(--fg-mute); margin: 0 0 10px; }
+  nav.toc ol { margin: 0; padding-left: 22px; columns: 2; column-gap: 22px; }
+  nav.toc li { margin: 0 0 4px; font-size: 13px; break-inside: avoid; }
+  nav.toc a { text-decoration: none; color: var(--fg); }
+  nav.toc a:hover { color: var(--gold); }
+  @media (max-width: 520px) { nav.toc ol { columns: 1; } }
+  footer.foot { margin-top: 48px; padding-top: 18px; border-top: 1px solid var(--rule); color: var(--fg-mute); font-size: 11px; font-family: var(--mono); text-align: center; letter-spacing: 0.4px; }
+  @media print { body { background: white; color: black; } nav.toc, footer.foot { display: none; } h1, h2 { color: #5b4a1a; } code, pre { background: #f5f1e3; color: #2a2418; border-color: #d4c79a; } .callout { background: #faf3d8; border-color: #d4c79a; } a { color: #6d5a25; } }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header class="hero">
+  <div class="crumb">First Light · Implementation Plan</div>
+  <h1>Wind &amp; Stand Planner</h1>
+  <div class="sub">UK-specific wind-aware stand recommender. Built on existing primitives, no new paid APIs.</div>
+</header>
+
+<nav class="toc" aria-label="Contents">
+  <h2>Contents</h2>
+  <ol>
+    <li><a href="#context">Context</a></li>
+    <li><a href="#ux">UX flow</a></li>
+    <li><a href="#data">Data model</a></li>
+    <li><a href="#arch">Module architecture</a></li>
+    <li><a href="#algo">Recommendation algorithm</a></li>
+    <li><a href="#map">Map &amp; wind cone</a></li>
+    <li><a href="#rollout">Rollout</a></li>
+    <li><a href="#verify">Verification</a></li>
+    <li><a href="#risks">Risks &amp; mitigations</a></li>
+    <li><a href="#files">Critical files to touch</a></li>
+  </ol>
+</nav>
+
+<section id="context">
+  <h2><span class="num">§0</span>Context</h2>
+  <p>First Light is a UK deer-stalking PWA with strong legal-hours, weather, and cull-diary plumbing but no in-field planning tool. UK competitor research (Stalking Directory threads, BASC/BDS/myForest/NatureScot apps) shows that the #1 most-praised feature in US-centric apps available in the UK (HuntStand's HuntZone, HuntWise's WindCast, onX) is a <strong>wind/scent overlay tied to saved stand locations</strong> — and <em>no</em> UK app ships it. myForest Deer Manager (the closest UK equivalent) appears to have stopped active development.</p>
+  <p>First Light already has every primitive needed — and crucially, an <strong>existing 7-day Activity Forecast engine</strong> in <code>app.js:2080–2280+</code> that combines moon, rut, season, weather, and solunar windows into per-day and per-hour scores. The Wind &amp; Stand Planner extracts that engine into a shared module so both surfaces use the same scoring, then layers in the only two genuinely new inputs: <strong>wind alignment vs the stand's preferred approach</strong> and <strong>historical similarity to your own nearby cull entries</strong>.</p>
+  <h3>Existing primitives reused (no reinvention)</h3>
+  <ul>
+    <li><code>fetch7DayWeather(lat, lng, cb)</code> (<code>app.js:2086</code>) — Open-Meteo 7-day forecast (daily + hourly incl. <code>wind_direction_10m</code>), 20-minute cache. Single fetch serves both home-page banner badge and planner.</li>
+    <li><code>scoreDay(date, wxDay)</code> (<code>app.js:2106</code>) — dawn/dusk activity score from moon + <code>RUT_CALENDAR</code> + season + weather (temp, frost, wind, gusts, precip, pressure delta).</li>
+    <li><code>hourlyActivityScore(hour, date, wxHour)</code> (<code>app.js:2236</code>) — per-hour score, same model plus solunar major/minor windows.</li>
+    <li><code>getMoonPhase</code>, <code>getSolunar</code>, <code>RUT_CALENDAR</code>, <code>calcSunTime</code>, <code>toMinutes</code>, <code>fmtMins</code>, <code>windDirArrow</code> — all in <code>app.js</code>.</li>
+    <li>Two Leaflet maps in <code>diary.js</code> with OS / Mapbox / satellite tile-layer swap, marker clustering, and Mapbox-quota fallback.</li>
+    <li>Trusted UK clock (<code>modules/clock.mjs</code> <code>diaryNow()</code>).</li>
+    <li>Supabase + RLS (<code>modules/supabase.mjs</code> exports live-binding <code>sb</code> and <code>initSupabase()</code>; per-user pattern on <code>cull_entries</code>, <code>grounds</code>).</li>
+    <li>Per-cull location &amp; weather already stored (<code>cull_entries.lat</code>, <code>lng</code>, <code>weather_data.wind_dir</code>).</li>
+  </ul>
+  <p>The new feature combines these into a <strong>"Best Stand Tonight" recommender</strong> that scores each saved high seat for the next 14 legal-shooting slots (7 dawn + 7 dusk). Outcome: a UK-specific differentiator that lands a feature competitors only ship for the US market, built without new paid APIs and <strong>without duplicating the activity-forecast logic</strong> the home page already trusts.</p>
+</section>
+
+<hr class="rule">
+
+<section id="ux">
+  <h2><span class="num">§1</span>UX flow</h2>
+  <p>A new <strong>Stands</strong> view in <code>diary.html</code> (4th bottom-nav button between <code>n-form</code> and <code>n-stats</code>). Three sub-tabs styled like the existing <code>tmode-toggle</code>:</p>
+  <ol>
+    <li><strong>Tonight</strong> (default) — recommendation card: stand name, 1–5 star score, one-line rationale ("Wind WSW 11 mph carries scent NE — away from the beat"). Below it, a horizontal scrubber of the next 14 legal slots labelled <code>Wed dawn 04:42</code>. Tapping a slot rewrites the card and the cone overlay.</li>
+    <li><strong>Map</strong> — Leaflet map with all stands + wind cones for the active slot. Tap a marker → focus + slide card up.</li>
+    <li><strong>My stands</strong> — list with edit/delete; "+ Add stand" CTA.</li>
+  </ol>
+  <p><strong>Add/edit stand</strong>: name (required), <code>preferred_approach_deg</code> (compass picker — bearing from which deer come), <code>species_preference</code> (chip multi-select), optional notes. Save via <code>sb.from('stands').upsert(...)</code>.</p>
+  <div class="callout"><strong>Edge cases.</strong> No stands yet → onboarding empty state. No GPS → centre on most-recent <code>cull_entries.lat/lng</code>, then UK default <code>(54.5, -2.3)</code>. Offline → render from <code>localStorage.fl_stand_forecast_v1</code>; show "Forecast N days old" if cache stale. Stand outside UK lat range → quiet "Legal hours assume UK regulations" banner.</div>
+</section>
+
+<hr class="rule">
+
+<section id="data">
+  <h2><span class="num">§2</span>Data model</h2>
+  <p><strong>New Supabase table</strong> (<code>scripts/stands.sql</code>):</p>
+  <pre><code><span class="kw">create table</span> public.stands (
+  id uuid <span class="kw">primary key default</span> gen_random_uuid(),
+  user_id uuid <span class="kw">not null references</span> auth.users(id) <span class="kw">on delete cascade</span>,
+  name text <span class="kw">not null check</span> (char_length(name) <span class="kw">between</span> 1 <span class="kw">and</span> 80),
+  lat double precision <span class="kw">not null check</span> (lat <span class="kw">between</span> -90 <span class="kw">and</span> 90),
+  lng double precision <span class="kw">not null check</span> (lng <span class="kw">between</span> -180 <span class="kw">and</span> 180),
+  preferred_approach_deg integer <span class="kw">check</span> (preferred_approach_deg <span class="kw">between</span> 0 <span class="kw">and</span> 359),
+  species_pref text[] <span class="kw">default</span> <span class="str">'{}'</span>,
+  notes text <span class="kw">check</span> (char_length(notes) &lt;= 500),
+  ground text,
+  created_at timestamptz <span class="kw">default</span> now(),
+  updated_at timestamptz <span class="kw">default</span> now()
+);
+<span class="kw">alter table</span> public.stands <span class="kw">enable row level security</span>;
+<span class="kw">create policy</span> stands_select_own <span class="kw">on</span> public.stands <span class="kw">for select using</span> (auth.uid() = user_id);
+<span class="kw">create policy</span> stands_insert_own <span class="kw">on</span> public.stands <span class="kw">for insert with check</span> (auth.uid() = user_id);
+<span class="kw">create policy</span> stands_update_own <span class="kw">on</span> public.stands <span class="kw">for update using</span> (auth.uid() = user_id);
+<span class="kw">create policy</span> stands_delete_own <span class="kw">on</span> public.stands <span class="kw">for delete using</span> (auth.uid() = user_id);</code></pre>
+  <h3>Client-side caches (localStorage)</h3>
+  <ul>
+    <li><code>fl_stands_v1</code> — array mirror of user's stands (offline-first list render).</li>
+    <li><code>fl_stand_forecast_v1</code> — keyed by 3-decimal-place coords; capped at 30 keys.</li>
+    <li><code>fl_stand_planner_flag</code> — rollout flag.</li>
+    <li><code>fl_stand_local_mode</code> — local-only test mode (skips Supabase).</li>
+  </ul>
+  <p><strong>No schema change to <code>cull_entries</code></strong> — historical scoring reads existing <code>lat</code>, <code>lng</code>, <code>species</code>, <code>weather_data.wind_dir</code>, <code>created_at</code>.</p>
+</section>
+
+<hr class="rule">
+
+<section id="arch">
+  <h2><span class="num">§3</span>Module architecture</h2>
+  <p>All new code under <code>modules/</code> to honour the "no growth on the 9.2 KLOC <code>diary.js</code> monolith" rule.</p>
+  <div class="table-wrap"><table><thead><tr><th>New file</th><th>Responsibility</th></tr></thead><tbody>
+    <tr><td><code>modules/activity-engine.mjs</code></td><td>Moon, rut, season, weather, solunar scoring + 7-day Open-Meteo fetch. <code>RUT_CALENDAR</code>, <code>getMoonPhase</code>, <code>getSolunar</code>, <code>scoreDay</code>, <code>hourlyActivityScore</code>, <code>fetch7DayForecast</code>.</td></tr>
+    <tr><td><code>modules/sun-times.mjs</code></td><td><code>calcSunTime</code>, <code>addMins</code>, <code>fmtMins</code>, <code>toMinutes</code>, <code>inWindow</code>, <code>ukCalendarYmdLondon</code>.</td></tr>
+    <tr><td><code>modules/stand-planner.mjs</code></td><td>Top-level controller. <code>initStandPlanner()</code>, <code>refreshStandPlanner()</code>, <code>setActiveTab()</code>. GPS handshake, slot construction, paint orchestration.</td></tr>
+    <tr><td><code>modules/stand-data.mjs</code></td><td>Supabase CRUD wrappers + offline-first <code>localStorage</code> cache. Auto-falls back to local mode when the table doesn't exist.</td></tr>
+    <tr><td><code>modules/stand-rank.mjs</code></td><td><strong>Pure</strong> stand-specific scoring. <code>score()</code>, <code>windAlignment()</code>, <code>historyMatch()</code>, <code>bestStandForSlot()</code>. Geometry helpers (<code>destinationPoint</code>, <code>bearingTo</code>).</td></tr>
+    <tr><td><code>modules/stand-ui-map.mjs</code></td><td>3rd Leaflet map. Markers + wind cones. <code>setActiveCone(stand, slot, score)</code>.</td></tr>
+    <tr><td><code>modules/stand-ui-card.mjs</code></td><td>Recommendation card + slot scrubber + list rendering. Pure DOM.</td></tr>
+    <tr><td><code>modules/stand-ui-form.mjs</code></td><td>Add/edit stand modal. Name + GPS lat/lng + bearing slider + species chips + notes.</td></tr>
+    <tr><td><code>modules/stand-boot.mjs</code></td><td>CSP-compliant bootstrap. URL flag handling (<code>?stand=1</code>/<code>?stand=local</code>). Lazy-loads the controller.</td></tr>
+  </tbody></table></div>
+  <h3>Existing files needing minimal edits</h3>
+  <div class="table-wrap"><table><thead><tr><th>File</th><th>Edit</th></tr></thead><tbody>
+    <tr><td><code>diary.js</code></td><td>Add <code>v-stand</code> / <code>n-stand</code> to the <code>VIEWS</code> and <code>NAV_MAP</code> arrays so navigate() deactivates them properly.</td></tr>
+    <tr><td><code>diary.html</code></td><td>Nav button, <code>v-stand</code> view block, module bootstrap script.</td></tr>
+    <tr><td><code>sw.js</code></td><td>Bump <code>SW_VERSION</code>; append the new module paths to <code>PRECACHE_URLS</code>. Self-unregister on preview hosts.</td></tr>
+    <tr><td><code>app.js</code> / <code>modules/sw-bridge.mjs</code></td><td>Hostname allowlist skips SW registration on raw.githack/Pages/Netlify (no-op on production).</td></tr>
+  </tbody></table></div>
+</section>
+
+<hr class="rule">
+
+<section id="algo">
+  <h2><span class="num">§4</span>Recommendation algorithm</h2>
+  <p>The stand score blends the existing per-hour activity score with two stand-specific factors: wind alignment vs <code>preferred_approach_deg</code>, and historical similarity to nearby cull entries.</p>
+  <pre><code>score(stand, slot, ctx) → { total: 0..100, breakdown: {...} }
+
+W_BASE = 0.50   <span class="com">// activity-engine score (moon+rut+season+weather+solunar)</span>
+W_WIND = 0.30   <span class="com">// scent direction relative to deer approach</span>
+W_HIST = 0.20   <span class="com">// past sightings here under similar conditions</span>
+
+<span class="fn">windAlignment</span>(stand, slot):
+  <span class="com">// Wind blows FROM windDeg; scent goes opposite.</span>
+  <span class="com">// Ideal = preferred_approach_deg (deer's source bearing).</span>
+  ideal  = stand.preferred_approach_deg
+  delta  = angularDiff(slot.windDeg, ideal)          <span class="com">// 0..180</span>
+  base   = 1 - (delta / 180)
+  spdMul = spd&lt;3 ? 0.55 : spd&lt;6 ? 0.85 : spd&lt;18 ? 1.00
+         : spd&lt;25 ? 0.80 : 0.50                       <span class="com">// dead calm / gales</span>
+  <span class="kw">return</span> base * spdMul
+
+<span class="fn">historyMatch</span>(stand, slot, ctx):
+  near = ctx.entries.filter(e =&gt; haversine(e, stand) &lt;= 300)   <span class="com">// metres</span>
+  <span class="kw">if</span> !near.length <span class="kw">return</span> 0.3                                   <span class="com">// unknown → mildly negative</span>
+  weighted = avg(0.6*windDirSimilarity + 0.4*moonSimilarity for e in near)
+  <span class="kw">return</span> clamp(0.3 + 0.7 * weighted, 0, 1)
+
+total = round(100 * (W_BASE*baseScore + W_WIND*windAlignment + W_HIST*historyMatch))</code></pre>
+  <div class="callout"><strong>PLAN §4 vs implementation.</strong> The original pseudocode wrote <code>ideal = (preferred_approach + 180) % 360</code> — a unit mismatch (treats ideal-scent-direction as a wind-FROM bearing) that would penalise favourable winds. Implemented as <code>ideal = preferred_approach_deg</code> directly so wind from the deer's source bearing carries scent away.</div>
+</section>
+
+<hr class="rule">
+
+<section id="map">
+  <h2><span class="num">§5</span>Map &amp; wind cone</h2>
+  <p>3rd Leaflet map <code>standMap</code> (parallel to <code>pinMap</code>/<code>cullMap</code>). Marker cluster for stands; <strong>not</strong> for cones (spiderfication misbehaves with polygons).</p>
+  <p><strong>Wind cone</strong>. Open-Meteo <code>wind_direction_10m</code> is wind FROM. Scent goes opposite. Triangle polygon:</p>
+  <ol>
+    <li>stand <code>[lat,lng]</code></li>
+    <li>radius <code>R</code> along bearing <code>(windDeg + 180 - HALF_ANGLE)</code></li>
+    <li>radius <code>R</code> along bearing <code>(windDeg + 180 + HALF_ANGLE)</code></li>
+  </ol>
+  <p><code>R = clamp(150 + windMph * 25, 200, 800)</code> m · <code>HALF_ANGLE = clamp(45 - windMph, 15, 45)</code>°.</p>
+  <p><strong>Slot scrubbing.</strong> Single <code>L.featureGroup coneLayer</code>; <code>clearLayers()</code> + re-add on each scrub.</p>
+</section>
+
+<hr class="rule">
+
+<section id="rollout">
+  <h2><span class="num">§6</span>Rollout</h2>
+  <ol>
+    <li><strong>Supabase</strong>: run <code>scripts/stands.sql</code> against staging then prod. Verify <code>select * from pg_policies where tablename='stands'</code> returns 4 rows.</li>
+    <li><strong>SW bump</strong>: extend <code>PRECACHE_URLS</code> with new modules. Existing <code>controllerchange</code> reload path handles client refresh.</li>
+    <li><strong>Soft launch behind flag</strong>: <code>localStorage.fl_stand_planner_flag === '1'</code> shows the nav button. URL escape hatch <code>?stand=1</code> for mobile dogfooding without DevTools.</li>
+    <li><strong>Local-only test mode</strong>: <code>?stand=local</code> skips Supabase entirely — saves to <code>localStorage</code>. Lets users exercise the full flow before running the SQL.</li>
+    <li><strong>Fallbacks</strong>: no GPS → UK default centre. No network → cached forecast. Missing table → auto-fall to local mode.</li>
+  </ol>
+</section>
+
+<hr class="rule">
+
+<section id="verify">
+  <h2><span class="num">§7</span>Verification</h2>
+  <h3>Unit tests (modules/__tests__/stand-planner-tests.html)</h3>
+  <ul>
+    <li><code>windAlignment(approach=0, windDeg=0)</code> → ≈ 1.0; <code>windDeg=180</code> → ≈ 0. Speed multiplier knees at 3/6/18/25 mph.</li>
+    <li><code>historyMatch</code>: 0 nearby entries = 0.3; 5 perfect matches ≥ 0.8.</li>
+    <li>Cone destination math: bearing 90° from <code>(54, -2)</code> by 500 m matches a known reference within 1 m.</li>
+    <li>Composite <code>score()</code> for a "neutral" stand reduces to <code>0.5 * baseScore</code>.</li>
+  </ul>
+  <h3>RLS test (manual, staging)</h3>
+  <p>Sign in as user A → create stand. Sign in as user B → <code>sb.from('stands').select()</code> must return only B's rows.</p>
+  <h3>Offline persistence</h3>
+  <ul>
+    <li>Open online → close → DevTools "Offline" → reopen. List + forecast render from localStorage.</li>
+    <li>Backdate <code>fetched_at</code> by 8 days → "Cached forecast expired" message.</li>
+  </ul>
+  <h3>Manual map UI checklist</h3>
+  <ul>
+    <li>Cone direction matches a real-world Met Office wind report (one cross-check).</li>
+    <li>Slot scrubber redraws ≤100 ms at 5 stands.</li>
+    <li>iOS safe-area insets respected on the new nav button.</li>
+  </ul>
+</section>
+
+<hr class="rule">
+
+<section id="risks">
+  <h2><span class="num">§8</span>Risks &amp; mitigations</h2>
+  <div class="table-wrap"><table><thead><tr><th>Risk</th><th>Mitigation</th></tr></thead><tbody>
+    <tr><td>Open-Meteo rate limits (10k/day per IP)</td><td>Cache by 3dp lat/lng; reuse <code>fetched_at</code> for 60 min; one fetch per planner open.</td></tr>
+    <tr><td>RLS misconfiguration</td><td>SQL paired with positive + negative RLS test.</td></tr>
+    <tr><td>Wind cone misleads users (thermals near rivers/re-entrants)</td><td>Persistent disclaimer pinned to card: "Forecast wind is open-air at 10 m. Local thermals, terrain channelling and obstacles can reverse direction — always confirm on the ground."</td></tr>
+    <tr><td>Battery drain</td><td>Single <code>getCurrentPosition({maximumAge: 600000, timeout: 10000})</code> on view-open; no <code>watchPosition</code>.</td></tr>
+    <tr><td>Stand-pin spam</td><td>RLS-bound to own user. Rate-limit trigger only if needed.</td></tr>
+    <tr><td>Forecast horizon drift</td><td>Show <code>fetched_at</code> in UI; "Refresh" forces bypass-cache.</td></tr>
+    <tr><td>CSP</td><td><code>api.open-meteo.com</code> already in <code>connect-src</code> whitelist — no change.</td></tr>
+    <tr><td>Preview-host SW persistence</td><td>SW self-unregisters on raw.githack/<wbr>Pages/<wbr>Netlify; hostname guard skips registration on those hosts (no-op on production).</td></tr>
+  </tbody></table></div>
+</section>
+
+<hr class="rule">
+
+<section id="files">
+  <h2><span class="num">§9</span>Critical files to touch</h2>
+  <h3>New</h3>
+  <ul>
+    <li><code>modules/activity-engine.mjs</code></li>
+    <li><code>modules/sun-times.mjs</code></li>
+    <li><code>modules/stand-planner.mjs</code></li>
+    <li><code>modules/stand-data.mjs</code></li>
+    <li><code>modules/stand-rank.mjs</code> <em>(pure — most important to get right)</em></li>
+    <li><code>modules/stand-ui-map.mjs</code></li>
+    <li><code>modules/stand-ui-card.mjs</code></li>
+    <li><code>modules/stand-ui-form.mjs</code></li>
+    <li><code>modules/stand-boot.mjs</code></li>
+    <li><code>modules/__tests__/stand-planner-tests.html</code></li>
+    <li><code>scripts/stands.sql</code></li>
+  </ul>
+  <h3>Edit (minimally)</h3>
+  <ul>
+    <li><code>diary.js</code> — add <code>v-stand</code>/<code>n-stand</code> to <code>VIEWS</code> and <code>NAV_MAP</code>.</li>
+    <li><code>diary.html</code> — nav button, <code>v-stand</code> view block, bootstrap module load.</li>
+    <li><code>sw.js</code> — version bump, precache list extension, preview-host self-unregister.</li>
+    <li><code>app.js</code> / <code>modules/sw-bridge.mjs</code> — hostname allowlist for SW registration skip.</li>
+  </ul>
+</section>
+
+<footer class="foot">
+  First Light · Wind &amp; Stand Planner · Implementation Plan
+</footer>
+
+</div>
+</body>
+</html>
