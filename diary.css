@@ -1734,6 +1734,14 @@ body.in-select-mode .entries{padding-bottom:92px;}
   padding:14px !important;
 }
 #v-syndicate #synd-page-map-wrap{margin:12px 0 0 0;}
+/* 14.00 (owner phone screenshot: "Map is overlapping on the bottom tab?") —
+   the nav is z-200; Leaflet's own panes and controls run z-400..1000, so the
+   in-flow syndicate map out-painted the fixed tab bar while scrolling. Same
+   cure as the stands map (the #stands-map-wrap > div rule): a stacking
+   context on the wrap's children contains every Leaflet z-index, so the nav
+   paints above. Fullscreen is untouched — its wrap is its own fixed z-4000
+   context and is MEANT to cover the bar. */
+#synd-page-map-wrap > div{position:relative;z-index:0;}
 #v-syndicate #synd-page-map{border-radius:14px;}
 #v-syndicate #synd-page-map-note{margin:8px 0 2px 0;}
 #v-syndicate #synd-page-map-empty{background:rgba(255,255,255,0.03) !important;border:1.5px dashed rgba(255,255,255,0.18) !important;color:rgba(240,230,207,0.6) !important;}
