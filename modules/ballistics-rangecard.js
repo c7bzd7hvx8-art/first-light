@@ -28,21 +28,31 @@ export function renderRangeCard(profile, deps) {
   if (!profile) return '';
   const { state, solveProfileAt, wind } = deps;
   const showWind = state.conditions.windMps > 0;
+  // 14.01: imperial mode samples at round YARD marks (100yd…450yd), solved at
+  // their true metre equivalents — a converted 100 m column reading "109yd"
+  // would be a table nobody's reticle thinks in. Drop/wind cells follow in
+  // inches; MOA is angular and fps/ft-lb are already the trade's units.
+  const imp = state.settings && state.settings.units === 'imperial';
+  const YD_M = 0.9144; // 1 yd exactly
+  const samples = RANGE_CARD_RANGES_M.map(r => imp
+    ? { solveM: r * YD_M, label: r + 'yd' }
+    : { solveM: r, label: r + 'm' });
   // Compute solver outputs for each sample range. If any fails (transonic
   // edge, etc), show '—' for that cell.
-  const rows = RANGE_CARD_RANGES_M.map(r => {
-    const sol = solveProfileAt(profile, r);
-    return { rangeM: r, sol };
+  const rows = samples.map(s => {
+    const sol = solveProfileAt(profile, s.solveM);
+    return { rangeM: s.solveM, sol };
   });
-  const headerCells = RANGE_CARD_RANGES_M.map(r => `<th scope="col">${r}m</th>`).join('');
+  const headerCells = samples.map(s => `<th scope="col">${s.label}</th>`).join('');
+  const small = (cm) => imp ? (cm / 2.54).toFixed(1) + ' in' : cm.toFixed(0) + ' cm';
 
   const dropRow = rows.map(({ sol }) => {
     if (!sol) return '<td>—</td>';
     // Display sign convention (ammo-box): the number is the bullet's position
     // relative to zero — negative = below zero (dial UP), positive = above (dial DOWN).
     const cm = -sol.dropCm;
-    const sign = cm >= 0 ? '+' : '';
-    return `<td>${sign}${cm.toFixed(0)} cm</td>`;
+    const sign = cm >= 0 ? '+' : '-';
+    return `<td>${sign}${small(Math.abs(cm))}</td>`;
   }).join('');
 
   const moaRow = rows.map(({ sol }) => {
@@ -68,7 +78,7 @@ export function renderRangeCard(profile, deps) {
     // Magnitude + explicit drift direction, matching the HOLD card's left/right.
     // windDriftCm > 0 = drift right, < 0 = left.
     const dir = sol.windDriftCm > 0.5 ? ' R' : (sol.windDriftCm < -0.5 ? ' L' : '');
-    return `<td>${Math.abs(sol.windDriftCm).toFixed(0)} cm${dir}</td>`;
+    return `<td>${small(Math.abs(sol.windDriftCm))}${dir}</td>`;
   }).join('') : '';
 
   // The Wind row is solved with the crosswind COMPONENT, not the entered wind
@@ -99,7 +109,7 @@ export function renderRangeCard(profile, deps) {
         <div class="bx-rc-foot">
           Drop is relative to zero — negative = below (dial up), positive = above (dial down). Energy in ft-lb, velocity in fps.
           Solved at ${state.conditions.tempC.toFixed(0)}°C, ${state.conditions.pressureHpa.toFixed(0)} hPa,
-          ${profile.zeroRangeM}m zero.
+          ${imp ? Math.round(profile.zeroRangeM / YD_M) + 'yd' : profile.zeroRangeM + 'm'} zero.
           ${windText}
           Velocity gold = transonic, orange = subsonic.
         </div>

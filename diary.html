@@ -201,7 +201,7 @@
          untouched. (The Sightings sub-header keeps its compact boxed .hstats.) -->
     <div class="hstats hstats--row">
       <div class="hs"><div class="hsn" id="stat-total">0</div><div class="hsl">Culls</div></div>
-      <div class="hs" id="hs-kg-cell"><div class="hsn" id="stat-kg">0</div><div class="hsl">kg</div></div>
+      <div class="hs" id="hs-kg-cell"><div class="hsn" id="stat-kg">0</div><div class="hsl" id="stat-kg-unit">kg</div></div>
       <div class="hs"><div class="hsn" id="stat-spp">0</div><div class="hsl">Species</div></div>
     </div>
     <div class="list-row2">
@@ -681,7 +681,7 @@
           </select>
         </div>
       </div>
-      <div class="ff-hint fl-deer-only" id="f-wt-hint">Larder weight is the gralloched carcass as it goes into the chiller &mdash; head off, legs removed, in fur, the convention the Deer Initiative Partnership / BASC cull records guide asks for. Whichever way you weigh, weigh the same way every time: mixed conventions cannot be compared across a season, or against anyone else&rsquo;s figures. Typical larder weights &mdash; roe 12, fallow 22, sika 24, red 47&nbsp;kg.</div>
+      <div class="ff-hint fl-deer-only" id="f-wt-hint">Larder weight is the gralloched carcass as it goes into the chiller &mdash; head off, legs removed, in fur, the convention the Deer Initiative Partnership / BASC cull records guide asks for. Whichever way you weigh, weigh the same way every time: mixed conventions cannot be compared across a season, or against anyone else&rsquo;s figures. <span id="f-wt-typicals">Typical larder weights &mdash; roe 12, fallow 22, sika 24, red 47&nbsp;kg.</span></div>
       <div class="fr2">
         <div class="ff"><label for="f-destination">Destination</label>
           <select id="f-destination">
@@ -1122,6 +1122,24 @@
           <div class="profile-row-value" id="profile-grounds-value">–</div>
         </div>
         <button type="button" class="profile-row-btn" data-fl-action="open-grounds-sheet" aria-label="Manage grounds and boundaries">Manage</button>
+      </div>
+    </div>
+    <!-- Units (14.01 — Scott + Aaron by email: yards and pounds as a display voice; storage stays metric) -->
+    <div class="profile-card" role="group" aria-label="Units">
+      <div class="profile-card-title">Units</div>
+      <div class="profile-row">
+        <div class="profile-row-main">
+          <div class="profile-row-label">Distances</div>
+          <div class="profile-row-value" id="units-dist-value">metres (m)</div>
+        </div>
+        <button type="button" class="profile-row-btn" data-fl-action="units-dist-toggle" aria-label="Switch distance units">Switch</button>
+      </div>
+      <div class="profile-row">
+        <div class="profile-row-main">
+          <div class="profile-row-label">Weights</div>
+          <div class="profile-row-value" id="units-wt-value">kilograms (kg)</div>
+        </div>
+        <button type="button" class="profile-row-btn" data-fl-action="units-wt-toggle" aria-label="Switch weight units">Switch</button>
       </div>
     </div>
     <!-- Syndicate (placement round 2026-08-10 — second entry point beside the header icon) -->

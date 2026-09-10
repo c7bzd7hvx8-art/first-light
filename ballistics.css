@@ -145,8 +145,10 @@ html.bx-night .bx-anat-cross line{ stroke-width:1.5; }
 #bx-range-slider::-moz-range-thumb{width:24px;height:24px;background:var(--gold);border-radius:50%;cursor:pointer;border:3px solid #1a2e1a;box-shadow:0 0 0 1px var(--gold);}
 .bx-range-tools{display:flex;flex-wrap:wrap;align-items:center;justify-content:center;gap:10px;margin-top:12px;}
 .bx-range-input{width:78px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.12);color:#fff;padding:8px 8px;border-radius:8px;font-size:15px;font-family:'DM Mono',monospace;text-align:center;min-height:40px;}
-/* Hidden for launch: the yards conversion is incomplete and initBallisticsUi forces metric. Restore inline-flex when yards are wired through everywhere (audit §2). */
-.bx-units-toggle{display:none;border:1px solid rgba(255,255,255,0.12);border-radius:8px;overflow:hidden;}
+/* 14.01/14.02: the launch-era parking is fully removed — the toggle AND its
+   parent .bx-range-tools row both render (the hiding lived in TWO rules; 14.01
+   removed only this one and the owner's phone caught the other). */
+.bx-units-toggle{display:inline-flex;border:1px solid rgba(255,255,255,0.12);border-radius:8px;overflow:hidden;}
 .bx-units-btn{background:rgba(255,255,255,0.04);border:none;color:rgba(255,255,255,0.6);padding:8px 12px;font-size:12px;font-weight:600;font-family:'DM Mono',monospace;cursor:pointer;min-height:40px;min-width:42px;}
 .bx-units-btn.on{background:var(--gold);color:#1a2e1a;}
 .bx-wind-presets{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px;}
@@ -175,9 +177,6 @@ html.bx-night .bx-anat-cross line{ stroke-width:1.5; }
 .bx-output-empty{background:rgba(255,255,255,0.03);border:1px dashed rgba(255,255,255,0.1);border-radius:14px;padding:32px 16px;text-align:center;color:rgba(255,255,255,0.6);font-size:13px;}
 /* Screen-reader-only live region for the result announcement (audit C2). */
 .bx-visually-hidden{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0;}
-/* Yard toggle hidden for launch — conversion is incomplete, units forced metric
-   in ballistics-ui.js init (audit §2). Remove this rule when yards are wired through. */
-.bx-range-tools{display:none;}
 .bx-output-card{padding:0;}
 .bx-output-section{padding:12px 0;border-bottom:1px solid rgba(255,255,255,0.05);}
 .bx-output-section:last-child{border-bottom:none;}

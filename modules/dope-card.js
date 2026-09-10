@@ -224,6 +224,10 @@ const COLOURS = Object.freeze({
  *                                            (the statutory MUZZLE minimum used
  *                                            as a DSC guide, NOT a legal impact
  *                                            limit); rows below are flagged
+ * @param {'metric'|'imperial'} [args.units] — 14.01: 'imperial' prints ranges
+ *                                            in yards and drop/wind in inches
+ *                                            (caption + setup line follow).
+ *                                            MOA/MIL/fps/ft-lb never change.
  * @returns {object} jsPDF document
  */
 export function buildDopeCardPDF(args) {
@@ -240,6 +244,12 @@ export function buildDopeCardPDF(args) {
     compress: true,
   });
   const isLarge = args.sizeName === 'A4';
+  // 14.01 unit voice — a rifle-case card the stalker acts on MUST speak the
+  // units they think in, end to end. Data stays metric; only rendering turns.
+  const imp = args.units === 'imperial';
+  const M2YD = 1.0936133;
+  const dRange = (mv) => imp ? Math.round(mv * M2YD) : Math.round(mv);
+  const dSmall = (cm) => imp ? (Math.abs(cm) / 2.54).toFixed(1) : Math.abs(cm).toFixed(1);
 
   // Margins differ between sizes: A6 needs to be tight (max table area on
   // a small page); A4 can breathe.
@@ -274,8 +284,8 @@ export function buildDopeCardPDF(args) {
   doc.setTextColor(...COLOURS.mutedRGB);
   doc.setFontSize(isLarge ? 8 : 6);
   const setupLine = [
-    'Zero ' + args.profile.zeroRangeM + 'm',
-    'Sight ht ' + args.profile.sightHeightCm.toFixed(1) + ' cm',
+    'Zero ' + (imp ? Math.round(args.profile.zeroRangeM * M2YD) + 'yd' : args.profile.zeroRangeM + 'm'),
+    'Sight ht ' + (imp ? (args.profile.sightHeightCm / 2.54).toFixed(1) + ' in' : args.profile.sightHeightCm.toFixed(1) + ' cm'),
     args.profile.barrelInches ? args.profile.barrelInches + ' in barrel' : null,
   ].filter(Boolean).join('  |  ');
   doc.text(setupLine, m, y);
@@ -377,15 +387,15 @@ export function buildDopeCardPDF(args) {
 
   const columns = [
     { key: 'range',  head: 'Range',  wL: 20, wS: 11, bold: true, colour: COLOURS.forestRGB,
-      get: r => String(r.rangeM) },
+      get: r => String(dRange(r.rangeM)) },
     { key: 'drop',   head: 'Drop',   wL: 26, wS: 15,
-      get: r => { const d = -r.dropCm; return (d >= 0 ? '+' : '-') + Math.abs(d).toFixed(1); } },
+      get: r => { const d = -r.dropCm; return (d >= 0 ? '+' : '-') + dSmall(d); } },
     { key: 'moa',    head: 'MOA',    wL: 16, wS: 10,
       get: r => { const v = r.dropMoa != null ? -r.dropMoa : 0; const t = v.toFixed(1); return t === '-0.0' ? '+0.0' : (v >= 0 ? '+' + t : t); } },
     { key: 'mil',    head: 'MIL',    wL: 16, wS: 11,
       get: r => { const v = r.dropMil != null ? -r.dropMil : 0; const t = v.toFixed(2); return t === '-0.00' ? '+0.00' : (v >= 0 ? '+' + t : t); } },
     { key: 'wind',   head: 'Wind',   wL: 22, wS: 12, show: hasWind,
-      get: r => Number.isFinite(r.windDriftCm) ? String(Math.round(Math.abs(r.windDriftCm))) : '-' },
+      get: r => Number.isFinite(r.windDriftCm) ? (imp ? dSmall(r.windDriftCm) : String(Math.round(Math.abs(r.windDriftCm)))) : '-' },
     { key: 'vel',    head: 'Vel',    wL: 26, wS: 14,
       get: r => String(Math.round(r.velocityFps)) },
     { key: 'energy', head: 'Energy', wL: 28, wS: 13,
@@ -469,7 +479,7 @@ export function buildDopeCardPDF(args) {
     doc.setFont('helvetica', 'bold');
     doc.setTextColor(...COLOURS.redRGB);
     doc.setFontSize(isLarge ? 7 : 5.5);
-    doc.text(`+${omittedRows} more range${omittedRows === 1 ? '' : 's'} past ${lastRangeM} m omitted — reduce the step or print A4.`,
+    doc.text(`+${omittedRows} more range${omittedRows === 1 ? '' : 's'} past ${imp ? Math.round(lastRangeM * M2YD) + ' yd' : lastRangeM + ' m'} omitted — reduce the step or print A4.`,
       tableX, y + (isLarge ? 1 : 0.5), { maxWidth: tableW });
     y += isLarge ? 5 : 3.5;
   }
@@ -478,7 +488,8 @@ export function buildDopeCardPDF(args) {
   doc.setFont('helvetica', 'normal');
   doc.setTextColor(...COLOURS.mutedRGB);
   doc.setFontSize(isLarge ? 7 : 5);
-  let cap = 'Range m · Drop/Wind cm · Vel fps · Energy ft-lb';
+  let cap = imp ? 'Range yd · Drop/Wind in · Vel fps · Energy ft-lb'
+                : 'Range m · Drop/Wind cm · Vel fps · Energy ft-lb';
   if (hasWind) cap += `.  Wind = drift at ${args.windRefMs} m/s full-value crosswind — hold into it.`;
   doc.text(cap, tableX, y + (isLarge ? 1 : 0.5), { maxWidth: tableW });
   y += isLarge ? 5 : 3.5;
@@ -527,7 +538,7 @@ export function buildDopeCardPDF(args) {
         : (args.anatomy.sex === 'buck')
           ? ((args.anatomy.speciesKey === 'red' || args.anatomy.speciesKey === 'sika') ? 'stag' : 'buck')
           : ((args.anatomy.speciesKey === 'red' || args.anatomy.speciesKey === 'sika') ? 'hind' : 'doe');
-      const subtitle = `${sp.label} ${sexLabel}  ·  ${aim.label}  ·  chest ~${sx.chestDepthCm} cm`;
+      const subtitle = `${sp.label} ${sexLabel}  ·  ${aim.label}  ·  chest ~${imp ? (sx.chestDepthCm / 2.54).toFixed(0) + ' in' : sx.chestDepthCm + ' cm'}`;
       const subW = doc.getTextWidth ? doc.getTextWidth(subtitle) : subtitle.length * 1.4;
       doc.text(subtitle, size.w - m - subW, ay);
 
@@ -540,9 +551,10 @@ export function buildDopeCardPDF(args) {
           speciesKey: args.anatomy.speciesKey,
           sex: args.anatomy.sex,
           aimPointKey: args.anatomy.aimPointKey,
+          units: args.units,
         });
         if (!anat.ok) continue;
-        const line = `${row.rangeM} m   ${anat.text}`;
+        const line = `${dRange(row.rangeM)} ${imp ? 'yd' : 'm'}   ${anat.text}`;
         doc.text(line, m + (isLarge ? 4 : 2), ay);
         ay += isLarge ? 4.5 : 3;
       }

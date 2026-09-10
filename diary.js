@@ -96,7 +96,7 @@ const FL_APP_VERSION = '7.402';
 // Payload build tag - proves which diary.js actually reached the device (the
 // SW version alone cannot: sw.js is always fetched fresh while the precache
 // could be CDN-stale until the cache:'reload' fix). Bump with SW_VERSION.
-const FL_JS_BUILD = '14.00';
+const FL_JS_BUILD = '14.03';
 import {
   wxCodeLabel,
   windDirLabel,
@@ -1400,6 +1400,8 @@ function initDiaryFlUi() {
         void syncOfflineNow();
         break;
       case 'open-season-start-edit': openSeasonStartEditModal(); break;
+      case 'units-dist-toggle': flUnitsToggle('dist'); break;
+      case 'units-wt-toggle': flUnitsToggle('wt'); break;
       case 'close-season-start': closeSeasonStartEditModal(); break;
       case 'save-season-start':
         void saveSeasonStartEdit();
@@ -2421,6 +2423,7 @@ flOnReady(function() {
     form.addEventListener('click', function() { requestFormProgressUpdate(); queueCullSeasonAdvisory(); });
   }
   renderAbnormalityGrid();
+  flUnitsPaintFormLabels();
 });
 
 window.addEventListener('beforeunload', function(e) {
@@ -3585,6 +3588,114 @@ function resetSessionState() {
   // shared device can't surface the previous user's stand coordinates + ground
   // boundaries to the next account (the in-memory reset above isn't enough).
   purgeLocalUserDataCaches();
+}
+
+// ── Units voice (14.01 — Scott + Aaron, by email) ────────────────────────
+// One device-level display preference, shared with the ballistic calculator
+// through the 'fl-units' localStorage key: {dist:'m'|'yd', wt:'kg'|'lb'}.
+// STORAGE STAYS METRIC — distance_m and weight_kg keep their names, their
+// meanings and their CSV columns; the voice converts at the form boundary
+// and at display time only, so stats, exports and syndicate views stay
+// coherent between members who read in different units. The key survives
+// sign-out on purpose: it is a display pref, not account data (see the
+// purge doctrine below).
+var FL_UNITS_KEY = 'fl-units';
+var _flUnitsCache = null;
+var FL_M_PER_YD = 0.9144, FL_LB_PER_KG = 2.2046226;
+function flUnitsGet() {
+  if (_flUnitsCache) return _flUnitsCache;
+  var u = null;
+  try { u = JSON.parse(localStorage.getItem(FL_UNITS_KEY) || 'null'); } catch (_) {}
+  _flUnitsCache = {
+    dist: (u && u.dist === 'yd') ? 'yd' : 'm',
+    wt: (u && u.wt === 'lb') ? 'lb' : 'kg'
+  };
+  return _flUnitsCache;
+}
+function flUnitsSet(patchObj) {
+  var u = flUnitsGet();
+  var next = { dist: patchObj.dist || u.dist, wt: patchObj.wt || u.wt };
+  _flUnitsCache = next;
+  try { localStorage.setItem(FL_UNITS_KEY, JSON.stringify(next)); } catch (_) {}
+}
+function flDistU() { return flUnitsGet().dist === 'yd' ? 'yd' : 'm'; }
+function flWtU() { return flUnitsGet().wt === 'lb' ? 'lb' : 'kg'; }
+// Display: canonical metric value → the active voice (string, no unit word).
+// The metric branch returns the stored value verbatim, so nothing shifts for
+// metric users; the imperial branch converts and trims.
+function flDistVal(m) {
+  var n = parseFloat(m);
+  if (!Number.isFinite(n)) return String(m);
+  return flUnitsGet().dist === 'yd' ? String(Math.round(n / FL_M_PER_YD)) : String(m);
+}
+function flWtVal(kg) {
+  var n = parseFloat(kg);
+  if (!Number.isFinite(n)) return String(kg);
+  return flUnitsGet().wt === 'lb' ? String(+(n * FL_LB_PER_KG).toFixed(1)) : String(kg);
+}
+// Input: what the form field holds (active voice) → canonical metric.
+function flDistToM(v) { return Number.isFinite(v) ? (flUnitsGet().dist === 'yd' ? v * FL_M_PER_YD : v) : v; }
+function flWtToKg(v) { return Number.isFinite(v) ? (flUnitsGet().wt === 'lb' ? v / FL_LB_PER_KG : v) : v; }
+// The entry form's two unit-bearing labels + the typical-weights hint.
+function flUnitsPaintFormLabels() {
+  var dl = document.querySelector('label[for="f-dist"]');
+  if (dl) dl.textContent = 'Distance (' + flDistU() + ')';
+  var wl = document.querySelector('label[for="f-wt"]');
+  if (wl) wl.textContent = 'Larder weight (' + flWtU() + ')';
+  var tp = document.getElementById('f-wt-typicals');
+  if (tp) tp.textContent = flWtU() === 'lb'
+    ? 'Typical larder weights — roe 26, fallow 49, sika 53, red 104 lb.'
+    : 'Typical larder weights — roe 12, fallow 22, sika 24, red 47 kg.';
+}
+// 14.03 (units audit): the calculator page writes the same shared key from
+// its own tab; 'storage' fires only in other tabs, so an already-open diary
+// follows a calculator-side flip without a reload.
+window.addEventListener('storage', function (e) {
+  if (!e || e.key !== FL_UNITS_KEY) return;
+  _flUnitsCache = null;
+  renderSettingsUnitsRows();
+  flUnitsPaintFormLabels();
+  if (currentUser) { try { renderList(); } catch (_) {} }
+});
+
+function renderSettingsUnitsRows() {
+  var d = document.getElementById('units-dist-value');
+  if (d) d.textContent = flDistU() === 'yd' ? 'yards (yd)' : 'metres (m)';
+  var w = document.getElementById('units-wt-value');
+  if (w) w.textContent = flWtU() === 'lb' ? 'pounds (lb)' : 'kilograms (kg)';
+}
+// Settings-row toggles. Repaint set: the rows, the form labels, and the list
+// (game cards + the stats strip render through the voice helpers, so one
+// re-render picks the new voice up everywhere it shows).
+function flUnitsToggle(which) {
+  // 14.03 (units audit): the settings sheet overlays the entry form, so a
+  // flip can land while a value sits half-typed in it. Convert that value in
+  // place — otherwise "150" meant as yards silently becomes 150 metres when
+  // the form is saved under the new voice.
+  var prevDistYd = flDistU() === 'yd', prevWtLb = flWtU() === 'lb';
+  if (which === 'dist') flUnitsSet({ dist: prevDistYd ? 'm' : 'yd' });
+  else flUnitsSet({ wt: prevWtLb ? 'kg' : 'lb' });
+  if (which === 'dist') {
+    var fd = document.getElementById('f-dist');
+    var dv = fd ? parseFloat(fd.value) : NaN;
+    if (Number.isFinite(dv)) {
+      var dm = prevDistYd ? dv * FL_M_PER_YD : dv;
+      fd.value = flDistU() === 'yd' ? String(Math.round(dm / FL_M_PER_YD)) : String(Math.round(dm));
+    }
+  } else {
+    var fw = document.getElementById('f-wt');
+    var wv = fw ? parseFloat(fw.value) : NaN;
+    if (Number.isFinite(wv)) {
+      var wkg = prevWtLb ? wv / FL_LB_PER_KG : wv;
+      fw.value = flWtU() === 'lb' ? String(+(wkg * FL_LB_PER_KG).toFixed(1)) : String(Math.round(wkg * 10) / 10);
+    }
+  }
+  renderSettingsUnitsRows();
+  flUnitsPaintFormLabels();
+  if (currentUser) { try { renderList(); } catch (_) {} }
+  showToast('✅ ' + (which === 'dist'
+    ? 'Distances now in ' + (flDistU() === 'yd' ? 'yards' : 'metres')
+    : 'Weights now in ' + (flWtU() === 'lb' ? 'pounds' : 'kilograms')));
 }
 
 // Purge device-local caches holding this account's LOCATION + activity data
@@ -4802,7 +4913,9 @@ function renderList() {
   var kg = entries.reduce(function(s,e){ return s + (parseFloat(e.weight_kg)||0); }, 0);
   var species_set = new Set(entries.map(function(e){ return e.species; }).filter(Boolean));
   document.getElementById('stat-total').textContent = total;
-  document.getElementById('stat-kg').textContent = Math.round(kg);
+  document.getElementById('stat-kg').textContent = Math.round(flWtU() === 'lb' ? kg * FL_LB_PER_KG : kg);
+  var kgUnitEl = document.getElementById('stat-kg-unit');
+  if (kgUnitEl) kgUnitEl.textContent = flWtU();
   document.getElementById('stat-spp').textContent = species_set.size;
   // DL4: a dead-zero stat claims nothing — hide the kg cell until weights exist.
   var kgCell = document.getElementById('hs-kg-cell');
@@ -4944,7 +5057,7 @@ function renderList() {
         : '';
       var gcPlace = esc(e.location_name || e.ground || '');
       var gcLineTxt = gcPlace
-        + (hasValue(e.weight_kg) ? (gcPlace ? ' · ' : '') + '<b class="gc-line-kg">' + e.weight_kg + ' kg</b>' : '');
+        + (hasValue(e.weight_kg) ? (gcPlace ? ' · ' : '') + '<b class="gc-line-kg">' + flWtVal(e.weight_kg) + ' ' + flWtU() + '</b>' : '');
       var gcTag = e.tag_number ? '<span class="gc-tag">' + esc(e.tag_number) + '</span>' : '';
       var gcBody = (gcLineTxt || gcTag)
         ? '<div class="gc-body"><div class="gc-line"><span class="gc-line-txt">' + gcLineTxt + '</span>' + gcTag + '</div></div>'
@@ -5183,9 +5296,9 @@ async function openDetail(id) {
       + '</div>';
 
   var wtTile = hasValue(e.weight_kg)
-    ? '<div class="dd-tile"><div class="dd-tile-k">Carcass weight</div><div class="dd-tile-v">' + esc(String(e.weight_kg)) + ' <span class="dd-u">kg</span></div></div>' : '';
+    ? '<div class="dd-tile"><div class="dd-tile-k">Carcass weight</div><div class="dd-tile-v">' + esc(flWtVal(e.weight_kg)) + ' <span class="dd-u">' + flWtU() + '</span></div></div>' : '';
   var distTile = hasValue(e.distance_m)
-    ? '<div class="dd-tile"><div class="dd-tile-k">Distance</div><div class="dd-tile-v">' + esc(String(e.distance_m)) + ' <span class="dd-u">m</span></div></div>' : '';
+    ? '<div class="dd-tile"><div class="dd-tile-k">Distance</div><div class="dd-tile-v">' + esc(flDistVal(e.distance_m)) + ' <span class="dd-u">' + flDistU() + '</span></div></div>' : '';
   var tagTile = e.tag_number
     ? '<div class="dd-tile"><div class="dd-tile-k">Tag number</div><div class="dd-tile-v">' + esc(e.tag_number) + '</div></div>' : '';
   var weightsCard = (wtTile || distTile || tagTile)
@@ -5434,11 +5547,11 @@ async function openEditEntry(id) {
   } else {
     clearPinnedLocation();
   }
-  document.getElementById('f-wt').value = hasValue(e.weight_kg) ? String(e.weight_kg) : '';
+  document.getElementById('f-wt').value = hasValue(e.weight_kg) ? flWtVal(e.weight_kg) : '';
   formQuantity = entryQty(e);
   var _qvEdit = document.getElementById('f-qty-val'); if (_qvEdit) _qvEdit.value = String(formQuantity);
   setCalibreValue(e.calibre || '');
-  document.getElementById('f-dist').value = hasValue(e.distance_m) ? String(e.distance_m) : '';
+  document.getElementById('f-dist').value = hasValue(e.distance_m) ? flDistVal(e.distance_m) : '';
   setPlacementValue(e.shot_placement || '');
   document.getElementById('f-age').value = normalizeAgeClassLabel(e.age_class || '');
   document.getElementById('f-notes').value = e.notes || '';
@@ -7913,10 +8026,13 @@ async function saveEntry() {
   }
   // Ground optional (same as pre–blank-day saves). If a syndicate is attributed and
   // that syndicate has a ground filter, validateSyndicateAttributionGround still enforces a match.
-  var wtRaw = parseFloat(document.getElementById('f-wt').value);
-  var distRaw = parseInt(document.getElementById('f-dist').value, 10);
-  var wtVal = Number.isFinite(wtRaw) ? Math.max(0, wtRaw) : null;
-  var distVal = Number.isFinite(distRaw) ? Math.max(0, distRaw) : null;
+  // 14.01: the form speaks the user's Units voice; storage stays metric.
+  // Conversion happens exactly here — every save path (online/offline,
+  // cull/blank, create/edit) funnels through these two values.
+  var wtRaw = flWtToKg(parseFloat(document.getElementById('f-wt').value));
+  var distRaw = flDistToM(parseFloat(document.getElementById('f-dist').value));
+  var wtVal = Number.isFinite(wtRaw) ? Math.max(0, Math.round(wtRaw * 10) / 10) : null;
+  var distVal = Number.isFinite(distRaw) ? Math.max(0, Math.round(distRaw)) : null;
   if (!(await validateSyndicateAttributionGround(selectedSyndicate, selectedGround))) {
     btn.disabled = false;
     btn.innerHTML = diaryCloudSaveInner(diaryFormSaveButtonLabel());
@@ -20935,6 +21051,7 @@ function openSettingsSheet() {
   renderProfileSpeciesRow();
   renderSettingsAppRows();
   renderSettingsGroundsRow();
+  renderSettingsUnitsRows();
   var ov = document.getElementById('settings-ov');
   if (ov) { ov.classList.add('open'); document.body.style.overflow = 'hidden'; }
 }

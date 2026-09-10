@@ -175,6 +175,36 @@ function clampNum(v, fallback, lo, hi) {
   return Math.min(hi, Math.max(lo, n));
 }
 
+// ── Units voice (14.01 — Scott + Aaron, by email) ────────────────────────
+// The yards toggle shipped half-wired in v1.0 and was parked behind CSS.
+// This round finishes it. Doctrine: STORAGE STAYS METRIC (zeroRangeM,
+// sightHeightCm and every solver input keep their names and meanings);
+// imperial is a display/input voice — distances in yards, drops and drifts
+// in inches. MOA/MIL are angular and never convert; fps and ft-lb are
+// already the trade's units; CONDITIONS (°C, hPa, m/s wind) stay metric in
+// both voices because the weather data and the conditions strip speak them.
+// The choice is shared with the diary app through the 'fl-units' key, so
+// one Units setting speaks for the whole product.
+const FL_UNITS_KEY = 'fl-units';
+function bxImp() { return state.settings.units === 'imperial'; }
+function bxDist(m, dp = 0) { return bxImp() ? metresToYards(m).toFixed(dp) : Number(m).toFixed(dp); }
+function bxDistU() { return bxImp() ? 'yd' : 'm'; }
+function bxSmall(cm, dp = 1) { return bxImp() ? cmToInches(cm).toFixed(dp) : Number(cm).toFixed(dp); }
+function bxSmallU() { return bxImp() ? 'in' : 'cm'; }
+function readSharedUnits() {
+  try {
+    const u = JSON.parse(localStorage.getItem(FL_UNITS_KEY) || 'null');
+    return u && typeof u === 'object' ? u : null;
+  } catch (_) { return null; }
+}
+function writeSharedUnitsDist(dist) {
+  try {
+    const u = readSharedUnits() || {};
+    u.dist = dist;
+    localStorage.setItem(FL_UNITS_KEY, JSON.stringify(u));
+  } catch (_) {}
+}
+
 function loadProfilesFromStorage() {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
@@ -952,8 +982,8 @@ function renderProfileBar() {
     if (!isTrued) return '';
     const delta = Math.round(p.truedMvFps - p.muzzleVelocityFps);
     const sign = delta >= 0 ? '+' : '';
-    const rng = p.truedAtRangeM ? ` · ${p.truedAtRangeM}m` : '';
-    return `<span class="bx-profile-trued" title="Calculations use a muzzle velocity trued to your observed drop${p.truedAtRangeM ? ' at ' + p.truedAtRangeM + ' m' : ''} (${Math.round(p.truedMvFps)} fps vs published ${p.muzzleVelocityFps} fps). Come-ups now match your rifle, not the test barrel."><span class="fl-ic fl-target"></span> ${sign}${delta} fps${rng} · trued</span>`;
+    const rng = p.truedAtRangeM ? ` · ${bxDist(p.truedAtRangeM)}${bxDistU()}` : '';
+    return `<span class="bx-profile-trued" title="Calculations use a muzzle velocity trued to your observed drop${p.truedAtRangeM ? ' at ' + bxDist(p.truedAtRangeM) + ' ' + bxDistU() : ''} (${Math.round(p.truedMvFps)} fps vs published ${p.muzzleVelocityFps} fps). Come-ups now match your rifle, not the test barrel."><span class="fl-ic fl-target"></span> ${sign}${delta} fps${rng} · trued</span>`;
   })();
   // Chronograph status — shown next to the summary if a chrono override is set
   // (and no trued MV, which would otherwise be the value actually in use).
@@ -982,7 +1012,7 @@ function renderProfileBar() {
   const zeroChips = zeros.length >= 2
     ? `<div class="bx-zero-bar" role="group" aria-label="Zero range">
         <span class="bx-zero-label">Zero</span>
-        ${zeros.map(z => `<button class="bx-zero-chip ${z === Math.round(p.zeroRangeM) ? 'on' : ''}" data-zero="${z}" type="button" aria-pressed="${z === Math.round(p.zeroRangeM) ? 'true' : 'false'}">${z}m</button>`).join('')}
+        ${zeros.map(z => `<button class="bx-zero-chip ${z === Math.round(p.zeroRangeM) ? 'on' : ''}" data-zero="${z}" type="button" aria-pressed="${z === Math.round(p.zeroRangeM) ? 'true' : 'false'}">${bxDist(z)}${bxDistU()}</button>`).join('')}
       </div>`
     : '';
   bar.innerHTML = `
@@ -995,7 +1025,7 @@ function renderProfileBar() {
         <button class="bx-link bx-link-tools" id="bx-profile-tools-btn" aria-expanded="${flToolsOpen ? 'true' : 'false'}" aria-controls="bx-profile-tools">⚙ Tools</button>
       </div>
     </div>
-    <div class="bx-profile-summary">${escapeHtml(summary)} · <span class="bx-profile-zero">${p.zeroRangeM}m zero</span></div>
+    <div class="bx-profile-summary">${escapeHtml(summary)} · <span class="bx-profile-zero">${bxDist(p.zeroRangeM)}${bxDistU()} zero</span></div>
     ${p.notes ? `<div class="bx-profile-notes">${escapeHtml(p.notes)}</div>` : ''}
     ${zeroChips}
     ${showLeadFreeBtn
@@ -1051,7 +1081,7 @@ function renderProfileBar() {
         p.zeroRangeM = z;
         saveProfilesToStorage();
         renderAll();
-        toast(`Zero set to ${z} m`, 'ok');
+        toast(`Zero set to ${bxDist(z)} ${bxDistU()}`, 'ok');
       }
     });
   });
@@ -1073,20 +1103,20 @@ function openZerosModal(pid) {
         <div class="bx-modal-title">Zero ranges</div>
         <div class="bx-modal-body">
           <div class="bx-field-hint">
-            Save more than one zero for this rifle &mdash; e.g. a 100 m and a 200 m zero &mdash;
+            Save more than one zero for this rifle &mdash; e.g. a 100 ${bxDistU()} and a 200 ${bxDistU()} zero &mdash;
             and switch between them from the rifle bar. The active zero drives every come-up,
             dead-hold range and energy figure.
           </div>
           <div class="bx-zero-list">
             ${zeros.map(z => `
               <div class="bx-zero-row ${z === Math.round(p.zeroRangeM) ? 'on' : ''}">
-                <button class="bx-zero-activate" data-act="${z}" type="button">${z} m${z === Math.round(p.zeroRangeM) ? ' · active' : ''}</button>
-                ${z === Math.round(p.zeroRangeM) ? '' : `<button class="bx-zero-remove" data-rm="${z}" type="button" aria-label="Remove ${z} m zero">✕</button>`}
+                <button class="bx-zero-activate" data-act="${z}" type="button">${bxDist(z)} ${bxDistU()}${z === Math.round(p.zeroRangeM) ? ' · active' : ''}</button>
+                ${z === Math.round(p.zeroRangeM) ? '' : `<button class="bx-zero-remove" data-rm="${z}" type="button" aria-label="Remove ${bxDist(z)} ${bxDistU()} zero">✕</button>`}
               </div>
             `).join('')}
           </div>
           <div class="bx-field" style="margin-top:12px;">
-            <label for="bx-zero-add-input">Add a zero (m)</label>
+            <label for="bx-zero-add-input">Add a zero (${bxDistU()})</label>
             <div style="display:flex;gap:8px;">
               <input type="number" id="bx-zero-add-input" inputmode="numeric" min="10" max="600" placeholder="e.g. 200" style="flex:1;">
               <button class="bx-btn bx-btn-secondary" id="bx-zero-add-btn" type="button">Add</button>
@@ -1100,15 +1130,16 @@ function openZerosModal(pid) {
     `;
     $('bx-zero-close').addEventListener('click', closeModal);
     $('bx-zero-add-btn').addEventListener('click', () => {
-      const v = parseInt($('bx-zero-add-input').value, 10);
-      if (!(v >= 10 && v <= 600)) { toast('Enter a zero between 10 and 600 m', 'warn'); return; }
+      const raw = parseInt($('bx-zero-add-input').value, 10);
+      const v = bxImp() ? Math.round(yardsToMetres(raw)) : raw;
+      if (!(v >= 10 && v <= 600)) { toast(bxImp() ? 'Enter a zero between 11 and 656 yd' : 'Enter a zero between 10 and 600 m', 'warn'); return; }
       const opts = new Set(getZeroOptions(p));
       opts.add(v);
       p.zeroOptionsM = Array.from(opts).sort((a, b) => a - b);
       saveProfilesToStorage();
       renderProfileBar();
       render();
-      toast(`Added ${v} m zero`, 'ok');
+      toast(`Added ${bxDist(v)} ${bxDistU()} zero`, 'ok');
     });
     modal.querySelectorAll('[data-act]').forEach(b => b.addEventListener('click', () => {
       const z = parseInt(b.dataset.act, 10);
@@ -1134,6 +1165,7 @@ function renderRangeControl() {
   if (!slider || !display) return;
   slider.value = state.rangeM;
   const imperial = state.settings.units === 'imperial';
+  slider.setAttribute('aria-label', imperial ? 'Target range (yards)' : 'Target range (metres)');
   const shown = imperial ? Math.round(metresToYards(state.rangeM)) : state.rangeM;
   // The big number IS the range input — tap it to type a lasered distance.
   // Created once and reused (not re-rendered each tick) so typing isn't
@@ -1265,6 +1297,7 @@ function renderOutput() {
       sex: state.settings.anatomySex,
       aimPointKey: state.settings.anatomyAimPoint,
       presentation: presentationKey,
+      units: state.settings.units,
     });
     if (anat.ok) {
       const sp = SPECIES_BODY[state.settings.anatomySpecies];
@@ -1299,12 +1332,12 @@ function renderOutput() {
             ${escapeHtml(aim.label)}
             ${quarter.key !== 'broadside' ? `<span class="bx-sep">·</span>${escapeHtml(quarter.label)}` : ''}
             <span class="bx-sep">·</span>
-            chest ~${anat.chestDepthCm} cm
+            chest ~${bxImp() ? cmToInches(anat.chestDepthCm).toFixed(0) : anat.chestDepthCm} ${bxSmallU()}
           </div>
           <div class="bx-anatomy-silhouette">${silhouetteSvg}</div>
           ${quarter.key !== 'broadside' ? `<div class="bx-anatomy-viewnote">Silhouette shows the broadside reference — apply the ${escapeHtml(quarter.label.toLowerCase())} hold below.</div>` : ''}
           <div class="bx-anatomy-text">${escapeHtml(anat.text).replace(/^Hold /, `Hold <span class="bx-anat-arrow">${dropArrow}</span> `)}</div>
-          ${(Math.abs(r.windDriftCm) >= 1 && windDir) ? `<div class="bx-anatomy-windnote">Drop hold only — the silhouette doesn't include wind. At this range the bullet also drifts ${Math.abs(r.windDriftCm).toFixed(1)} cm ${windDir}; account for that on top of this hold.</div>` : ''}
+          ${(Math.abs(r.windDriftCm) >= 1 && windDir) ? `<div class="bx-anatomy-windnote">Drop hold only — the silhouette doesn't include wind. At this range the bullet also drifts ${bxSmall(Math.abs(r.windDriftCm))} ${bxSmallU()} ${windDir}; account for that on top of this hold.</div>` : ''}
           ${quarterHtml}
           ${anat.warning ? `<div class="bx-anatomy-warn">⚠ ${escapeHtml(anat.warning)}</div>` : ''}
           <div class="bx-anatomy-disclaimer">
@@ -1337,11 +1370,11 @@ function renderOutput() {
     } catch (e) { carryM = null; }
     _carryCache = { key: carryKey, val: carryM };
   }
-  const carryKm = carryM ? (Math.round(carryM / 100) / 10).toFixed(1) : null;
+  const carryKm = carryM ? (bxImp() ? (carryM / 1609.344).toFixed(1) : (Math.round(carryM / 100) / 10).toFixed(1)) : null;
   const backstopHtml = carryKm ? `
       <div class="bx-backstop">
         <div class="bx-backstop-head">No backstop, no shot</div>
-        <div class="bx-backstop-body">With nothing to stop it, this bullet can carry roughly <strong>${carryKm} km</strong> and is dangerous the whole way. The only safe backstop is solid ground you can see behind the deer — never shoot at a skylined animal.</div>
+        <div class="bx-backstop-body">With nothing to stop it, this bullet can carry roughly <strong>${carryKm} ${bxImp() ? 'miles' : 'km'}</strong> and is dangerous the whole way. The only safe backstop is solid ground you can see behind the deer — never shoot at a skylined animal.</div>
       </div>` : '';
   const refHtml = `${backstopHtml}${renderComplianceSection(p, { state, checkLegalCompliance, checkAbsoluteFloor, escapeHtml })}
       ${renderEthicalRangeSection(p)}`;
@@ -1369,8 +1402,8 @@ function renderOutput() {
     const windSay = (r.windDriftCm && Math.abs(r.windDriftCm) >= 0.5 && windDir)
       ? `, wind ${Math.abs(r.windDriftMoa).toFixed(1)} MOA ${windDir}` : '';
     liveRegion.textContent =
-      `Hold ${dropMag.toFixed(1)} centimetres ${holdWord || 'on zero'}, ${moaStr} MOA${windSay}. `
-      + `${Math.round(r.energyFtLbs)} foot-pounds at ${state.rangeM} metres. ${legalStatus.label}.`;
+      `Hold ${bxSmall(dropMag)} ${bxImp() ? 'inches' : 'centimetres'} ${holdWord || 'on zero'}, ${moaStr} MOA${windSay}. `
+      + `${Math.round(r.energyFtLbs)} foot-pounds at ${bxDist(state.rangeM)} ${bxImp() ? 'yards' : 'metres'}. ${legalStatus.label}.`;
   }
 
   out.innerHTML = `
@@ -1379,8 +1412,8 @@ function renderOutput() {
         <div class="bx-output-label">Hold</div>
         <div class="bx-output-hold">
           <span class="bx-output-arrow">${dropArrow}</span>
-          <span class="bx-output-bignum">${dropMag.toFixed(1)}</span>
-          <span class="bx-output-bigunit">cm${holdWord ? ' ' + holdWord : ''}</span>
+          <span class="bx-output-bignum">${bxSmall(dropMag)}</span>
+          <span class="bx-output-bigunit">${bxSmallU()}${holdWord ? ' ' + holdWord : ''}</span>
         </div>
         <div class="bx-output-sub" title="The hold above, in scope-adjustment units — dial or hold this many MOA / MIL in the direction of the arrow. (The printed dope card lists the same figures as signed drop, e.g. -2.3, per the ammo-box convention.)">
           <span>${moaStr} MOA</span>
@@ -1395,7 +1428,7 @@ function renderOutput() {
         ? `<div class="bx-output-section">
             <div class="bx-output-label">Wind drift</div>
             <div class="bx-output-sub">
-              ${Math.abs(r.windDriftCm).toFixed(1)} cm
+              ${bxSmall(Math.abs(r.windDriftCm))} ${bxSmallU()}
               <span class="bx-sep">·</span>
               ${Math.abs(r.windDriftMoa).toFixed(1)} MOA${windDir ? ' ' + windDir : ''}
             </div>
@@ -1408,17 +1441,17 @@ function renderOutput() {
             <div class="bx-output-label">Long-range effects (not modelled)</div>
             <div class="bx-longrange-note">
               At this range, two effects the calculator does <strong>not</strong> model
-              can shift impact by several centimetres each:
+              can shift impact by ${bxImp() ? 'an inch or two' : 'several centimetres'} each:
             </div>
             <ul class="bx-longrange-list">
               <li>
                 <strong>Spin drift:</strong> right-twist barrels (most rifles) drift the
-                bullet ~${Math.round((state.rangeM - 300) * 0.04 + 5)}&nbsp;cm to the right at this range.
+                bullet ~${bxSmall(Math.round((state.rangeM - 300) * 0.04 + 5))}&nbsp;${bxSmallU()} to the right at this range.
                 Left-twist drifts left.
               </li>
               <li>
                 <strong>Coriolis:</strong> at UK latitudes (~50–60°N), Coriolis can shift
-                impact ±${Math.round((state.rangeM - 300) * 0.025 + 3)}&nbsp;cm depending on
+                impact ±${bxSmall(Math.round((state.rangeM - 300) * 0.025 + 3))}&nbsp;${bxSmallU()} depending on
                 shooting bearing — east-shooting shifts up, west-shooting shifts down,
                 lateral shift varies with bearing.
               </li>
@@ -1702,8 +1735,11 @@ const ETHICAL_RANGE_MAX_PROBE_M = 500;
  *  the CURRENT zero's dead-hold runs out mid-band. Label discipline for
  *  phone width: 12px+ in a 640 viewBox, and the far-zero x-label yields when
  *  it would collide with the bold max label (both live in the strip anyway). */
-function pbrArcSvg(opt, heldMaxM, vitalRadiusCm, traj) {
+function pbrArcSvg(opt, heldMaxM, vitalRadiusCm, traj, imp) {
   if (!opt || !traj || traj.length < 6) return '';
+  // Geometry stays metric (X() maps metres); only the printed labels turn.
+  const aD = (m) => imp ? Math.round(m * 1.0936133) : m;
+  const aS = (cm) => imp ? +(cm / 2.54).toFixed(1) : cm;
   const W = 640, H = 150, PADL = 8, PADR = 52, PADT = 18, PADB = 28;
   const xmax = Math.max(opt.maxRangeM + 18, 120);
   let minRise = 0;
@@ -1718,7 +1754,8 @@ function pbrArcSvg(opt, heldMaxM, vitalRadiusCm, traj) {
     d += (d ? 'L' : 'M') + X(r.rangeM).toFixed(1) + ' ' + Y(-r.dropCm).toFixed(1);
   }
   const bt = Y(vitalRadiusCm), bb = Y(-vitalRadiusCm), ly = Y(0);
-  const vLab = (vitalRadiusCm % 1 === 0) ? String(vitalRadiusCm) : vitalRadiusCm.toFixed(1);
+  const vLabN = aS(vitalRadiusCm);
+  const vLab = (vLabN % 1 === 0) ? String(vLabN) : vLabN.toFixed(1);
   const farLabelFits = (X(opt.maxRangeM) - X(opt.zeroRangeM)) >= 40;
   const showYours = heldMaxM && (opt.maxRangeM - heldMaxM) >= 10;
   return `<svg class="bx-pbr-arc" viewBox="0 0 ${W} ${H}" aria-hidden="true">
@@ -1736,11 +1773,11 @@ function pbrArcSvg(opt, heldMaxM, vitalRadiusCm, traj) {
     <g font-family="'DM Mono',monospace" font-size="12" fill="#a99e7f" letter-spacing="0.5">
       <text x="${W - PADR + 6}" y="${(bt + 4).toFixed(1)}" font-size="11">+${vLab}</text>
       <text x="${W - PADR + 6}" y="${(bb + 4).toFixed(1)}" font-size="11">\u2212${vLab}</text>
-      ${opt.riseRangeM != null ? `<text x="${(X(opt.riseRangeM) - 22).toFixed(1)}" y="${(bt - 6).toFixed(1)}" fill="#e2bd60" font-size="11.5">PEAK ${opt.riseRangeM}</text>` : ''}
+      ${opt.riseRangeM != null ? `<text x="${(X(opt.riseRangeM) - 22).toFixed(1)}" y="${(bt - 6).toFixed(1)}" fill="#e2bd60" font-size="11.5">PEAK ${aD(opt.riseRangeM)}</text>` : ''}
       <text x="${X(0).toFixed(1)}" y="${(bb + 19).toFixed(1)}">0</text>
-      ${farLabelFits ? `<text x="${(X(opt.zeroRangeM) - 14).toFixed(1)}" y="${(bb + 19).toFixed(1)}">${opt.zeroRangeM}</text>` : ''}
-      <text x="${(X(opt.maxRangeM) - 20).toFixed(1)}" y="${(bb + 19).toFixed(1)}" fill="#e2bd60" font-weight="600" font-size="13">${opt.maxRangeM} M</text>
-      ${showYours ? `<text x="${(X(heldMaxM) - 38).toFixed(1)}" y="${(bb - 19).toFixed(1)}" fill="rgba(240,228,192,0.75)" font-size="11">YOURS ${heldMaxM}</text>` : ''}
+      ${farLabelFits ? `<text x="${(X(opt.zeroRangeM) - 14).toFixed(1)}" y="${(bb + 19).toFixed(1)}">${aD(opt.zeroRangeM)}</text>` : ''}
+      <text x="${(X(opt.maxRangeM) - 20).toFixed(1)}" y="${(bb + 19).toFixed(1)}" fill="#e2bd60" font-weight="600" font-size="13">${aD(opt.maxRangeM)} ${imp ? 'YD' : 'M'}</text>
+      ${showYours ? `<text x="${(X(heldMaxM) - 38).toFixed(1)}" y="${(bb - 19).toFixed(1)}" fill="rgba(240,228,192,0.75)" font-size="11">YOURS ${aD(heldMaxM)}</text>` : ''}
     </g>
   </svg>`;
 }
@@ -1777,15 +1814,19 @@ function renderMpbrSection(p) {
   // tighter promise would be a lie in field conditions — that end of the
   // game belongs to the come-up card.
   const ZONE_PRESETS = [10, 7, 5, 4];
-  const zoneChips = [['species', (sp.label || '') + ' ' + speciesVital]]
-    .concat(ZONE_PRESETS.filter(v => v !== speciesVital).map(v => [v, String(v)]))
+  // Chip VALUES stay canonical cm; only the printed number turns imperial.
+  const zlab = (cm) => bxImp() ? String(+cmToInches(cm).toFixed(1)) : String(cm);
+  const zoneChips = [['species', (sp.label || '') + ' ' + zlab(speciesVital)]]
+    .concat(ZONE_PRESETS.filter(v => v !== speciesVital).map(v => [v, zlab(v)]))
     .map(([val, lab]) => {
       const on = (val === 'species') ? zoneOverride == null : zoneOverride === val;
       return `<button type="button" class="bx-pbr-zbtn${on ? ' on' : ''}" data-bx-zone="${val}">${escapeHtml(lab)}</button>`;
     }).join('');
-  const zoneBar = `<div class="bx-pbr-zonewrap"><div class="bx-pbr-zonebar" role="group" aria-label="Target size"><span class="bx-pbr-zlab">TARGET SIZE</span>${zoneChips}<span class="bx-pbr-zcm">cm</span></div>`
+  const zoneBar = `<div class="bx-pbr-zonewrap"><div class="bx-pbr-zonebar" role="group" aria-label="Target size"><span class="bx-pbr-zlab">TARGET SIZE</span>${zoneChips}<span class="bx-pbr-zcm">${bxSmallU()}</span></div>`
     + `<div class="bx-pbr-zhelp">The size of the target you are aiming for — your bullet must stay inside it for a dead-centre hold to work. The species figure is the deer's heart-and-lung area; pick a smaller number for a smaller mark.</div></div>`;
-  const zoneNoun = zoneOverride ? `${Math.round(vital)} cm zone (your setting)` : `${Math.round(vital)} cm vital zone (${escapeHtml(sp.label || '')})`;
+  const zoneNoun = zoneOverride
+    ? `${bxImp() ? +cmToInches(vital).toFixed(1) : Math.round(vital)} ${bxSmallU()} zone (your setting)`
+    : `${bxImp() ? +cmToInches(vital).toFixed(1) : Math.round(vital)} ${bxSmallU()} vital zone (${escapeHtml(sp.label || '')})`;
   let res;
   if (_mpbrCache.key === key) res = _mpbrCache.val;
   else {
@@ -1817,19 +1858,22 @@ function renderMpbrSection(p) {
     _pbrOptCache = { key, val: opt };
   }
   const vitalCm = Math.round(vitalRadius * 2);
-  const optLabelTail = zoneOverride ? `${vitalCm} cm zone` : escapeHtml(sp.label || '');
+  const optLabelTail = zoneOverride ? `${bxImp() ? +cmToInches(vitalCm).toFixed(1) : vitalCm} ${bxSmallU()} zone` : escapeHtml(sp.label || '');
   let optHtml = '';
   if (opt && opt.zeroRangeM && opt.sightIn100Cm != null) {
+    // The sight-in anchor deliberately STAYS "at 100 m" in both voices — the
+    // height converts, the anchor distance is exact and stated. Restating it
+    // "at 100 yd" would quietly change the number's meaning by 8.56 m.
     const sightLine = opt.sightIn100Cm >= 0.1
-      ? `<strong>${opt.sightIn100Cm.toFixed(1)} cm high at 100 m</strong>`
+      ? `<strong>${bxSmall(opt.sightIn100Cm)} ${bxSmallU()} high at 100 m</strong>`
       : '<strong>dead on at 100 m</strong>';
     // The persuasive line: what the best zero BUYS over the one in the profile.
     let deltaNote = '';
     if (res && res.maxRangeM) {
       const gain = opt.maxRangeM - res.maxRangeM;
       deltaNote = gain >= 10
-        ? ` That buys you ${gain} m of dead-hold over your current ${res.zeroRangeM} m zero.`
-        : ` Your current ${res.zeroRangeM} m zero already gets within ${Math.max(0, gain)} m of it.`;
+        ? ` That buys you ${bxDist(gain)} ${bxDistU()} of dead-hold over your current ${bxDist(res.zeroRangeM)} ${bxDistU()} zero.`
+        : ` Your current ${bxDist(res.zeroRangeM)} ${bxDistU()} zero already gets within ${bxDist(Math.max(0, gain))} ${bxDistU()} of it.`;
     }
     // 12.89 (owner: "What about the metrics") — the email asked for four
     // numbers BY NAME: near zero, far zero, minimum and maximum point blank
@@ -1850,17 +1894,19 @@ function renderMpbrSection(p) {
         };
         const ang = findZeroAngle(b2, opt.zeroRangeM);
         const traj = solveTrajectory({ ...b2, launchAngleRad: ang, maxRangeM: opt.maxRangeM + 25, stepM: 2 });
-        arc = pbrArcSvg(opt, res && res.maxRangeM, vitalRadius, traj);
+        arc = pbrArcSvg(opt, res && res.maxRangeM, vitalRadius, traj, bxImp());
       } catch (_) { arc = ''; }
       _pbrArcCache = { key, val: arc };
     }
-    const holdSpan = opt.nearRangeM > 0 ? `${opt.nearRangeM}–${opt.maxRangeM} m` : `0–${opt.maxRangeM} m`;
+    const holdSpan = opt.nearRangeM > 0
+      ? `${bxDist(opt.nearRangeM)}–${bxDist(opt.maxRangeM)} ${bxDistU()}`
+      : `0–${bxDist(opt.maxRangeM)} ${bxDistU()}`;
     const strip = `
       <div class="bx-pbr-strip">
-        <span class="bx-pbr-cell"><b>${opt.nearZeroM != null ? opt.nearZeroM + ' m' : '—'}</b>near zero</span>
-        <span class="bx-pbr-cell"><b>${opt.zeroRangeM} m</b>far zero</span>
+        <span class="bx-pbr-cell"><b>${opt.nearZeroM != null ? bxDist(opt.nearZeroM) + ' ' + bxDistU() : '—'}</b>near zero</span>
+        <span class="bx-pbr-cell"><b>${bxDist(opt.zeroRangeM)} ${bxDistU()}</b>far zero</span>
         <span class="bx-pbr-cell"><b>${holdSpan}</b>point blank</span>
-        <span class="bx-pbr-cell"><b>${opt.maxRiseCm.toFixed(1)} cm</b>peak · ${opt.riseRangeM} m</span>
+        <span class="bx-pbr-cell"><b>${bxSmall(opt.maxRiseCm)} ${bxSmallU()}</b>peak · ${bxDist(opt.riseRangeM)} ${bxDistU()}</span>
       </div>`;
     optHtml = `
     <div class="bx-output-section">
@@ -1868,13 +1914,13 @@ function renderMpbrSection(p) {
       <div class="bx-mpbr-main">Zero ${sightLine}</div>
       ${strip}
       ${arc}
-      <div class="bx-mpbr-sub">That is a ${opt.zeroRangeM} m zero — the flattest this load can shoot a ${zoneNoun}: aim dead-centre ${opt.nearRangeM > 0 ? `from ${opt.nearRangeM} m` : 'from the muzzle'} to <strong>${opt.maxRangeM} m</strong>.${deltaNote} On the range: ${opt.sightIn100Cm >= 0.1 ? `set the group ${opt.sightIn100Cm.toFixed(1)} cm above point of aim at 100 m` : 'zero exactly at 100 m'}, then confirm.</div>
+      <div class="bx-mpbr-sub">That is a ${bxDist(opt.zeroRangeM)} ${bxDistU()} zero — the flattest this load can shoot a ${zoneNoun}: aim dead-centre ${opt.nearRangeM > 0 ? `from ${bxDist(opt.nearRangeM)} ${bxDistU()}` : 'from the muzzle'} to <strong>${bxDist(opt.maxRangeM)} ${bxDistU()}</strong>.${deltaNote} On the range: ${opt.sightIn100Cm >= 0.1 ? `set the group ${bxSmall(opt.sightIn100Cm)} ${bxSmallU()} above point of aim at 100 m` : 'zero exactly at 100 m'}, then confirm.</div>
     </div>
   `;
   }
   if (!res) return optHtml ? zoneBar + optHtml : '';
   const riseNote = res.risesAbove
-    ? ` It climbs ~${res.maxRiseCm.toFixed(0)} cm high around ${res.riseRangeM}m — above the vital centre, so hold a touch low there (a lower zero would flatten it).`
+    ? ` It climbs ~${bxSmall(res.maxRiseCm, 0)} ${bxSmallU()} high around ${bxDist(res.riseRangeM)}${bxDistU()} — above the vital centre, so hold a touch low there (a lower zero would flatten it).`
     : '';
   // If the mid-range arc climbs past the TOP of the vital zone (not merely above
   // the centre), "dead-hold, no hold-over needed" is an over-claim — the bullet
@@ -1887,17 +1933,17 @@ function renderMpbrSection(p) {
   if (res.risesAbove && res.maxRiseCm > res.vitalRadiusCm + 0.35) {
     return zoneBar + `
     <div class="bx-output-section">
-      <div class="bx-output-label">Dead-hold zone · ${res.zeroRangeM}m zero</div>
+      <div class="bx-output-label">Dead-hold zone · ${bxDist(res.zeroRangeM)}${bxDistU()} zero</div>
       <div class="bx-mpbr-main">Not a clean dead-hold at this zero</div>
-      <div class="bx-mpbr-sub">With your ${res.zeroRangeM}m zero the bullet climbs ~${res.maxRiseCm.toFixed(0)} cm above your aim around ${res.riseRangeM}m — past the top of a ${zoneNoun}, so it isn't a true dead-hold. Hold a touch low near ${res.riseRangeM}m, or use a lower zero to flatten the arc; use the come-up above for longer shots.</div>
+      <div class="bx-mpbr-sub">With your ${bxDist(res.zeroRangeM)}${bxDistU()} zero the bullet climbs ~${bxSmall(res.maxRiseCm, 0)} ${bxSmallU()} above your aim around ${bxDist(res.riseRangeM)}${bxDistU()} — past the top of a ${zoneNoun}, so it isn't a true dead-hold. Hold a touch low near ${bxDist(res.riseRangeM)}${bxDistU()}, or use a lower zero to flatten the arc; use the come-up above for longer shots.</div>
     </div>
   ` + optHtml;
   }
   return zoneBar + `
     <div class="bx-output-section">
-      <div class="bx-output-label">Dead-hold zone · ${res.zeroRangeM}m zero</div>
-      <div class="bx-mpbr-main">Hold dead-on to <strong>${res.maxRangeM}m</strong></div>
-      <div class="bx-mpbr-sub">With your ${res.zeroRangeM}m zero, aim at the vital centre and the bullet stays inside a ${zoneNoun} out to ${res.maxRangeM}m — no hold-over needed. Beyond that, use the come-up above.${riseNote}</div>
+      <div class="bx-output-label">Dead-hold zone · ${bxDist(res.zeroRangeM)}${bxDistU()} zero</div>
+      <div class="bx-mpbr-main">Hold dead-on to <strong>${bxDist(res.maxRangeM)}${bxDistU()}</strong></div>
+      <div class="bx-mpbr-sub">With your ${bxDist(res.zeroRangeM)}${bxDistU()} zero, aim at the vital centre and the bullet stays inside a ${zoneNoun} out to ${bxDist(res.maxRangeM)}${bxDistU()} — no hold-over needed. Beyond that, use the come-up above.${riseNote}</div>
     </div>
   ` + optHtml;
 }
@@ -1918,7 +1964,7 @@ function renderSubsonicPanel(profile) {
 
   let guidance, neverNote = '';
   if (binding) {
-    guidance = `<div class="bx-subsonic-main">Don't shoot past <strong>${binding.maxRangeM} m</strong>
+    guidance = `<div class="bx-subsonic-main">Don't shoot past <strong>${bxDist(binding.maxRangeM)} ${bxDistU()}</strong>
       <span class="bx-subsonic-sub">— retained energy drops below the ${binding.thresholdFtLb} ft-lb floor for ${escapeHtml(binding.speciesLabel)} beyond this.</span></div>`;
     if (neverMet.length) {
       neverNote = `<div class="bx-subsonic-sub">Never reaches the energy floor for ${escapeHtml(neverMet.map(r => r.speciesLabel).join(', '))} — not an ethical choice for ${neverMet.length > 1 ? 'those species' : 'that species'}.</div>`;
@@ -2092,13 +2138,13 @@ function renderEthicalRangeSection(profile) {
         return `
         <div class="bx-eth-row">
           <span class="bx-eth-species">${species}</span>
-          <span class="bx-eth-range" title="Still above the ${r.thresholdFtLb} ft-lb floor at ${r.maxRangeM}m, the furthest this calculation probes. The real crossing is further out.">${r.maxRangeM}m+ <span class="bx-eth-threshold">(${r.thresholdFtLb} ft-lb)</span></span>
+          <span class="bx-eth-range" title="Still above the ${r.thresholdFtLb} ft-lb floor at ${bxDist(r.maxRangeM)}${bxDistU()}, the furthest this calculation probes. The real crossing is further out.">${bxDist(r.maxRangeM)}${bxDistU()}+ <span class="bx-eth-threshold">(${r.thresholdFtLb} ft-lb)</span></span>
         </div>`;
       }
       return `
       <div class="bx-eth-row">
         <span class="bx-eth-species">${species}</span>
-        <span class="bx-eth-range">${r.maxRangeM}m <span class="bx-eth-threshold">(${r.thresholdFtLb} ft-lb)</span></span>
+        <span class="bx-eth-range">${bxDist(r.maxRangeM)}${bxDistU()} <span class="bx-eth-threshold">(${r.thresholdFtLb} ft-lb)</span></span>
       </div>`;
     }).join('');
   })(ranges);
@@ -2115,6 +2161,13 @@ function renderEthicalRangeSection(profile) {
       </div>
     </div>
   `;
+}
+
+// The collapsed chart's summary line is static HTML — repaint it when the
+// units voice changes (25–400 m ≡ 27–437 yd).
+function bxPaintChartSummary() {
+  const el = $('bx-chart-summary-title');
+  if (el) el.textContent = bxImp() ? 'Drop curve · 27–437yd' : 'Drop curve · 25–400m';
 }
 
 function renderDropChart() {
@@ -2145,14 +2198,25 @@ function renderDropChart() {
     const d = sampleDropAt(curve, r);
     return d == null ? null : Math.round(d);
   };
-  const samples = [100, 200, 300, 400].map(r => {
-    const d = dropAt(r);
+  // 14.01: imperial gridlines sit at round YARD marks (100…400 yd), solved at
+  // their true metre positions — relabelling the metric gridlines "109yd"
+  // would be a chart nobody lasers in.
+  const imp = bxImp();
+  const gridMarks = imp
+    ? [100, 200, 300, 400].map(v => ({ m: yardsToMetres(v), lab: v + 'yd' }))
+    : [100, 200, 300, 400].map(v => ({ m: v, lab: v + 'm' }));
+  const samples = gridMarks.map(g => {
+    const d = dropAt(Math.round(g.m));
     if (d == null) return null;
-    if (Math.abs(d) < 1) return `on the zero at ${r} metres`;
-    return `${Math.abs(d)} centimetres ${d > 0 ? 'low' : 'high'} at ${r} metres`;
+    const at = imp ? `${Math.round(metresToYards(g.m))} yards` : `${Math.round(g.m)} metres`;
+    if (Math.abs(d) < 1) return `on the zero at ${at}`;
+    return imp
+      ? `${cmToInches(Math.abs(d)).toFixed(1)} inches ${d > 0 ? 'low' : 'high'} at ${at}`
+      : `${Math.abs(d)} centimetres ${d > 0 ? 'low' : 'high'} at ${at}`;
   }).filter(Boolean);
-  canvas.setAttribute('aria-label',
-    `Bullet drop curve from 25 to 400 metres, ${p.zeroRangeM} metre zero: ${samples.join(', ')}.`);
+  canvas.setAttribute('aria-label', imp
+    ? `Bullet drop curve from 27 to 437 yards, ${Math.round(metresToYards(p.zeroRangeM))} yard zero: ${samples.join(', ')}.`
+    : `Bullet drop curve from 25 to 400 metres, ${p.zeroRangeM} metre zero: ${samples.join(', ')}.`);
 
   const pad = { l: 40, r: 12, t: 12, b: 26 };
   const cw = W - pad.l - pad.r;
@@ -2174,10 +2238,10 @@ function renderDropChart() {
   ctx.lineWidth = 1;
   ctx.font = '10px "DM Mono", monospace';
   ctx.fillStyle = 'rgba(255,255,255,0.4)';
-  for (let r = 100; r <= maxRange; r += 100) {
-    const x = xAt(r);
+  for (const g of gridMarks) {
+    const x = xAt(g.m);
     ctx.beginPath(); ctx.moveTo(x, pad.t); ctx.lineTo(x, pad.t + ch); ctx.stroke();
-    ctx.fillText(r + 'm', x - 12, H - 8);
+    ctx.fillText(g.lab, x - 12, H - 8);
   }
   // y=0 line
   const y0 = yAt(0);
@@ -2298,15 +2362,16 @@ function openSetupWizard() {
         <div class="bx-field">
           <label for="bx-w-zero">Zero distance</label>
           <select id="bx-w-zero">
-            <option value="100" ${wizard.zeroRangeM===100?'selected':''}>100 m</option>
-            <option value="150" ${wizard.zeroRangeM===150?'selected':''}>150 m</option>
-            <option value="200" ${wizard.zeroRangeM===200?'selected':''}>200 m</option>
+            ${[100, 150, 200].map(z => {
+              const cur = Math.round(bxImp() ? metresToYards(wizard.zeroRangeM) : wizard.zeroRangeM);
+              return `<option value="${z}" ${cur === z ? 'selected' : ''}>${z} ${bxDistU()}</option>`;
+            }).join('')}
           </select>
         </div>
         <div class="bx-field">
-          <label for="bx-w-sight">Sight height above bore (cm)</label>
-          <input type="number" id="bx-w-sight" min="2" max="10" step="0.1" value="${wizard.sightHeightCm}">
-          <div class="bx-field-hint">Typical 3.8–4.5cm for standard scope rings</div>
+          <label for="bx-w-sight">Sight height above bore (${bxSmallU()})</label>
+          <input type="number" id="bx-w-sight" min="${bxImp() ? 0.8 : 2}" max="${bxImp() ? 4 : 10}" step="0.1" value="${bxImp() ? +cmToInches(wizard.sightHeightCm).toFixed(1) : wizard.sightHeightCm}">
+          <div class="bx-field-hint">Typical ${bxImp() ? '1.5–1.8in' : '3.8–4.5cm'} for standard scope rings</div>
         </div>
         <div class="bx-field">
           <label for="bx-w-barrel">Barrel length (inches)</label>
@@ -2464,8 +2529,12 @@ function openSetupWizard() {
   function captureStep() {
     if (wizard.step === 1) {
       wizard.name = $('bx-w-name')?.value || '';
-      wizard.zeroRangeM = parseInt($('bx-w-zero')?.value, 10) || 100;
-      wizard.sightHeightCm = parseFloat($('bx-w-sight')?.value) || 4.0;
+      const zSel = parseInt($('bx-w-zero')?.value, 10) || 100;
+      wizard.zeroRangeM = bxImp() ? +yardsToMetres(zSel).toFixed(2) : zSel;
+      const shRaw = parseFloat($('bx-w-sight')?.value);
+      wizard.sightHeightCm = bxImp()
+        ? (shRaw > 0 ? +inchesToCm(shRaw).toFixed(2) : 4.0)
+        : (shRaw || 4.0);
       wizard.barrelInches = parseFloat($('bx-w-barrel')?.value) || 22;
     } else if (wizard.step === 2) {
       if (wizard.manual) {
@@ -2598,8 +2667,10 @@ function openTruingModal(pid) {
   const prefillDist = units === 'imperial' ? Math.round(metresToYards(state.rangeM)) : state.rangeM;
   const isTrued = Number.isFinite(p.truedMvFps) && p.truedMvFps > 0;
 
-  // Format a signed drop (cm; + = below aim) as an up/down phrase.
-  const fmtCm = (v) => (v < 0 ? 'up ' : 'down ') + Math.abs(v).toFixed(1) + ' cm';
+  // Format a signed drop (cm; + = below aim) as an up/down phrase, in the
+  // active units voice.
+  const fmtCm = (v) => (v < 0 ? 'up ' : 'down ')
+    + (units === 'imperial' ? (Math.abs(v) / 2.54).toFixed(1) + ' in' : Math.abs(v).toFixed(1) + ' cm');
 
   modal.innerHTML = `
     <div class="bx-modal-card">
@@ -2618,7 +2689,7 @@ function openTruingModal(pid) {
         ${isTrued ? `
         <div class="bx-trued-current">
           Currently trued to <strong>${Math.round(p.truedMvFps)} fps</strong>
-          (${p.truedMvFps - p.muzzleVelocityFps >= 0 ? '+' : ''}${Math.round(p.truedMvFps - p.muzzleVelocityFps)} fps vs published${p.truedAtRangeM ? `, from ${p.truedAtRangeM} m` : ''}).
+          (${p.truedMvFps - p.muzzleVelocityFps >= 0 ? '+' : ''}${Math.round(p.truedMvFps - p.muzzleVelocityFps)} fps vs published${p.truedAtRangeM ? `, from ${units === 'imperial' ? Math.round(metresToYards(p.truedAtRangeM)) + ' yd' : p.truedAtRangeM + ' m'}` : ''}).
         </div>` : ''}
 
         <div class="bx-row-2" style="margin-top:12px;">
@@ -2642,8 +2713,8 @@ function openTruingModal(pid) {
           <div class="bx-field">
             <label for="bx-true-unit">Measured in</label>
             <select id="bx-true-unit">
-              <option value="cm">cm</option>
-              <option value="in">inch</option>
+              <option value="cm" ${units === 'imperial' ? '' : 'selected'}>cm</option>
+              <option value="in" ${units === 'imperial' ? 'selected' : ''}>inch</option>
               <option value="moa">MOA</option>
               <option value="mil">MIL / MRAD</option>
             </select>
@@ -2690,7 +2761,7 @@ function openTruingModal(pid) {
     }
     const rangeM = units === 'imperial' ? yardsToMetres(distVal) : distVal;
     if (!(rangeM > p.zeroRangeM)) {
-      warn(`True beyond your zero range (${p.zeroRangeM} m) &mdash; drop is too small to correct at or inside the zero.`); return;
+      warn(`True beyond your zero range (${units === 'imperial' ? Math.round(metresToYards(p.zeroRangeM)) + ' yd' : p.zeroRangeM + ' m'}) &mdash; drop is too small to correct at or inside the zero.`); return;
     }
     // Convert the observed miss to cm at that range (cmToMoa/cmToMil are linear,
     // so the per-unit size is their value at 1 cm).
@@ -2740,9 +2811,9 @@ function openTruingModal(pid) {
       <div class="bx-true-mv">Trued muzzle velocity: <strong>${truedFps} fps</strong>
         <span class="bx-true-delta">(${deltaFps >= 0 ? '+' : ''}${deltaFps} fps vs published ${Math.round(p.muzzleVelocityFps)})</span></div>
       <div class="bx-true-detail">
-        At ${solved.truedAtRangeM} m your rifle hit ${fmtCm(observedDropCm)}; the current data predicted ${predCm != null ? fmtCm(predCm) : '&mdash;'}.
+        At ${units === 'imperial' ? Math.round(metresToYards(solved.truedAtRangeM)) + ' yd' : solved.truedAtRangeM + ' m'} your rifle hit ${fmtCm(observedDropCm)}; the current data predicted ${predCm != null ? fmtCm(predCm) : '&mdash;'}.
         Saving corrects every come-up, dead-hold range and retained-energy figure to match your rifle.
-        ${big ? `<br><strong>That's a large correction (${deltaFps >= 0 ? '+' : ''}${deltaFps} fps).</strong> A miss this size at ${solved.truedAtRangeM} m more often comes from a zero error, wind, or the wrong load on record than from velocity — double-check your zero and load before saving.` : ''}
+        ${big ? `<br><strong>That's a large correction (${deltaFps >= 0 ? '+' : ''}${deltaFps} fps).</strong> A miss this size at ${units === 'imperial' ? Math.round(metresToYards(solved.truedAtRangeM)) + ' yd' : solved.truedAtRangeM + ' m'} more often comes from a zero error, wind, or the wrong load on record than from velocity — double-check your zero and load before saving.` : ''}
       </div>
     `;
     $('bx-true-save').disabled = false;
@@ -3488,8 +3559,8 @@ function openProfileEditor(pid) {
           <div class="bx-field"><label for="bx-e-bc7">BC (G7)</label><input type="number" id="bx-e-bc7" step="0.001" value="${p.bcG7}"></div>
         </div>
         <div class="bx-row-2">
-          <div class="bx-field"><label for="bx-e-sh">Sight height (cm)</label><input type="number" id="bx-e-sh" step="0.1" value="${p.sightHeightCm}"></div>
-          <div class="bx-field"><label for="bx-e-zero">Zero range (m)</label><input type="number" id="bx-e-zero" value="${p.zeroRangeM}"></div>
+          <div class="bx-field"><label for="bx-e-sh">Sight height (${bxSmallU()})</label><input type="number" id="bx-e-sh" step="0.1" value="${bxImp() ? +cmToInches(p.sightHeightCm).toFixed(2) : p.sightHeightCm}"></div>
+          <div class="bx-field"><label for="bx-e-zero">Zero range (${bxDistU()})</label><input type="number" id="bx-e-zero" value="${bxImp() ? Math.round(metresToYards(p.zeroRangeM)) : p.zeroRangeM}"></div>
         </div>
 
         <div class="bx-field-section-label">Chronograph correction (optional)</div>
@@ -3582,10 +3653,12 @@ function openProfileEditor(pid) {
     // Reject negative / out-of-range geometry (audit §2): a negative sight height
     // silently produces wrong holds; a negative or zero zero-range makes the
     // solver throw and leaves the profile stuck on "Could not compute".
-    const newSh = parseFloat($('bx-e-sh').value);
-    const newZero = parseInt($('bx-e-zero').value, 10);
-    if (!(newSh > 0 && newSh <= 15)) { toast('Sight height must be between 0 and 15 cm', 'warn'); return; }
-    if (!(newZero >= 10 && newZero <= 500)) { toast('Zero range must be between 10 and 500 m', 'warn'); return; }
+    const shRaw = parseFloat($('bx-e-sh').value);
+    const newSh = bxImp() ? +inchesToCm(shRaw).toFixed(2) : shRaw;
+    const zRaw = parseInt($('bx-e-zero').value, 10);
+    const newZero = bxImp() ? Math.round(yardsToMetres(zRaw)) : zRaw;
+    if (!(newSh > 0 && newSh <= 15)) { toast(bxImp() ? 'Sight height must be between 0 and 5.9 in' : 'Sight height must be between 0 and 15 cm', 'warn'); return; }
+    if (!(newZero >= 10 && newZero <= 500)) { toast(bxImp() ? 'Zero range must be between 11 and 547 yd' : 'Zero range must be between 10 and 500 m', 'warn'); return; }
     p.name = $('bx-e-name').value || p.name;
     if (newMv !== p.muzzleVelocityFps || newBc1 !== p.bcG1 || newBc7 !== p.bcG7) p.custom = true;
     p.muzzleVelocityFps = newMv;
@@ -3745,12 +3818,16 @@ function openReticleEstimator() {
   //   Fallow ......... 50
   //   Sika ........... 50
   //   Red ............ 70
+  // 14.03 (units audit): this tool has NO caller today — it is parked, like
+  // the units toggle once was. Its strings carry the units voice anyway, so
+  // whoever wires a button to it later cannot resurrect raw metres by accident.
+  const zsz = (cm) => bxImp() ? `${+cmToInches(cm).toFixed(0)}in` : `${cm}cm`;
   const presets = [
-    { code: 'roe',     label: 'Roe (35cm)',         cm: 35 },
-    { code: 'muntjac', label: 'Muntjac/CWD (28cm)', cm: 28 },
-    { code: 'fallow',  label: 'Fallow (50cm)',      cm: 50 },
-    { code: 'sika',    label: 'Sika (50cm)',        cm: 50 },
-    { code: 'red',     label: 'Red (70cm)',         cm: 70 },
+    { code: 'roe',     label: `Roe (${zsz(35)})`,         cm: 35 },
+    { code: 'muntjac', label: `Muntjac/CWD (${zsz(28)})`, cm: 28 },
+    { code: 'fallow',  label: `Fallow (${zsz(50)})`,      cm: 50 },
+    { code: 'sika',    label: `Sika (${zsz(50)})`,        cm: 50 },
+    { code: 'red',     label: `Red (${zsz(70)})`,         cm: 70 },
   ];
 
   const modal = $('bx-modal');
@@ -3812,10 +3889,10 @@ function openReticleEstimator() {
     lastRangeM = Math.round(rangeM);
     if (lastRangeM < 25 || lastRangeM > 500) {
       result.style.display = 'block';
-      $('bx-r-range').innerHTML = `${lastRangeM} m <span style="font-size:11px;color:rgba(255,255,255,0.5);">— outside slider range</span>`;
+      $('bx-r-range').innerHTML = `${bxDist(lastRangeM)} ${bxDistU()} <span style="font-size:11px;color:rgba(255,255,255,0.5);">— outside slider range</span>`;
     } else {
       result.style.display = 'block';
-      $('bx-r-range').textContent = lastRangeM + ' m';
+      $('bx-r-range').textContent = bxDist(lastRangeM) + ' ' + bxDistU();
     }
   }
 
@@ -3838,7 +3915,7 @@ function openReticleEstimator() {
     closeModal();
     renderRangeControl();
     renderOutput();
-    toast('Range set to ' + state.rangeM + ' m', 'ok');
+    toast('Range set to ' + bxDist(state.rangeM) + ' ' + bxDistU(), 'ok');
   });
 }
 
@@ -4323,6 +4400,7 @@ function generateDopeCard(sizeName, ranges) {
       speciesLabel: speciesLabel || minimaSpeciesLabel,
       thresholdFtLb,
       legalMinima,
+      units: state.settings.units,
       anatomy: state.settings.anatomyEnabled ? {
         speciesKey: state.settings.anatomySpecies,
         sex: state.settings.anatomySex,
@@ -4355,7 +4433,7 @@ function openDopeCardOptions(sizeName) {
       <div class="bx-modal-body">
         <div class="bx-row-2">
           <div class="bx-field">
-            <label for="bx-dope-max">Furthest range (m)</label>
+            <label for="bx-dope-max">Furthest range (${bxDistU()})</label>
             <select id="bx-dope-max">
               <option value="200">200</option>
               <option value="300">300</option>
@@ -4364,7 +4442,7 @@ function openDopeCardOptions(sizeName) {
             </select>
           </div>
           <div class="bx-field">
-            <label for="bx-dope-step">Step (m)</label>
+            <label for="bx-dope-step">Step (${bxDistU()})</label>
             <select id="bx-dope-step">
               <option value="25" selected>25</option>
               <option value="50">50</option>
@@ -4374,14 +4452,14 @@ function openDopeCardOptions(sizeName) {
         <div class="bx-field">
           <label for="bx-dope-extra">Add specific ranges (optional)</label>
           <input type="text" id="bx-dope-extra" inputmode="numeric" placeholder="e.g. 147, 283">
-          <div class="bx-field-hint">Comma-separated, in metres &mdash; your lasered distances. Added as their own rows.</div>
+          <div class="bx-field-hint">Comma-separated, in ${bxImp() ? 'yards' : 'metres'} &mdash; your lasered distances. Added as their own rows.</div>
         </div>
         <label style="display:flex;align-items:center;gap:8px;font-size:13px;color:rgba(255,255,255,0.85);margin-top:6px;cursor:pointer;">
-          <input type="checkbox" id="bx-dope-zero" checked> Include a row at your ${p.zeroRangeM} m zero
+          <input type="checkbox" id="bx-dope-zero" checked> Include a row at your ${bxDist(p.zeroRangeM)} ${bxDistU()} zero
         </label>
         <div class="bx-field-hint" style="margin-top:12px;">
           Card assumes today's conditions (${state.conditions.tempC.toFixed(0)} &deg;C, ${state.conditions.pressureHpa.toFixed(0)} hPa)
-          and a ${DOPE_WIND_REF_MS} m/s reference crosswind for the Wind column. Columns: drop in cm, MOA, MIL, wind drift, velocity, energy.
+          and a ${DOPE_WIND_REF_MS} m/s reference crosswind for the Wind column. Columns: drop in ${bxImp() ? 'inches' : 'cm'}, MOA, MIL, wind drift, velocity, energy.
         </div>
       </div>
       <div class="bx-modal-actions">
@@ -4394,10 +4472,13 @@ function openDopeCardOptions(sizeName) {
   $('bx-dope-go').addEventListener('click', () => {
     const maxV = parseInt($('bx-dope-max').value, 10) || 400;
     const stepV = parseInt($('bx-dope-step').value, 10) || 25;
+    // The grid is built in the DISPLAY unit (so imperial gets a 25 yd step to
+    // a round 400 yd card), then converted once — the solver takes metres.
+    const toM = (v) => bxImp() ? yardsToMetres(v) : v;
     const ranges = [];
-    for (let r = stepV; r <= maxV; r += stepV) ranges.push(r);
+    for (let r = stepV; r <= maxV; r += stepV) ranges.push(toM(r));
     const extra = ($('bx-dope-extra').value || '').split(/[,\s]+/).map(s => parseFloat(s)).filter(v => v > 0);
-    for (const v of extra) ranges.push(v);
+    for (const v of extra) ranges.push(toM(v));
     if ($('bx-dope-zero').checked && p.zeroRangeM > 0) ranges.push(p.zeroRangeM);
     closeModal();
     generateDopeCard(sizeName, ranges);
@@ -4416,11 +4497,15 @@ export async function initBallisticsUi() {
   const settings = loadSettingsFromStorage();
   if (settings) {
     state.activeProfileId = settings.activeProfileId || null;
-    // Force metric for launch: the yard toggle's conversion is incomplete (hold,
-    // wind, dead-hold and the cards stay metric), so a persisted 'imperial' would
-    // render a mixed read-out. The toggle is hidden in CSS; re-enable both here and
-    // in ballistics.css once yards are wired through everywhere (audit §2).
-    state.settings.units = 'metric';
+    // 14.01: yards are wired through everywhere (hold, wind, dead-hold, chart,
+    // zeros, wizard, truing, dope card), so the launch-era force-metric guard is
+    // retired and the toggle is visible again. The shared 'fl-units' key — the
+    // diary's Units setting writes it too — wins over this page's own persisted
+    // blob, so both surfaces speak with one voice.
+    const sharedU = readSharedUnits();
+    state.settings.units = (sharedU && sharedU.dist === 'yd') ? 'imperial'
+      : (sharedU && sharedU.dist === 'm') ? 'metric'
+      : (settings.units === 'imperial' ? 'imperial' : 'metric');
     state.settings.jurisdiction = settings.jurisdiction || 'england-wales';
     state.settings.speciesFilter = Array.isArray(settings.speciesFilter) && settings.speciesFilter.length
       ? settings.speciesFilter
@@ -4566,10 +4651,26 @@ export async function initBallisticsUi() {
   }
   function setUnits(u) {
     state.settings.units = u; saveSettingsToStorage();
-    syncUnitsToggle(); renderRangeControl(); renderOutput();
+    writeSharedUnitsDist(u === 'imperial' ? 'yd' : 'm');
+    // Every surface carries units now: profile bar (zero chips + summary),
+    // output card, chart axis + its summary line, and the slider's aria.
+    syncUnitsToggle(); renderAll(); renderDropChart(); bxPaintChartSummary();
   }
+  bxPaintChartSummary();
   if (unitBtnM) unitBtnM.addEventListener('click', () => setUnits('metric'));
   if (unitBtnYd) unitBtnYd.addEventListener('click', () => setUnits('imperial'));
+  // 14.03 (units audit): the diary's Units card writes the same shared key
+  // from its own tab. 'storage' fires only in OTHER tabs — exactly the gap —
+  // so an already-open calculator follows a diary-side flip live.
+  window.addEventListener('storage', (e) => {
+    if (e.key !== FL_UNITS_KEY) return;
+    const u = readSharedUnits();
+    const next = (u && u.dist === 'yd') ? 'imperial' : 'metric';
+    if (next === state.settings.units) return;
+    state.settings.units = next;
+    saveSettingsToStorage();
+    syncUnitsToggle(); renderAll(); renderDropChart(); bxPaintChartSummary();
+  });
   syncUnitsToggle();
 
   const jurSelect = $('bx-jurisdiction');
