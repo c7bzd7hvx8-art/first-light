@@ -221,6 +221,9 @@
       <span class="sight-strip-s" id="sight-strip-sub">Log live deer you see</span>
       <span class="sight-strip-arr" aria-hidden="true"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 5 7 7-7 7"/></svg></span>
     </button>
+    <!-- 13.46: your next booked outing + the post-outing "log it?" nudge.
+         Hidden until there's something to say (renderHomeOutingStrip). -->
+    <div id="home-outing-wrap" style="display:none;"></div>
   </div>
   <!-- DL6: chips are rendered from the diary's ACTUAL species
        (renderSpeciesChips) — this is the pre-load skeleton only. -->
@@ -585,6 +588,11 @@
           <option value="">Personal only (no syndicate)</option>
         </select>
         <div id="f-syndicate-auto-note" class="loc-ground-note-line" style="display:none;color:#2d7a1a;margin-top:6px;"></div>
+        <!-- 13.58: opt-in shout — a saved cull posts a line to the syndicate thread. -->
+        <label id="f-syn-tell-wrap" style="display:none;align-items:center;gap:8px;margin-top:8px;font-size:12px;color:var(--bark);cursor:pointer;">
+          <input type="checkbox" id="f-syn-tell" style="accent-color:#5a7a30;width:15px;height:15px;margin:0;flex:none;">
+          Tell the syndicate — post this to Messages
+        </label>
         <div class="loc-ground-note">
           <span class="loc-ground-note-line">Choose one syndicate for this cull, or leave personal only.</span>
           <span class="loc-ground-note-line">A cull can count toward one syndicate at most.</span>
@@ -718,6 +726,76 @@
          only when editing an existing sighting (id wired by openEditSighting). -->
     <button class="sight-del-btn" id="sight-delete-btn" type="button" data-fl-action="delete-sighting" style="display:none;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6M14 11v6"/></svg>Delete this sighting</button>
     <div class="save-note">Syncs to Supabase. Works offline.</div>
+  </div>
+</div>
+
+<!-- ══ SYNDICATE (v-syndicate — the syndicate's own page, 2026-08-10) ══ -->
+<div id="v-syndicate" role="main" class="view">
+  <div class="stats-hdr">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
+      <button class="back-link" style="margin-bottom:0;" type="button" data-fl-action="go" data-view="v-list">← Diary</button>
+    </div>
+    <div class="stats-hdr-row">
+      <h2 data-fl-action="synd-dbg-tap">Syndicate</h2>
+    </div>
+    <p style="margin-top:4px;">Ground, team, bookings — everything the syndicate shares.</p>
+  </div>
+  <div class="wrap" style="padding:14px 14px calc(84px + env(safe-area-inset-bottom,0px));">
+    <!-- 13.86: chips only earn their row when you belong to 2+ syndicates. -->
+    <div id="synd-page-chips" class="stnd-plan-tog" style="display:none;margin-bottom:12px;flex-wrap:wrap;"></div>
+    <!-- 13.86: THE MASTHEAD — one identity block: name + bell, people, scale,
+         actions. Replaces the old chip/members/strip/push-card stack. -->
+    <div id="synd-page-masthead" class="synd-mast" style="display:none;">
+      <div class="synd-mast-top">
+        <div id="synd-mast-name" class="synd-mast-name"></div>
+        <span id="synd-mast-bell"></span>
+      </div>
+      <div id="synd-page-members" style="display:none;margin:7px 0 0 0;"></div>
+      <div id="synd-mast-meta" class="synd-mast-meta"></div>
+    </div>
+    <!-- 13.69: BEST WINDOW THIS WEEK — the page's hero (renderSynBookings fills it). -->
+    <div id="synd-page-hero" style="display:none;margin-bottom:12px;padding:14px;border:1px solid rgba(216,176,84,0.3);border-radius:16px;background:rgba(216,176,84,0.07);"></div>
+    <div id="synd-page-map-empty" style="display:none;padding:14px;border:1.5px dashed var(--line);border-radius:12px;background:var(--sand);font-size:12px;color:var(--muted);margin-bottom:12px;"></div>
+    <div id="synd-page-map-wrap" style="display:none;margin-bottom:12px;">
+      <div style="position:relative;border-radius:14px;overflow:hidden;border:1px solid rgba(216,176,84,0.22);box-shadow:0 2px 10px rgba(0,0,0,0.25);">
+        <div id="synd-page-map" style="height:42vh;min-height:260px;width:100%;background:#e8e4dc;"></div>
+        <div id="synb-pin-pop" style="display:none;"></div>
+        <div class="layer-tog" style="top:10px;right:10px;">
+          <button class="lt-b on" id="synp-slt-map" type="button">Map</button>
+          <div class="lt-div"></div>
+          <button class="lt-b off" id="synp-slt-sat" type="button">Satellite</button>
+        </div>
+        <button class="stnd-map-fs" id="synp-map-expand" type="button" data-fl-action="toggle-synd-map-full" title="Full screen" aria-label="Full screen map">
+          <svg class="fs-open" width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 1H1v4M9 1h4v4M5 13H1V9M9 13h4V9"/></svg>
+          <svg class="fs-close" width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M1 5h4V1M13 5H9V1M1 9h4v4M13 9H9v4"/></svg>
+        </button>
+        <div class="gmb-bar" role="group" aria-label="Map actions">
+          <button type="button" class="gmb-b" data-fl-action="synd-page-locate" aria-label="Centre the map on my position">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="7"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/><circle cx="12" cy="12" r="1.6" fill="currentColor" stroke="none"/></svg>Locate
+          </button>
+        </div>
+      </div>
+      <!-- 13.88: with 2+ grounds the map needs a way in — All flies wide, a
+         ground chip dives to its boundary (and the booking form follows). -->
+    <div id="synd-page-groundchips" class="stnd-plan-tog synd-gchips" style="display:none;margin-top:8px;"></div>
+    <div id="synd-page-map-note" style="display:none;font-size:10.5px;color:var(--muted);text-align:center;margin-top:7px;margin-bottom:12px;">Shared ground — view only · pins score right now · edit seats from Stands</div>
+    </div>
+    <!-- 13.87 order: the page reads like a visit — chance, ground, ACT,
+         talk, lasting intel, the season ledger, and admin dead last. -->
+    <div id="synd-page-bookings"></div>
+    <div id="synd-page-msgs-wrap" style="display:none;margin-top:12px;padding:14px;border:1.5px solid var(--line);border-radius:14px;background:var(--sand);">
+      <div class="syn-sec-t">Messages</div>
+      <p style="font-size:11px;color:var(--muted);margin:4px 0 10px 0;">One thread for the whole syndicate — pinned announcements stay on top.</p>
+      <div id="synd-page-msgs" class="synd-msg-section-body"></div>
+    </div>
+    <div id="synd-page-notes-wrap" style="display:none;margin-top:12px;padding:14px;border:1.5px solid var(--line);border-radius:14px;background:var(--sand);">
+      <div class="syn-sec-t">Ground notes</div>
+      <p class="syn-sec-s" style="margin:2px 0 10px 0;">The ground’s field book — lasting observations, not chat. Private unless you share one.</p>
+      <div id="synd-page-notes"></div>
+    </div>
+    <div id="synd-page-card" style="margin-top:12px;padding:14px;border:1.5px solid var(--line);border-radius:14px;background:var(--sand);"></div>
+    <!-- 13.59/13.87: manager-only settings — the rarest-touched surface goes last. -->
+    <div id="synd-page-settings" style="display:none;margin-top:12px;padding:14px;border:1.5px solid var(--line);border-radius:14px;background:var(--sand);"></div>
   </div>
 </div>
 
@@ -1046,6 +1124,17 @@
         <button type="button" class="profile-row-btn" data-fl-action="open-grounds-sheet" aria-label="Manage grounds and boundaries">Manage</button>
       </div>
     </div>
+    <!-- Syndicate (placement round 2026-08-10 — second entry point beside the header icon) -->
+    <div class="profile-card" role="group" aria-label="Syndicate">
+      <div class="profile-card-title">Syndicate</div>
+      <div class="profile-row">
+        <div class="profile-row-main">
+          <div class="profile-row-label">Your syndicates</div>
+          <div class="profile-row-value" id="profile-syndicate-value">–</div>
+        </div>
+        <button type="button" class="profile-row-btn" data-fl-action="open-syndicate-hub" aria-label="Open syndicate management">Open</button>
+      </div>
+    </div>
     <div class="profile-card" role="group" aria-label="App status">
       <div class="profile-card-title">App</div>
       <div class="profile-row">
@@ -1144,7 +1233,7 @@
       <div class="grx-io-row">
         <button type="button" class="grx-io-btn grx-io-btn--measure" data-fl-action="grounds-measure"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14.7 2.3l7 7a1 1 0 010 1.4l-10 10a1 1 0 01-1.4 0l-7-7a1 1 0 010-1.4l10-10a1 1 0 011.4 0z"/><path d="M7 11l2 2M10 8l2 2M13 5l2 2"/></svg> Measure distance &amp; area</button>
       </div>
-      <input type="file" id="grounds-import-file" accept=".kml,.kmz,.gpx,.geojson,.json,application/geo+json,application/gpx+xml,application/vnd.google-earth.kml+xml,application/vnd.google-earth.kmz" style="display:none;" aria-hidden="true" tabindex="-1">
+      <input type="file" id="grounds-import-file" accept=".kml,.kmz,.gpx,.geojson,.json,application/geo+json,application/gpx+xml,application/vnd.google-earth.kml+xml,application/vnd.google-earth.kmz,text/xml,application/xml,application/octet-stream" style="display:none;" aria-hidden="true" tabindex="-1">
     </div>
   </div>
 </div>
@@ -1502,6 +1591,7 @@
   <button class="nb on" id="n-list" type="button" data-fl-action="go" data-view="v-list"><div class="ni"><svg width="22" height="22" viewBox="0 0 24 24" fill="none"><rect x="2" y="5" width="13" height="16" rx="2" stroke="currentColor" stroke-width="1.8" fill="none"/><line x1="2" y1="5" x2="2" y2="21" stroke="currentColor" stroke-width="3" stroke-linecap="round"/><line x1="6" y1="10" x2="11" y2="10" stroke="currentColor" stroke-width="1.3" opacity="0.7"/><line x1="6" y1="13" x2="11" y2="13" stroke="currentColor" stroke-width="1.3" opacity="0.5"/><circle cx="18.5" cy="5" r="3" stroke="#d8b054" stroke-width="1.5" fill="none"/><circle cx="18.5" cy="5" r="1" fill="#d8b054"/><line x1="18.5" y1="1.5" x2="18.5" y2="3" stroke="#d8b054" stroke-width="1.2" stroke-linecap="round"/><line x1="18.5" y1="7" x2="18.5" y2="8.5" stroke="#d8b054" stroke-width="1.2" stroke-linecap="round"/><line x1="15" y1="5" x2="16.5" y2="5" stroke="#d8b054" stroke-width="1.2" stroke-linecap="round"/><line x1="20.5" y1="5" x2="22" y2="5" stroke="#d8b054" stroke-width="1.2" stroke-linecap="round"/></svg></div><div class="nl">Diary</div><div class="nd"></div><span class="offline-badge" id="offline-badge"></span></button>
   <button class="nb" id="n-form" type="button" data-fl-action="open-new"><div class="ni"><svg width="22" height="22" viewBox="0 0 24 24" fill="none"><line x1="12" y1="5" x2="12" y2="19" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><line x1="5" y1="12" x2="19" y2="12" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></div><div class="nl">Add Entry</div><div class="nd"></div></button>
   <button class="nb" id="n-stands" type="button" data-fl-action="go" data-view="v-stands"><div class="ni"><svg width="22" height="22" viewBox="0 0 24 24" fill="none"><rect x="6" y="4" width="12" height="5" rx="1" stroke="currentColor" stroke-width="1.8"/><line x1="8" y1="9" x2="8" y2="21" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><line x1="16" y1="9" x2="16" y2="21" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><line x1="8" y1="13" x2="16" y2="13" stroke="currentColor" stroke-width="1.3" opacity="0.7"/><line x1="8" y1="17" x2="16" y2="17" stroke="currentColor" stroke-width="1.3" opacity="0.5"/><circle cx="12" cy="6.5" r="1" fill="#d8b054"/></svg></div><div class="nl">Stands</div><div class="nd"></div></button>
+  <button class="nb" id="n-synd" type="button" data-fl-action="open-syndicate-hub"><div class="ni"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87" stroke="#d8b054"/><path d="M16 3.13a4 4 0 0 1 0 7.75" stroke="#d8b054"/></svg></div><div class="nl">Syndicate</div><div class="nd" id="n-synd-dot"></div></button>
   <button class="nb" id="n-stats" type="button" data-fl-action="go" data-view="v-stats"><div class="ni"><svg width="22" height="22" viewBox="0 0 24 24" fill="none"><rect x="2" y="12" width="5" height="9" rx="1.5" fill="#d8b054" opacity="0.9"/><rect x="9.5" y="7" width="5" height="14" rx="1.5" fill="currentColor"/><rect x="17" y="16" width="5" height="5" rx="1.5" fill="#d8b054" opacity="0.6"/></svg></div><div class="nl">Stats</div><div class="nd"></div></button>
 </nav>
 

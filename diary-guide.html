@@ -344,13 +344,16 @@ body::after{content:'';position:fixed;top:0;left:0;right:0;height:env(safe-area-
   <a href="#s11"><span>11</span> Offline mode</a>
   <a href="#s12"><span>12</span> Account &amp; privacy</a>
   <a href="#s13"><span>13</span> Syndicates — full walkthrough</a>
-  <a href="#s13-locate"><span>13a</span> Open the Syndicates card</a>
+  <a href="#s13-locate"><span>13a</span> The Syndicate tab</a>
   <a href="#s13-create"><span>13b</span> Create a syndicate</a>
-  <a href="#s13-manage"><span>13c</span> Manage, targets &amp; invites</a>
-  <a href="#s13-join"><span>13d</span> Join with an invite link</a>
+  <a href="#s13-manage"><span>13c</span> Manage: targets, season &amp; shared grounds</a>
+  <a href="#s13-join"><span>13d</span> Join — link or code</a>
   <a href="#s13-ground"><span>13e</span> Ground filter &amp; attribution</a>
   <a href="#s13-teamexp"><span>13f</span> Team exports (managers)</a>
-  <a href="#s13-msg"><span>13g</span> Syndicate messaging</a>
+  <a href="#s13-msg"><span>13g</span> Messages &amp; the field book</a>
+  <a href="#s13-book"><span>13h</span> Bookings &amp; Plan the week</a>
+  <a href="#s13-set"><span>13i</span> Syndicate settings (manager)</a>
+  <a href="#s13-push"><span>13j</span> Push notifications</a>
   <a href="#s14"><span>14</span> Stands &amp; deer forecast</a>
   <a href="#s14-plan"><span>14a</span> Best seat this week</a>
   <a href="#s14-facing"><span>14b</span> Facing, photos &amp; where it sits</a>
@@ -1093,11 +1096,18 @@ body::after{content:'';position:fixed;top:0;left:0;right:0;height:env(safe-area-
 <div class="step" id="s13">
   <div class="step-num">13</div>
   <h2>Syndicates — full walkthrough</h2>
-  <p><strong>Syndicates</strong> let a small team share <strong>group cull targets</strong> next to your personal diary. Access is <strong>invite-only</strong>. The layouts below are <strong>HTML mocks</strong> matched to the real Cull Diary (<code>diary.html</code> / <code>diary.js</code>) — not PNG screenshots, but the same labels and flow.</p>
+  <p><strong>Syndicates</strong> let a small team share a ground and run it together: the <strong>shared ground on a live map</strong>, <strong>outing bookings</strong> with a scored week planner, a <strong>team thread</strong> and <strong>field book</strong>, <strong>group cull targets</strong>, and optional <strong>push notifications</strong>. Access is <strong>invite-only</strong> (link or short code). Your own diary entries stay private — a syndicate only ever sees tallies you attribute to it. The layouts below are <strong>HTML mocks</strong> matched to the real Cull Diary — not PNG screenshots, but the same labels and flow.</p>
   <div class="warn"><strong>Online</strong> — creating, joining, and syncing syndicates needs a live session. <strong>Sign in</strong> first.</div>
 
-  <h3 id="s13-locate">Where to find syndicates</h3>
-  <p><strong>Stats</strong> tab → scroll until you see the <strong>Syndicates</strong> card (it sits <em>above</em> <strong>My diary exports</strong>). It is <strong>collapsed</strong> by default — tap the header row or “Tap to show” to expand.</p>
+  <h3 id="s13-locate">The Syndicate tab</h3>
+  <p><strong>Syndicate</strong> has its own tab in the bottom bar, between <strong>Stands</strong> and <strong>Stats</strong>. A <strong>gold dot on the tab</strong> — visible from any screen — means something is waiting: new messages, a booking to approve, or a join request. The page reads top to bottom like a visit:</p>
+  <p>• <strong>Masthead</strong> — the syndicate’s name, the member strip (faces, join requests, and <strong>People ›</strong> for managers), a scale line (grounds · acres · seats · when the outlook was last scored, with <strong>↻</strong> to refresh), and <strong>Manage ›</strong>.<br>
+  • <strong>Best window this week</strong> — the week’s best <em>free</em> chance across every shared ground: score, seat, day, window, from-time, wind and moon, with <strong>Book ›</strong>. Once you hold a booking, a <strong>You’re out</strong> line sits underneath with a calendar button.<br>
+  • <strong>The ground</strong> — the shared map (satellite or OS), ground chips to dive into one ground when the syndicate spans several, and seat pins that score right now — tap a pin for its seven-day ribbon.<br>
+  • <strong>Bookings</strong> — section 13h.<br>
+  • <strong>Messages</strong> and the <strong>field book</strong> — section 13g.<br>
+  • <strong>Season targets</strong> and, for managers, <strong>Syndicate settings</strong> — section 13i.</p>
+  <p>The <strong>Syndicates card on Stats</strong> stays as the numbers view — team targets and progress. Its <strong>Open</strong> button jumps to the Syndicate tab; managers also get <strong>Manage</strong> for the sheet.</p>
   <div class="mock-label">Mock — Stats area (syndicate card)</div>
   <div class="m-stats-strip">
     <div class="m-syn-toggle">
@@ -1114,23 +1124,23 @@ body::after{content:'';position:fixed;top:0;left:0;right:0;height:env(safe-area-
       <div style="padding:12px 0;font-size:12px;color:var(--muted);text-align:center;border:1px dashed #d4cfc4;border-radius:10px;">Your syndicates list appears here after you create or join one.</div>
     </div>
   </div>
-  <p>• <strong>New</strong> (green) opens the create sheet (next section).<br>
-  • After you have teams, each syndicate appears as a <strong>tappable row</strong> with progress — tap to open <strong>manage</strong>.</p>
+  <p>• <strong>New</strong> (green) opens the join-or-create sheet (next section).<br>
+  • After you have teams, each syndicate appears as a row with progress, an <strong>Open</strong> button to the Syndicate tab, and — for managers — <strong>Manage</strong>.</p>
 
   <h3 id="s13-create">Create a syndicate</h3>
-  <p>Tap <strong>New</strong> → bottom sheet opens with title <strong>New syndicate</strong> / subtitle <strong>Create a group and set targets</strong>.</p>
+  <p>Tap <strong>New</strong> on the Stats card (or <strong>Join or create</strong> on an empty Syndicate tab) → a sheet opens titled <strong>Join or create</strong>. The <strong>join field comes first</strong> — most people arrive holding an invite (section 13d). To found your own team, fill the create half:</p>
   <ol style="margin:0 0 12px 18px;padding:0;font-size:13px;color:rgba(255,255,255,0.65);line-height:1.75;">
     <li><strong>Name</strong> — e.g. “North Block syndicate”.</li>
     <li><strong>Allocation</strong> — <em>Group total (shared pool)</em> or <em>Per-member allocations</em> (manager sets each member’s caps separately).</li>
     <li><strong>Ground filter (optional)</strong> — pick a saved permission, or <strong>Other / new ground…</strong> to type a label. Only entries whose <strong>Permission / Ground</strong> matches <strong>exactly</strong> (same spelling) count toward this team’s totals. Leave empty to count all members’ qualifying entries.</li>
-    <li>Tap <strong>Create syndicate</strong>. On success, the <strong>manage</strong> sheet opens for that team.</li>
+    <li>Tap <strong>Create syndicate</strong>. On success the <strong>Manage</strong> sheet opens — and the Syndicate tab is ready to take the ground itself: share one you have mapped, or draw or import a new one right there (section 13c).</li>
   </ol>
   <div class="mock-label">Mock — “New syndicate” sheet (fields)</div>
   <div class="m-tsheet-mock">
     <div class="m-tsheet-top">
       <div>
-        <div class="m-tsheet-title">New syndicate</div>
-        <div class="m-tsheet-sub">Create a group and set targets</div>
+        <div class="m-tsheet-title">Join or create</div>
+        <div class="m-tsheet-sub">Enter an invite — or start your own group</div>
       </div>
       <span class="m-tsheet-x">✕</span>
     </div>
@@ -1146,16 +1156,16 @@ body::after{content:'';position:fixed;top:0;left:0;right:0;height:env(safe-area-
     </div>
   </div>
 
-  <h3 id="s13-manage">Manage: members, targets &amp; invites</h3>
-  <p>Open a syndicate from the list → sheet title shows the <strong>syndicate name</strong>; subtitle shows <strong>Manager</strong> or <strong>Member</strong> and <strong>that syndicate’s</strong> current season.</p>
+  <h3 id="s13-manage">Manage: targets, season &amp; shared grounds</h3>
+  <p><strong>Manage ›</strong> (masthead, or the Stats card) opens the sheet — the syndicate’s <em>constitution</em>: the slow-moving decisions. Day-to-day things live on the page itself — <strong>people</strong> on the member strip (13a), <strong>invites and booking rules</strong> in Syndicate settings (13i), <strong>messages and notes</strong> on the page (13g). Sheet title shows the <strong>syndicate name</strong>; subtitle shows <strong>Manager</strong> or <strong>Member</strong> and <strong>that syndicate’s</strong> current season.</p>
   <p><strong>Managers</strong> see:</p>
-  <p>• <strong>Members</strong> — each active member with role; <strong>Promote</strong> / <strong>Remove</strong> (demote another manager only if there are two or more managers). You cannot remove the sole manager. <strong>Leave</strong> at the bottom if you are a member; managers must <strong>promote someone else</strong> before leaving.<br>
-  • <strong>Group targets</strong> — species/sex steppers for the <strong>current season</strong> + <strong>Save targets</strong> (group mode).<br>
+  <p>• <strong>Group targets</strong> — species/sex steppers for the <strong>current season</strong> + <strong>Save targets</strong> (group mode).<br>
   • <strong>Per-member allocations</strong> — choose a member, set their allocation grid, <strong>Save allocations for member</strong> (individual mode).<br>
   • <strong>Season start month</strong> — sets the <strong>syndicate’s own</strong> stalking year (default August). It applies to <strong>every member’s</strong> syndicate cards, team targets, allocations and team exports, and is separate from each member’s personal setting (<a href="#s7-season-start" style="color:var(--gold);">section 07a</a>). A warning shows the old and new season dates before the change applies; it is reversible.<br>
-  • <strong>Invite link</strong> — <strong>Generate new invite link</strong>; copy URL; list of <strong>active invites</strong> with uses left, expiry, <strong>Copy</strong> / <strong>Revoke</strong>.<br>
+  • <strong>Shared grounds</strong> — share one of your <strong>mapped</strong> grounds with the syndicate. Members see it <strong>read-only</strong> on their maps — boundary, no-shoot zones, lines and furniture; <strong>culls and diaries stay private</strong>. Each share has a booking mode: <strong>Book by seat</strong> or <strong>Book whole ground</strong> (a pill on the row switches it). <strong>Stop sharing</strong> removes it. Need a ground that isn’t mapped yet? The <strong>New ground</strong> row takes a name and <strong>Draw ›</strong> (the boundary editor opens right there) or <strong>Import file ›</strong> (KML, KMZ, GPX or GeoJSON) — and when the boundary lands, the app offers the share on the spot. An unmapped ground in the list gets a <strong>Map it ›</strong> button that does the same.<br>
   • <strong>Manager · culled by member</strong> — read-only log of team culls for oversight. Pest entries appear here too — foxes as <strong>Dog / Vixen</strong>, the sex-less pests with no sex label.<br>
   • <strong>Delete syndicate</strong> (destructive).</p>
+  <p><strong>People</strong> — promote, demote and remove live on the page now: tap <strong>People ›</strong> on the member strip. Demoting keeps at least one manager; managers must <strong>promote someone else</strong> before leaving; removing a member never touches their private diary.</p>
   <p><strong>Pests in syndicates:</strong> pest entries attributed to the syndicate count in member tallies, the manager log and team exports — but <strong>group targets and allocations stay deer-only</strong> (pests are counts, not plan species).</p>
   <p><strong>Members</strong> (non-managers) see progress copy and can <strong>Leave</strong> — they do not edit team targets.</p>
   <div class="mock-label">Mock — manage sheet fragments</div>
@@ -1168,27 +1178,24 @@ body::after{content:'';position:fixed;top:0;left:0;right:0;height:env(safe-area-
       <span class="m-tsheet-x">✕</span>
     </div>
     <div class="m-tsheet-body">
-      <div style="font-size:11px;font-weight:700;margin-bottom:8px;color:var(--bark);">Members</div>
+      <div style="font-size:11px;font-weight:700;margin-bottom:8px;color:var(--bark);">Shared grounds</div>
       <div class="m-syn-row">
-        <div><strong>You</strong> <small>Manager · Joined 1 Apr 2026</small></div>
-        <span style="font-size:10px;color:var(--muted);">Only manager</span>
+        <div><strong>Wigmore</strong> <small>Book by seat · change</small></div>
+        <span style="font-size:10px;color:#c62828;font-weight:700;">Stop sharing</span>
       </div>
       <div class="m-syn-row">
-        <div><strong>A. Keeper</strong> <small>Member · Joined 8 Apr 2026</small></div>
-        <span class="m-syn-pill">Promote</span>
+        <div><strong>New ground</strong> <small>Name it, then Draw › or Import file ›</small></div>
+        <span class="m-syn-pill">Draw ›</span>
       </div>
-      <div class="m-syn-invite-box" style="margin-top:14px;">
-        <strong style="font-size:11px;">Invite link</strong>
-        <p style="font-size:11px;color:var(--muted);margin:6px 0 8px;">Generate a link and send it to members. They must be signed in to accept.</p>
-        <div style="padding:8px;background:#f0f4e8;border-radius:8px;font-size:11px;font-weight:700;color:#2d5a1a;">Generate new invite link</div>
-      </div>
+      <p style="font-size:11px;color:var(--muted);margin:8px 0 0;">Booking rules — approval, caps, guests, invites — live on the Syndicate page under <strong>Syndicate settings</strong>.</p>
       <div class="m-btn" style="width:100%;margin-top:14px;justify-content:center;border:1.5px solid #c62828;color:#c62828;background:transparent;">Delete syndicate</div>
       <div class="m-btn" style="width:100%;margin-top:8px;justify-content:center;border:1.5px solid #e0dcd6;background:#faf8f4;color:var(--bark);">Leave syndicate</div>
     </div>
   </div>
 
-  <h3 id="s13-join">Join with an invite link</h3>
-  <p>Your manager sends a URL (time- and use-limited). Open it <strong>while signed in</strong> to the same browser / PWA — the app accepts the invite and adds you to the syndicate. If the link expired or was revoked, ask for a new one.</p>
+  <h3 id="s13-join">Join — link or code</h3>
+  <p>Your manager sends either a <strong>URL</strong> or a <strong>short code</strong> like <code>K7M2-4QRD</code> — the code is made to be read out over the phone. Open the link <strong>while signed in</strong>, or go to the <strong>Syndicate tab → Join or create</strong> and paste the link or type the code into the join field (dashes, spaces and case don’t matter). Invites are time- and use-limited; if one expired or was revoked, ask for a new one.</p>
+  <p>If the syndicate uses <strong>approval joining</strong> (the default), you land on a <strong>Request sent</strong> page and the managers get a knock — your request appears on their member strip with <strong>Approve</strong> / <strong>Decline</strong>, and their phones buzz if notifications are on. The ground, thread and bookings open to you the moment you are approved. With <strong>instant</strong> joining you are in straight away.</p>
 
   <h3 id="s13-ground">Ground filter &amp; syndicate attribution</h3>
   <p>• <strong>Ground filter</strong> on the syndicate only affects <strong>which of your diary entries</strong> count toward <strong>that team’s</strong> plan — it does not rename your grounds globally.<br>
@@ -1213,10 +1220,10 @@ body::after{content:'';position:fixed;top:0;left:0;right:0;height:env(safe-area-
   </div>
   <div class="tip"><strong>Tip:</strong> Non-managers never see this block. Your personal <strong>My diary exports</strong> (CSV, PDF, Summary, Larder, …) are unchanged.</div>
 
-  <h3 id="s13-msg">Syndicate messaging</h3>
-  <p>Each syndicate has a single <strong>rolling thread</strong> for team chat — manager announcements and member discussion mixed together. Useful for "I'm out at North Wood today", "saw a roe doe by the larch", weekend plans, and so on. The thread is <strong>polled</strong>, not real-time — the app refreshes when you open the manage sheet or the Stats card.</p>
+  <h3 id="s13-msg">Messages &amp; the field book</h3>
+  <p>Each syndicate has a single <strong>rolling thread</strong> for team chat — manager announcements and member discussion mixed together, pinned announcements staying on top. Useful for "I'm out at North Wood today", "saw a roe doe by the larch", weekend plans, and so on. The thread is <strong>polled</strong>, not real-time — it refreshes when you open the Syndicate tab.</p>
 
-  <p><strong>Where to find it</strong> — open a syndicate from the Stats card, then look for the <strong>Messages</strong> section in the manage sheet. The syndicate row on Stats shows a <strong>moss-green unread chip</strong> next to the team name <strong>only when there are new messages</strong> since you last looked; once you are caught up the chip simply disappears. Tap the chip directly to jump straight to the thread.</p>
+  <p><strong>Where to find it</strong> — the <strong>Messages</strong> card on the Syndicate page, below the bookings. Unread messages light the <strong>gold dot on the Syndicate tab</strong> from any screen, and the Stats card shows an unread chip that jumps you straight to the page.</p>
 
   <p><strong>Posting</strong> — type into the box and tap <strong>Post</strong>. Messages are <strong>500 characters max</strong>, <strong>cannot be edited</strong> after posting (write twice, post once), and are stamped with your member name and role at the time of posting (so a future role change does not rewrite history).</p>
 
@@ -1224,9 +1231,36 @@ body::after{content:'';position:fixed;top:0;left:0;right:0;height:env(safe-area-
 
   <p><strong>Soft delete</strong> — your own messages can be removed; managers can remove anyone's. Removed messages no longer render but stay in the database with a deletion stamp, so the audit trail is preserved.</p>
 
-  <p><strong>What you see</strong> — the thread fetches the most recent <strong>30 messages</strong> in a fixed scroll region. Older messages remain in the database for audit but are not shown in the UI, to keep the sheet quick on mobile.</p>
+  <p><strong>What you see</strong> — the thread shows the most recent <strong>30 messages</strong>, with <strong>Show older</strong> to page further back. Everything stays in the database for audit.</p>
 
-  <div class="tip"><strong>Tip:</strong> The unread chip clears once you've opened and scrolled the thread, and reappears when a new message lands.</div>
+  <p><strong>The field book (ground notes)</strong> — separate from chat: <strong>lasting observations per ground</strong>, not conversation. “Fresh slots on the muddy ride”, “keep off the barley strip until harvest”. Notes start <strong>private to you</strong> (grey rule); <strong>Share</strong> turns the rule <strong>gold</strong> and every member sees it under that ground. Grounds with written notes sort first; who may add notes is a manager setting (13i).</p>
+
+  <div class="tip"><strong>Tip:</strong> The tab’s gold dot clears once you've read the thread, and reappears when a new message lands.</div>
+
+  <h3 id="s13-book">Bookings &amp; Plan the week</h3>
+  <p>Once a ground is shared, members book <strong>outings</strong> on it from the Syndicate page — <strong>dawn</strong>, <strong>dusk</strong> or <strong>all day</strong>. Depending on the share’s mode you book a <strong>seat</strong> or the <strong>whole ground</strong> (an “on foot” booking takes the whole ground either way). Double-booking is impossible — the app checks conflicts before the database does.</p>
+  <p>• <strong>Plan the week</strong> — the heart of the form: every seat scored across the next seven days, each cell the day’s best <em>free</em> window (score + dawn/dusk). Booked cells are <strong>struck out</strong> (a gold dot marks your own), the day’s best free sit wears a <strong>ring</strong>, closed days show <strong>⊘</strong>. Tap a cell and the form snaps to exactly that seat, day and window.<br>
+  • <strong>Booking further out</strong> — the day chips cover the scored week; <strong>Pick a date…</strong> books up to the syndicate’s horizon (a year by default). Beyond the week the booking is locked in now and the forecast fills in later.<br>
+  • <strong>Seat pins on the map</strong> — tap one for its seven-day ribbon (same chips as a stand’s detail) and a <strong>Book ›</strong> button; your own seats also get <strong>Stands ›</strong> straight to their full detail.<br>
+  • <strong>Approval or instant</strong> — the manager chooses (13i). Under approval your booking shows <strong>awaiting approval</strong> until a manager confirms; managers see the queue at the top of the bookings card, and can book through closed days.<br>
+  • <strong>Who’s out</strong> — the next seven days of team outings, so nobody stalks into an occupied wood. Names can be made anonymous for members (13i).<br>
+  • <strong>Yours</strong> — cancel your own upcoming outings, bring a <strong>guest</strong> where allowed, and export everything you’ve booked as a <strong>calendar file</strong>. Your next booking also headlines <strong>Your Next Sit</strong> on the Stands tab.</p>
+  <div class="tip"><strong>Tip:</strong> The <strong>Best window this week</strong> hero above the map and the ring in Plan the week agree — they are the same calculation: the highest-scoring window the whole team may actually still book.</div>
+
+  <h3 id="s13-set">Syndicate settings (manager)</h3>
+  <p>The <strong>Syndicate settings</strong> card sits at the bottom of the page (managers only), collapsed to one line that lists every non-default choice. Open it for four groups of switches — each takes effect for the whole team immediately:</p>
+  <p>• <strong>Bookings</strong> — <strong>Confirmation</strong> (Instant / Approval), <strong>Fair-use cap</strong> (upcoming bookings each member may hold), <strong>Guests</strong>, <strong>Horizon</strong> (1 month / 3 months / season), <strong>Privacy</strong> (Names / Anonymous on others’ bookings).<br>
+  • <strong>Community</strong> — who may post <strong>Messages</strong>, who may add <strong>Ground notes</strong>, <strong>Joining</strong> (You approve / Instant), <strong>Cull shouts</strong> on/off.<br>
+  • <strong>Invites</strong> — <strong>New invite — code + link</strong> mints both at once; the active list shows each code with uses left and expiry, plus <strong>Copy code</strong>, <strong>Copy link</strong> and <strong>Revoke</strong>. Revoking never affects people who already joined.<br>
+  • <strong>Closed dates</strong> — shoot days, estate work: close a date or a whole run with an optional reason. Members can’t book them (they show <strong>⊘</strong> everywhere); you can. <strong>Reopen</strong> lifts them.</p>
+
+  <h3 id="s13-push">Push notifications</h3>
+  <p>The <strong>bell chip</strong> on the masthead (<strong>Alerts</strong>) switches push notifications for this device — outline means tap to enable, gold <strong>On</strong> means tap to turn off. Four things buzz:</p>
+  <p>• a <strong>join request</strong> → the managers,<br>
+  • a <strong>booking awaiting approval</strong> → the managers,<br>
+  • a <strong>pinned announcement</strong> → every member,<br>
+  • <strong>your approval</strong> → you, the new member.</p>
+  <p>Each device opts in separately (phone and desktop each have their own bell). On <strong>iPhone</strong>, notifications need the app <strong>installed to the home screen</strong> (iOS 16.4+) — in a plain Safari tab the bell simply doesn’t appear; that is iOS, not a fault. Delivery is fire-and-forget: if a push ever misfires, the booking or message it announced is entirely unaffected.</p>
 </div>
 
 <!-- STEP 14 -->

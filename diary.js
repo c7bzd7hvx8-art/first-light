@@ -63,6 +63,16 @@ import {
   cachedGroundFeatures, groundFeaturesUnavailable, GROUND_FEATURES_MAX
 } from './modules/grounds.mjs';
 import {
+  fetchSharedGrounds, cachedSharedGrounds, sharedGroundsUnavailable,
+  shareGround, unshareGround, deleteMySharesForGround,
+  foreignSharesOf, mySharesOf, sharedSwitcherRows,
+  fetchMemberNotes, addMemberNote, setNoteShared, deleteMemberNote,
+  notesForGround, memberNotesUnavailable,
+  fetchBookings, bookGround, decideBooking, cancelBooking,
+  bookingsUnavailable, bookingActive, whosOutRows, findBookingConflict,
+  bookingsConflict, bookingCapState, nextOutingOf, outingNudgeCandidate
+} from './modules/shared-grounds.mjs';
+import {
   ringAreaM2, ringPerimeterM, pathLengthM, ringSelfIntersects, ringCentroid, pointInRing,
   validateBoundaryRing, validateLinePath, makeGeometry, parseGeometry, geometryAreaM2,
   makeMarkerGeometry, markerFromGeometry, GROUND_MARKER_TYPES,
@@ -86,7 +96,7 @@ const FL_APP_VERSION = '7.402';
 // Payload build tag - proves which diary.js actually reached the device (the
 // SW version alone cannot: sw.js is always fetched fresh while the precache
 // could be CDN-stale until the cache:'reload' fix). Bump with SW_VERSION.
-const FL_JS_BUILD = '13.24';
+const FL_JS_BUILD = '13.99';
 import {
   wxCodeLabel,
   windDirLabel,
@@ -1618,7 +1628,87 @@ function initDiaryFlUi() {
         setPlanGroundFilter(decodeURIComponent(el.getAttribute('data-plan-key') || ''));
         break;
       case 'open-syndicate-create': openSyndicateCreateSheet(); break;
+      case 'open-syndicate-hub': void syndicateHubOpen(); break;
+      case 'synd-page-pick': flSynPage.selectedId = el.getAttribute('data-syndicate-id'); void renderSyndicatePage(); break;
+      case 'synd-join-code': void flJoinWithCode(); break;
+      case 'synd-copy-code': (function() {
+        var c = el.getAttribute('data-invite-code') || '';
+        if (navigator.clipboard && c) {
+          navigator.clipboard.writeText(c).then(function() { showToast('\ud83d\udccb Code copied \u2014 ' + c); },
+            function() { showToast('\u26a0\ufe0f Could not copy \u2014 the code is ' + c); });
+        } else { showToast('Code: ' + c); }
+      })(); break;
+      case 'toggle-synd-map-full': flToggleSynMapFull(); break;
+      case 'synd-page-locate': synPageLocate(); break;
+      case 'synb-open-form': synbToggleForm(); break;
+      case 'synb-pick-ground': flSynBook.shareIdx = parseInt(el.getAttribute('data-idx'), 10) || 0; flSynBook.standId = undefined; renderSynBookings(); break;
+      case 'synd-set-pref': void syndSetPref(el); break;
+      case 'synd-settings-toggle': syndSettingsToggle(); break;
+      case 'synd-closed-add': void syndClosedAdd(el); break;
+      case 'synd-closed-remove': void syndClosedRemove(el); break;
+      case 'synb-hero-book':
+        flSynBook.shareIdx = parseInt(el.getAttribute('data-share-idx'), 10) || 0;
+        flSynBook.dayIdx = parseInt(el.getAttribute('data-day'), 10) || 0;
+        flSynBook.slot = el.getAttribute('data-slot') || 'dawn';
+        var heroSeat = el.getAttribute('data-stand-id');
+        flSynBook.standId = heroSeat || undefined;
+        flSynBook.customDate = null;
+        flSynBook.laterOpen = false;
+        flSynBook.open = true;
+        void renderSynBookings().then(function () {
+          var bkEl = document.getElementById('synd-page-bookings');
+          if (bkEl) bkEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        });
+        break;
+      case 'synb-ics': synbIcsDownload(); break;
+      case 'synb-plan-pick': {
+        flSynBook.dayIdx = parseInt(el.getAttribute('data-day'), 10) || 0;
+        flSynBook.slot = el.getAttribute('data-slot') || 'dawn';
+        var _planSeat = el.getAttribute('data-stand-id');
+        if (_planSeat) flSynBook.standId = _planSeat;
+        flSynBook.customDate = null;
+        flSynBook.laterOpen = false;
+        void renderSynBookings();
+        break;
+      }
+      case 'synb-pick-day': flSynBook.dayIdx = parseInt(el.getAttribute('data-day'), 10) || 0; flSynBook.customDate = null; flSynBook.laterOpen = false; renderSynBookings(); break;
+      case 'synb-pick-later': flSynBook.laterOpen = !flSynBook.laterOpen; if (!flSynBook.laterOpen) flSynBook.customDate = null; renderSynBookings(); break;
+      case 'synb-day-more': (flSynBook.dayMore = flSynBook.dayMore || {})[el.getAttribute('data-iso')] = true; renderSynBookings(); break;
+      case 'synb-later-all': flSynBook.laterAll = true; renderSynBookings(); break;
+      case 'synb-pin-book': if (flSynPage.pinPop) { var _pp = flSynPage.pinPop; synbPinPopClose(); synbSeatTap(_pp.st, _pp.ownerId); } break;
+      case 'synb-pin-close': synbPinPopClose(); break;
+      case 'synb-pin-day': (function () {
+        var pp = flSynPage.pinPop; if (!pp) return;
+        var di = parseInt(el.getAttribute('data-day'), 10) || 0;
+        var slot = el.getAttribute('data-slot') === 'dusk' ? 'dusk' : 'dawn';
+        flSynBook.dayIdx = di; flSynBook.slot = slot;
+        flSynBook.customDate = null; flSynBook.laterOpen = false;
+        var d0 = synbDays()[di];
+        var lbl = di === 0 ? 'Today' : new Date(d0.iso + 'T12:00:00').toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric' });
+        synbPinPopClose();
+        synbSeatTap(pp.st, pp.ownerId, lbl + ' ' + slot + ' set — confirm below');
+      })(); break;
+      case 'synb-pin-stands': (function () {
+        var pp = flSynPage.pinPop; if (!pp) return;
+        synbPinPopClose();
+        openStandDetail(pp.st.id);
+      })(); break;
+      case 'synp-ground-pick': synPageFocusGround(el); break;
+      case 'fl-push-on': void flPushEnable(); break;
+      case 'fl-push-off': void flPushDisable(); break;
+      case 'synb-pick-slot': flSynBook.slot = el.getAttribute('data-slot'); renderSynBookings(); break;
+      case 'synb-pick-seat': flSynBook.standId = el.getAttribute('data-stand-id'); renderSynBookings(); break;
+      case 'synb-guest-toggle': flSynBook.guest = !flSynBook.guest; renderSynBookings(); break;
+      case 'synb-submit': void synbSubmit(); break;
+      case 'synb-cancel-booking': void synbCancel(el.getAttribute('data-id')); break;
+      case 'synb-decide': void synbDecide(el.getAttribute('data-id'), el.getAttribute('data-approve') === '1'); break;
+      case 'synd-dbg-tap': synbDbgTap(); break;
       case 'close-syndicate-modal': closeSynModal(); break;
+      case 'open-syndicate-page':
+        // 13.95: Stats card → the syndicate PAGE, selected on this syndicate.
+        flSynPage.selectedId = el.getAttribute('data-syndicate-id') || flSynPage.selectedId;
+        void syndicateHubOpen();
+        break;
       case 'open-syndicate-manage':
         syndicateEditingId = el.getAttribute('data-syndicate-id');
         openSyndicateManageSheet(syndicateEditingId);
@@ -1626,40 +1716,80 @@ function initDiaryFlUi() {
       case 'save-syndicate-create': saveSyndicateCreate(); break;
       case 'save-syndicate-targets': saveSyndicateTargets(); break;
       case 'save-syndicate-alloc': saveSyndicateAlloc(); break;
-      case 'synd-generate-invite': syndGenerateInvite(); break;
+      case 'synd-generate-invite': void syndGenerateInvite(el); break;
+      case 'synd-invite-quick': void syndInviteQuick(el); break;
+      case 'synd-join-decide': void syndJoinDecide(el); break;
+      case 'synd-outlook-refresh': void (async function () {
+        // 13.97 (re-audit find): the warm path serves the CACHED snapshot —
+        // same asOf, so the tap looked dead. Force a fresh fetch exactly the
+        // way Stands' own ↻ does, then repaint every syndicate surface.
+        if (!flStandsState.list || !flStandsState.list.length) { try { await refreshStandsView(); } catch (_) {} }
+        await refreshStandForecastsNow();
+        var vSyn = document.getElementById('v-syndicate');
+        if (vSyn && vSyn.classList.contains('active')) {
+          flSynPageSeatsPaint(false);
+          renderSynBookings();
+          flSynMastMetaRender();
+          if (flSynPage.pinPop) synbPinPopShow(flSynPage.pinPop.st, flSynPage.pinPop.ownerId);
+        }
+      })(); break;
+      case 'synd-people-toggle':
+        flSynPage.peopleOpen = !flSynPage.peopleOpen;
+        flSynPeopleRepaint(flSynPage.selectedId);
+        break;
+      case 'synd-share-invite': syndShareInvite(el); break;
       case 'synd-save-season-start':
         void syndSaveSeasonStart();
         break;
       case 'synd-copy-invite': syndCopyInvite(el); break;
       case 'synd-copy-existing-invite': syndCopyExistingInvite(el); break;
-      case 'synd-revoke-invite':
-        syndRevokeInvite(el.getAttribute('data-invite-id'));
-        break;
+      case 'synd-revoke-invite': void syndRevokeInvite(el); break;
+      case 'synd-share-ground': void syndShareGround(el.getAttribute('data-ground')); break;
+      case 'synd-unshare-ground': void syndUnshareGround(el.getAttribute('data-share-id'), el.getAttribute('data-ground')); break;
+      case 'synd-share-mode': void syndShareModeToggle(el.getAttribute('data-share-id'), el.getAttribute('data-mode-next')); break;
+      case 'synd-ground-draw': void syndGroundDraw(el); break;
+      case 'synd-ground-import': syndGroundImport(el); break;
+      case 'synd-ground-mapit': syndGroundMapIt(el); break;
+      case 'gmn-compose-toggle': gmnComposeToggle(el); break;
+      case 'gmn-priv-toggle': gmnPrivToggle(el); break;
+      case 'gmn-post': void gmnPost(el); break;
+      case 'gmn-toggle-shared': void gmnToggleShared(el, el.getAttribute('data-note-id'), el.getAttribute('data-next')); break;
+      case 'gmn-delete': void gmnDelete(el, el.getAttribute('data-note-id')); break;
       case 'synd-leave': syndLeaveOrClose(); break;
       case 'synd-delete': syndDelete(); break;
-      case 'synd-promote-member':
-        syndPromoteMember(el.getAttribute('data-member-user-id'));
-        break;
-      case 'synd-demote-member':
-        syndDemoteMember(el.getAttribute('data-member-user-id'));
-        break;
-      case 'synd-remove-member':
-        syndRemoveMember(el.getAttribute('data-member-user-id'));
-        break;
+      case 'synd-promote-member': void syndPromoteMember(el); break;
+      case 'synd-demote-member': void syndDemoteMember(el); break;
+      case 'synd-remove-member': void syndRemoveMember(el); break;
       case 'synd-tstep':
         syndTstep(el.getAttribute('data-step-id'), parseInt(el.getAttribute('data-step-delta'), 10));
         break;
       case 'synd-post-message':
-        void postSyndicateMessage();
+        void postSyndicateMessage(el);
         break;
       case 'synd-delete-message':
-        void softDeleteSyndicateMessage(el.getAttribute('data-message-id'));
+        void softDeleteSyndicateMessage(el, el.getAttribute('data-message-id'));
         break;
       case 'synd-pin-message':
-        void pinSyndicateMessage(el.getAttribute('data-message-id'));
+        void pinSyndicateMessage(el, el.getAttribute('data-message-id'));
         break;
       case 'synd-unpin-message':
-        void unpinSyndicateMessage(el.getAttribute('data-message-id'));
+        void unpinSyndicateMessage(el, el.getAttribute('data-message-id'));
+        break;
+      case 'synd-msgs-older':
+        void syndMsgsOlder(el);
+        break;
+      case 'home-outing-open': {
+        var houtSid = el.getAttribute('data-syndicate-id');
+        if (houtSid) flSynPage.selectedId = houtSid;
+        void syndicateHubOpen();
+        break;
+      }
+      case 'home-outing-log':
+        void homeOutingLog(el.getAttribute('data-date'), el.getAttribute('data-ground'));
+        break;
+      case 'home-outing-dismiss':
+        outingNudgeDismiss(el.getAttribute('data-booking-id'));
+        void renderHomeOutingStrip();
         break;
       case 'pinmap-select':
         pinmapSelectResult(
@@ -2022,8 +2152,8 @@ async function probeEarliestEntryDate() {
 // ════════════════════════════════════
 // ROUTING
 // ════════════════════════════════════
-var VIEWS = ['v-auth','v-list','v-form','v-detail','v-stats','v-stands','v-stand-detail','v-sightings','v-sighting-detail'];
-var NAV_MAP = {'v-list':'n-list','v-form':'n-form','v-stats':'n-stats','v-stands':'n-stands'};
+var VIEWS = ['v-auth','v-list','v-form','v-detail','v-stats','v-stands','v-stand-detail','v-sightings','v-sighting-detail','v-syndicate'];
+var NAV_MAP = {'v-list':'n-list','v-form':'n-form','v-stats':'n-stats','v-stands':'n-stands','v-syndicate':'n-synd'};
 var formDirty = false;
 /** After loadEntries / sign-out; cleared at end of buildStats — avoids full stats rebuild on every Stats tab visit. */
 var statsNeedsFullRebuild = true;
@@ -2073,11 +2203,32 @@ function go(id, restoreScroll) {
   // scrolled to").
   var flCurView = document.querySelector('.view.active');
   if (flCurView) flViewScrollMem[flCurView.id] = window.scrollY || 0;
+  // Scroll-lock healer (owner, 2026-08-10: a view "doesn't scroll down"):
+  // every overlay pairs body overflow hidden/'' — but any missed unlock
+  // freezes the whole app. On navigation, if the lock is held and NO known
+  // overlay is actually open, release it. Owners of a legitimate lock (open
+  // sheets, fullscreen maps, the photo/map modals) are all checked.
+  if (document.body.style.overflow === 'hidden') {
+    var flLockOwners = ['syn-ov', 'tsheet-ov', 'nogps-ov', 'settings-ov', 'grounds-ov', 'stand-sheet-ov'];
+    var flLockHeld = flLockOwners.some(function(oid) {
+      var oel = document.getElementById(oid);
+      return oel && oel.classList.contains('open');
+    });
+    if (!flLockHeld) {
+      var flFsWrap = document.querySelector('#stands-map-wrap.fullscreen, #synd-page-map-wrap.fullscreen');
+      var flGmapOv = document.getElementById('gmap-overlay');
+      var flGmapOpen = flGmapOv && flGmapOv.style.display === 'flex';
+      if (!flFsWrap && !flGmapOpen && !flMapModal) document.body.style.overflow = '';
+    }
+  }
   VIEWS.forEach(function(v){
     var el = document.getElementById(v);
     if (el) el.classList.remove('active');
   });
   target.classList.add('active');
+  // 13.46: landing on the diary repaints the outing strip (cached fetch —
+  // free when nothing changed, fresh after a booking or a new log).
+  if (id === 'v-list') { try { void renderHomeOutingStrip(); } catch (_) {} }
   var nav = document.getElementById('main-nav');
   if (!nav) return;
   nav.style.display = (id === 'v-auth') ? 'none' : 'flex';
@@ -3427,6 +3578,9 @@ function resetSessionState() {
     flStandsState.selectedId = null;
     flStandsState.sheet = { editingId: null, lat: null, lng: null, locName: '', badWinds: [], facing: null, photos: [], newPhotos: [], removedPaths: [] };
   } catch (_) {}
+  // 13.76: syndicate state (rows, roles, policy cache, unread, rendered page)
+  // must not outlive the account that loaded it.
+  flSyndicateStateReset();
   // Also drop this account's location/activity caches from localStorage so a
   // shared device can't surface the previous user's stand coordinates + ground
   // boundaries to the next account (the in-memory reset above isn't enough).
@@ -3944,6 +4098,7 @@ async function loadEntries() {
 
     if (!r.error) {
       allEntries = r.data || [];
+      void renderHomeOutingStrip(); // 13.46: a fresh diary may satisfy the nudge
       await resolveCullPhotoDisplayUrls(allEntries);
       populateGroundFilterDropdown();
       populateShooterSuggestions();
@@ -7998,6 +8153,22 @@ async function saveEntry() {
     } else {
       // BB-2: new captures get an Undo on the success toast; edits don't (nothing to undo).
       showUndoToast('✅ Entry saved', (result.data && result.data[0] && result.data[0].id) || null);
+      // 13.58: opt-in shout to the syndicate thread — targets ticking up
+      // becomes something the whole syndicate SEES. New captures only;
+      // edits never repost.
+      try {
+        var tellCb = document.getElementById('f-syn-tell');
+        var shoutPref = flSynPrefs[String(payload.syndicate_id || '')];
+        if (tellCb && tellCb.checked && payload.syndicate_id
+            && !(shoutPref && shoutPref.shout_policy === 'off')) {
+          var tellBody = formIsBlank
+            ? '\ud83d\udcd3 Blank outing on ' + (payload.ground || 'the ground') + ' \u2014 nothing culled.'
+            : '\ud83e\udd8c Cull logged: ' + (payload.species || 'deer')
+              + (payload.sex === 'm' ? ' \u2642' : (payload.sex === 'f' ? ' \u2640' : ''))
+              + ' on ' + (payload.ground || 'the ground') + '.';
+          void flSynTellPost(payload.syndicate_id, tellBody);
+        }
+      } catch (_) { /* never let the shout touch the save */ }
     }
     flHapticSuccess();
     formDirty = false;
@@ -10012,6 +10183,26 @@ var TILE_OS_STD = 'https://api.os.uk/maps/raster/v1/zxy/Road_3857/{z}/{x}/{y}.pn
 var TILE_MB_STD = MAPBOX_TOKEN ? ('https://api.mapbox.com/styles/v1/' + MAPBOX_STYLE_STD + '/tiles/512/{z}/{x}/{y}@2x?access_token=' + encodeURIComponent(MAPBOX_TOKEN)) : '';
 var TILE_MB_SAT = MAPBOX_TOKEN ? ('https://api.mapbox.com/styles/v1/' + MAPBOX_STYLE_SAT + '/tiles/512/{z}/{x}/{y}@2x?access_token=' + encodeURIComponent(MAPBOX_TOKEN)) : '';
 var mapProvider = MAPBOX_TOKEN ? 'hybrid' : 'legacy';
+
+/** 13.64 (owner: "satellite doesn't open on first load, you have to go full
+ *  screen and then minimise") — diagnosis: a refused Mapbox token (401/403)
+ *  only trips the legacy fallback after ≥6 tile errors, and the small page
+ *  card requests 2–3 tiles, so the threshold was only crossed in fullscreen.
+ *  Cure: probe ONE satellite tile at boot; any 4xx/5xx flips the whole app
+ *  to OS + ESRI before the first map ever opens. A healthy token passes the
+ *  probe and nothing changes; offline stays undecided (tile errors are
+ *  ignored offline anyway) — self-healing in both directions, per load. */
+function flProbeMapboxSat() {
+  if (!TILE_MB_SAT || mapProvider === 'legacy' || _mapboxFallbackDone) return;
+  if (navigator.onLine === false) return;
+  try {
+    var u = TILE_MB_SAT.replace('{z}', '6').replace('{x}', '31').replace('{y}', '20').replace('@2x', '');
+    fetch(u, { cache: 'no-store' }).then(function (r) {
+      if (!r.ok) maybeFallbackFromMapbox('boot probe HTTP ' + r.status);
+    }).catch(function () { /* network hiccup — leave the tile errors to decide */ });
+  } catch (_) { /* fetch unavailable — old engine, tile errors decide */ }
+}
+setTimeout(flProbeMapboxSat, 1200);
 var _mapboxFallbackDone = false;
 
 var SP_COLORS = {
@@ -10036,6 +10227,7 @@ var GMAP_TILE_OK_STREAK = 6;
 var _pinMapTileOkStreak = 0;
 var _cullMapTileErrorCount = 0;
 var _standsMapTileErrorCount = 0;
+var _synPageTileErrorCount = 0; // 13.47: syndicate-page map joins the family
 var _sightMapTileErrorCount = 0;
 
 function mapboxTileOpts() {
@@ -10183,6 +10375,19 @@ function maybeFallbackFromMapbox(reason) {
     gmapSatLayer = L.tileLayer(TILE_SAT_ESRI, esriTileOpts());
     attachGmapTileErrorHandlers();
     setGmapLayer(gmapWasSat ? 'sat' : 'map');
+  }
+  // 13.47: the syndicate page joins the fallback family. Same SG3b rule —
+  // a map initialised before the fallback must not keep a dead Mapbox layer.
+  if (flSynPage.map) {
+    var synWasSat = document.getElementById('synp-slt-sat') && document.getElementById('synp-slt-sat').classList.contains('on');
+    try {
+      if (flSynPage.stdLayer) flSynPage.map.removeLayer(flSynPage.stdLayer);
+      if (flSynPage.satLayer) flSynPage.map.removeLayer(flSynPage.satLayer);
+    } catch (_) {}
+    flSynPage.stdLayer = L.tileLayer(TILE_OS_STD, osTileOpts()).addTo(flSynPage.map);
+    flSynPage.satLayer = L.tileLayer(TILE_SAT_ESRI, esriTileOpts());
+    attachSynPageTileErrorHandlers();
+    setSynPageLayer(synWasSat ? 'sat' : 'map');
   }
 
   // SYS78 (finding 86): the old copy leaked a vendor name and an internal
@@ -10336,6 +10541,26 @@ function attachSightMapTileErrorHandlers() {
   }
   sightMapStdLayer.on('tileerror', bump);
   sightMapSatLayer.on('tileerror', bump);
+}
+
+/** 13.47: syndicate-page twin of the stands handler — ≥6 Mapbox tile errors
+ *  trips the app-wide legacy fallback, same thresholds, same rules. (Owner:
+ *  "the maps on syndicate doesn't show satellite?" — this map was born after
+ *  the fallback family formed and was never enrolled, so a URL-restricted /
+ *  over-quota Mapbox token left ITS satellite dead while every other map
+ *  healed itself. The SG3b lesson, relearned.) */
+function attachSynPageTileErrorHandlers() {
+  if (!flSynPage.stdLayer || !flSynPage.satLayer || flSynPage.stdLayer._flTileErrBound) return;
+  flSynPage.stdLayer._flTileErrBound = true;
+  function bump() {
+    _synPageTileErrorCount++;
+    var satActive = !!(flSynPage.map && flSynPage.satLayer && flSynPage.map.hasLayer(flSynPage.satLayer));
+    if (_synPageTileErrorCount >= 6 && (mapProvider === 'mapbox' || (mapProvider === 'hybrid' && satActive))) {
+      maybeFallbackFromMapbox('tile errors');
+    }
+  }
+  flSynPage.stdLayer.on('tileerror', bump);
+  flSynPage.satLayer.on('tileerror', bump);
 }
 
 function attachStandsMapTileErrorHandlers() {
@@ -10906,7 +11131,7 @@ function renderCullMapPins() {
     emptyEl = document.createElement('div');
     emptyEl.id = 'cull-map-empty-state';
     emptyEl.className = 'cull-map-empty';
-    emptyEl.style.cssText = 'position:absolute;inset:0;z-index:1200;display:flex;flex-direction:column;align-items:center;justify-content:center;background:white;';
+    emptyEl.style.cssText = 'position:absolute;inset:0;z-index:1200;display:flex;flex-direction:column;align-items:center;justify-content:center;background:var(--sy-card,white);';
     document.getElementById('cull-map-container').appendChild(emptyEl);
   }
 
@@ -11781,6 +12006,14 @@ function rebuildSyndicateGroundFilterSet(rows) {
   }
 }
 
+document.addEventListener('change', function (e) {
+  if (!e.target) return;
+  if (e.target.id === 'f-syndicate') flSynTellSync();
+  if (e.target.id === 'f-syn-tell') {
+    try { localStorage.setItem('fl_syn_tell', e.target.checked ? '1' : '0'); } catch (_) {}
+  }
+});
+
 function setSyndicateAutoNote(msg) {
   var el = document.getElementById('f-syndicate-auto-note');
   if (!el) return;
@@ -11795,6 +12028,52 @@ function setSyndicateAutoNote(msg) {
 
 function clearSyndicateAutoNote() {
   setSyndicateAutoNote('');
+  flSynTellSync();
+}
+
+/** 13.59: last-loaded syndicate rows by id — policy lookups for sync code. */
+var flSynPrefs = {};
+
+/** 13.58 (audit round 4): "Tell the syndicate" checkbox — visible only when
+ *  the entry is attributed to a syndicate; last choice remembered (opt-in,
+ *  default off). */
+function flSynTellSync() {
+  var wrap = document.getElementById('f-syn-tell-wrap');
+  var sel = document.getElementById('f-syndicate');
+  var cb = document.getElementById('f-syn-tell');
+  if (!wrap || !sel || !cb) return;
+  var show = !!sel.value;
+  // 13.59: the manager can switch shouts off per syndicate.
+  var pref = show ? flSynPrefs[String(sel.value)] : null;
+  if (pref && pref.shout_policy === 'off') show = false;
+  wrap.style.display = show ? 'flex' : 'none';
+  if (show && !wrap._flTellInit) {
+    wrap._flTellInit = true;
+    try { cb.checked = localStorage.getItem('fl_syn_tell') === '1'; } catch (_) { cb.checked = false; }
+  }
+}
+
+/** Best-effort auto-post of a saved cull into the syndicate thread. The cull
+ *  is already saved — the shout must never break the save path. author_role
+ *  must be the REAL role (DB CHECK pins it), hence the lookup. */
+async function flSynTellPost(syndicateId, bodyTxt) {
+  if (!sb || !currentUser || !syndicateId || !bodyTxt) return;
+  try {
+    var role = 'member';
+    try {
+      var rows = await loadMySyndicateRows();
+      var row = rows.find(function (r) { return String(r.syndicate.id) === String(syndicateId); });
+      if (row && row.role === 'manager') role = 'manager';
+    } catch (_) { /* member is the safe claim */ }
+    var r = await sb.from('syndicate_messages').insert({
+      syndicate_id: syndicateId,
+      user_id: currentUser.id,
+      author_name: syndicateDisplayNameFromUser(currentUser),
+      author_role: role,
+      body: bodyTxt
+    });
+    if (!r.error) showToast('\ud83d\udce3 Posted to the syndicate');
+  } catch (_) { /* offline or RLS hiccup — the diary entry is what matters */ }
 }
 
 function maybeAutoSelectSyndicateFromGround(groundName) {
@@ -11830,6 +12109,7 @@ function maybeAutoSelectSyndicateFromGround(groundName) {
   }
   sel.value = targetId;
   setSyndicateAutoNote('Auto-selected from ground "' + g + '": ' + owners[0].name + '.');
+  flSynTellSync();
 }
 
 async function refreshSyndicateGroundFilterSetFromNetwork() {
@@ -11925,6 +12205,7 @@ async function refreshGroundsData() {
     flGroundsState.offline = true;
   }
   flGroundsState.loading = false;
+  void refreshSharedGrounds(); // phase 1: foreign shared grounds ride the same refresh
   // G3: features changed — repaint every map that carries a boundary layer
   // and keep the Settings row honest.
   flBoundaryPaint.forEach(function(e2) { renderGroundBoundaries(e2.map); });
@@ -11932,9 +12213,91 @@ async function refreshGroundsData() {
   syncGroundInvite(); // G6: keep the map's draw-invite honest
 }
 
+/** PURE: set (as a plain object) of ground names with at least one mapped
+ *  feature — the share picker's gate: an unmapped ground shares nothing, so
+ *  it is not shareable (owner report, 2026-08-10: "Wigmore 2" listed with no
+ *  boundary drawn). */
+function flMappedGroundSet(features) {
+  var m = {};
+  (features || []).forEach(function(f) { if (f && f.ground) m[f.ground] = true; });
+  return m;
+}
+
 /** Features to render right now: live list if loaded, else the offline snapshot. */
 function groundFeaturesNow() {
   return flGroundsState.features != null ? flGroundsState.features : cachedGroundFeatures();
+}
+
+// ── Shared grounds (SYNDICATE-GROUNDS-PLAN phase 1) ───────────────
+// Foreign, READ-ONLY copies of grounds shared with my syndicates. Kept apart
+// from flGroundsState on purpose: every existing edit path reads own-only
+// state, so a member physically cannot open an editor on a foreign feature.
+var flSharedState = { snap: null, loading: false };
+
+/** {shares, features, stands} to use right now: live if loaded, else snapshot. */
+function sharedGroundsNow() {
+  return flSharedState.snap != null ? flSharedState.snap : cachedSharedGrounds();
+}
+
+/** Foreign features for PAINTING only (boundary/zone/line/marker layers). */
+function sharedPaintFeaturesNow() {
+  var s = sharedGroundsNow();
+  return (s && Array.isArray(s.features)) ? s.features : [];
+}
+
+/**
+ * Foreign shared-ground SEATS shaped for the display pipelines only —
+ * forecasts, the week planner and the stands-map pins. Never enters
+ * flStandsState.list, so every edit path stays owner-only by construction.
+ */
+function sharedDisplayStands() {
+  var s = sharedGroundsNow();
+  var out = [];
+  ((s && s.stands) || []).forEach(function(st) {
+    if (!st || !st.id || st.lat == null || st.lng == null) return;
+    out.push({
+      id: st.id, name: st.name || 'Seat', ground: st.ground || '',
+      lat: st.lat, lng: st.lng,
+      facing: (st.facing != null ? st.facing : null),
+      bad_winds: st.bad_winds || null,
+      notes: null, foreign: true, ownerUserId: st.user_id || null
+    });
+  });
+  return out;
+}
+
+/** View-only pin for a foreign seat: dashed gold ring, no click. */
+function flForeignStandIcon(name) {
+  return L.divIcon({
+    html: '<div style="display:flex;flex-direction:column;align-items:center;gap:2px;">'
+      + '<div style="width:22px;height:22px;border-radius:50%;background:rgba(30,50,20,0.85);border:2px dashed #d8b054;display:flex;align-items:center;justify-content:center;box-sizing:border-box;">'
+      + '<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#e8d9a8" stroke-width="2.4" stroke-linecap="round"><rect x="7" y="3" width="10" height="5" rx="1"/><line x1="9" y1="8" x2="9" y2="21"/><line x1="15" y1="8" x2="15" y2="21"/></svg></div>'
+      + (name ? '<div style="font-size:9px;font-weight:700;color:#fff;background:rgba(30,50,20,0.75);padding:1px 5px;border-radius:6px;white-space:nowrap;">' + esc(name) + '</div>' : '')
+      + '</div>',
+    className: '', iconSize: [24, 24], iconAnchor: [12, 12]
+  });
+}
+
+async function refreshSharedGrounds() {
+  if (!sb || !currentUser || flSharedState.loading) return;
+  flSharedState.loading = true;
+  try {
+    flSharedState.snap = await fetchSharedGrounds(sb, currentUser.id);
+  } catch (e) {
+    console.warn('shared grounds fetch failed:', e);
+    flSharedState.snap = cachedSharedGrounds();
+  }
+  flSharedState.loading = false;
+  // Foreign boundaries changed — repaint every registered map, same loop as
+  // refreshGroundsData.
+  flBoundaryPaint.forEach(function(e2) { renderGroundBoundaries(e2.map); });
+  // If the stands view is open, re-render so foreign pins/planner rows appear
+  // without waiting for the next visit (forecasts for them arrive on the next
+  // forecast fetch — eventual, not blocking).
+  try {
+    var vs = document.getElementById('v-stands');
+    if (vs && vs.classList.contains('active')) renderStandsList();
+  } catch (_) {}
 }
 
 // ── Manager sheet ─────────────────────────────────────────────
@@ -14022,6 +14385,7 @@ async function gmapSave() {
   showToast('✓ ' + savedLabel + ' saved' + (sumTxt ? ' — ' + sumTxt : ''));
   await refreshGroundsData();
   renderGroundsSheet();
+  void flGroundBridgeAfterSave([ed.ground]); // 13.93: the ground bridge's return leg
 }
 
 /** ← button: instant close when untouched (or measuring — nothing to lose);
@@ -14849,6 +15213,7 @@ async function groundsImportFile(file) {
   if (failed) tail.push(failed + ' failed to save');
   showToast('✓ Imported ' + bits.join(' · ') + where
     + (tail.length ? ' — ' + tail.join(' · ') : ''), 5000);
+  void flGroundBridgeAfterSave(grounds); // 13.93: single-ground import → offer the share
 }
 
 function gmapLocate() {
@@ -14928,13 +15293,14 @@ function gmbGroundsToggle() {
   if (!m) return;
   var opening = (m.style.display === 'none' || !m.style.display);
   if (!opening) { gmbGroundsClose(); return; }
-  if ((savedGrounds || []).length === 0) {
+  var _shRows = sharedSwitcherRows(sharedGroundsNow().shares, currentUser ? currentUser.id : null, savedGrounds);
+  if ((savedGrounds || []).length === 0 && !_shRows.length) {
     // Nothing to switch between yet — straight to the manager to add one.
     gmbLeaveFull();
     openGroundsSheet();
     return;
   }
-  m.innerHTML = gmbGroundsMenuHtml(savedGrounds, groundFeaturesNow(), lastGroundVisited(), gmbManageStands());
+  m.innerHTML = gmbGroundsMenuHtml(savedGrounds, groundFeaturesNow(), lastGroundVisited(), gmbManageStands(), _shRows);
   var pm = document.getElementById('gmb-menu'); // the ＋ menu shares the spot
   if (pm) pm.style.display = 'none';
   var gf = document.getElementById('stnd-filter-menu');
@@ -14957,7 +15323,8 @@ function gmbGroundsClose() {
 function gmbGoToGround(ground) {
   setLastGroundVisited(ground); // G8: a tap on a ground row = working it now
   var pts = [];
-  groundFeaturesNow().forEach(function(f) {
+  var _gfAll = groundFeaturesNow().concat(sharedPaintFeaturesNow()); // shared rows fly too
+  _gfAll.forEach(function(f) {
     if (!f || f.ground !== ground || f.kind === 'no_shoot') return;
     if (f.kind === 'marker') { // G10: gates/parking define the extent too
       var mk = markerFromGeometry(f.geometry);
@@ -14972,7 +15339,7 @@ function gmbGoToGround(ground) {
     // something worth flying to. Zones are excluded from the FIRST pass so a
     // one-acre garden cannot dominate the frame when real parcels exist — but
     // when nothing else is there, showing the zone beats refusing to move.
-    groundFeaturesNow().forEach(function(f) {
+    _gfAll.forEach(function(f) {
       if (!f || f.ground !== ground || f.kind !== 'no_shoot') return;
       var r = parseGeometry(f.geometry);
       if (r && r.length) pts = pts.concat(r);
@@ -14989,7 +15356,16 @@ function gmbGoToGround(ground) {
     standsMap.fitBounds(pts, { padding: [34, 34], maxZoom: 16 });
     return;
   }
-  showToast('⚠️ ' + ground + ' has nothing on the map yet — draw its boundary');
+  var _isForeignShared = savedGrounds.indexOf(ground) === -1
+    && sharedSwitcherRows(sharedGroundsNow().shares, currentUser ? currentUser.id : null, savedGrounds)
+         .some(function(r) { return r.ground === ground; });
+  if (_isForeignShared) {
+    // A shared ground the member does not own: nothing cached yet is a sync
+    // problem, not an invitation to draw their own copy over it.
+    showToast('\u26a0\ufe0f Nothing cached for this shared ground yet \u2014 connect once to fetch it');
+    return;
+  }
+  showToast('\u26a0\ufe0f ' + ground + ' has nothing on the map yet \u2014 draw its boundary');
   gmbLeaveFull();
   openBoundaryEditor(ground, null, 'boundary');
 }
@@ -15397,7 +15773,7 @@ function gmbGroundRowSub(ground, areaParts, features, stands) {
   return 'not mapped yet — tap to draw';
 }
 
-function gmbGroundsMenuHtml(grounds, features, current, stands) {
+function gmbGroundsMenuHtml(grounds, features, current, stands, sharedRows) {
   var areas = groundAreaPartsFrom(features);
   // G17: header carries the "Edit" affordance (rename / delete grounds).
   var h = '<div class="gmb-mi-head gmb-mi-head--row"><span>Your grounds</span>'
@@ -15410,6 +15786,20 @@ function gmbGroundsMenuHtml(grounds, features, current, stands) {
       + '<span class="gmb-gr-txt">' + esc(g) + '<span class="gmb-mi-sub">' + esc(sub) + '</span></span>'
       + '</button>';
   });
+  // Phase 1: grounds shared WITH me (read-only). Name-collision rows (inOwn)
+  // already merge into "Your grounds" above — the canonical-name rule; the
+  // rest list here under the syndicate that shared them.
+  var shOnly = (sharedRows || []).filter(function(r) { return r && !r.inOwn; });
+  if (shOnly.length) {
+    h += '<div class="gmb-mi-head">Shared with you</div>';
+    shOnly.forEach(function(r) {
+      var here = current != null && r.ground === current;
+      h += '<button type="button" class="gmb-mi gmb-gr' + (here ? ' on' : '') + '" data-fl-action="gmb-goto" data-ground="' + esc(r.ground) + '" role="menuitem"' + (here ? ' aria-current="true"' : '') + '>'
+        + '<span class="gmb-dot" style="background:' + groundColorFor(r.ground) + ';"></span>'
+        + '<span class="gmb-gr-txt">' + esc(r.ground) + '<span class="gmb-mi-sub">Shared \u00b7 ' + esc(r.synName) + ' \u00b7 view only</span></span>'
+        + '</button>';
+    });
+  }
   h += '<button type="button" class="gmb-mi gmb-mi--manage" data-fl-action="gmb-manage" role="menuitem">'
     + '<svg width="13" height="13" viewBox="0 0 13 13" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" aria-hidden="true"><path d="M1.5 3.5h10M1.5 6.5h10M1.5 9.5h10"/><circle cx="4.5" cy="3.5" r="1.4" fill="currentColor" stroke="none"/><circle cx="8.5" cy="6.5" r="1.4" fill="currentColor" stroke="none"/><circle cx="5.5" cy="9.5" r="1.4" fill="currentColor" stroke="none"/></svg>'
     + 'Manage grounds</button>';
@@ -15764,13 +16154,29 @@ function renderGroundBoundaries(map, opts) {
   opts = entry.opts || null;
   var hiddenMk = (opts && opts.hiddenMarkerTypes) || null;
   var mkNamesOn = !(opts && opts.featureNames === false);
+  // 13.53 (audit): the syndicate page passes the syndicate's (owner, ground)
+  // pairs — its map must not paint every ground the viewer happens to own.
+  var onlyPairs = (opts && opts.onlyPairs) || null;
   // G5/K: the editor and the tape measure paint the surrounding furniture for
   // context, but must not draw the very shape you are dragging corners on —
   // the live preview layer already owns that one.
   var skipId = (opts && opts.excludeFeatureId) || null;
   entry.layers.forEach(function(l) { try { map.removeLayer(l); } catch (_) {} });
   entry.layers = [];
-  var feats = groundFeaturesNow();
+  // Phase 1: foreign shared-ground features paint exactly like own ones —
+  // markers are interactive:false and polygons carry no click handlers, so
+  // painting is the whole of what a member can do with them.
+  var feats = groundFeaturesNow().concat(sharedPaintFeaturesNow());
+  if (onlyPairs) {
+    // Filter BEFORE both consumers — the polygon/marker loop below AND the
+    // ground-name label pass (groundLabelAnchors) further down. Own features
+    // carry no user_id column; they are the viewer's by construction.
+    feats = (feats || []).filter(function(f) {
+      if (!f) return false;
+      var fOwner = f.user_id || (currentUser && currentUser.id) || '';
+      return !!onlyPairs[String(fOwner) + ' ' + String(f.ground || '')];
+    });
+  }
   (feats || []).forEach(function(f) {
     if (!f || (f.kind !== 'boundary' && f.kind !== 'no_shoot' && f.kind !== 'line' && f.kind !== 'marker')) return;
     if (skipId && f.id === skipId) return;
@@ -16285,7 +16691,7 @@ async function refreshStandsView(force) {
     if (force || flStandsState.list === null) {
       flStandsState.list = applyStandOutbox(await fetchStands(sb, currentUser.id), standOutbox(currentUser.id));
     }
-    flStandsState.forecasts = await fetchStandForecasts(flStandsState.list, flMySpecies());
+    flStandsState.forecasts = await fetchStandForecasts((flStandsState.list || []).concat(sharedDisplayStands()), flMySpecies());
   } catch (e) {
     console.warn('refreshStandsView:', e);
     // Offline (or fetch failed): the cached list with queued work overlaid,
@@ -16312,7 +16718,7 @@ async function refreshStandForecastsNow() {
   flStandsState.loading = true;
   showToast('☁️ Refreshing forecasts…');
   try {
-    flStandsState.forecasts = await fetchStandForecasts(flStandsState.list, flMySpecies(), true);
+    flStandsState.forecasts = await fetchStandForecasts((flStandsState.list || []).concat(sharedDisplayStands()), flMySpecies(), true);
   } catch (e) {
     console.warn('refreshStandForecastsNow:', e);
     showToast('⚠️ Could not refresh — try again');
@@ -17155,11 +17561,15 @@ function flToggleStandsMapFull(fromPop) {
 window.addEventListener('popstate', function() {
   var wrap = document.getElementById('stands-map-wrap');
   if (wrap && wrap.classList.contains('fullscreen')) flToggleStandsMapFull(true);
+  var sWrap = document.getElementById('synd-page-map-wrap');
+  if (sWrap && sWrap.classList.contains('fullscreen')) flToggleSynMapFull(true);
 });
 document.addEventListener('keydown', function(ev) {
   if (ev.key === 'Escape') {
     var wrap = document.getElementById('stands-map-wrap');
     if (wrap && wrap.classList.contains('fullscreen')) flToggleStandsMapFull();
+    var sWrap = document.getElementById('synd-page-map-wrap');
+    if (sWrap && sWrap.classList.contains('fullscreen')) flToggleSynMapFull();
   }
 });
 
@@ -17170,7 +17580,9 @@ document.addEventListener('keydown', function(ev) {
 function renderStandsMap() {
   var wrap = document.getElementById('stands-map-wrap');
   var stands = (flStandsState.list || []).filter(function(s){ return s.lat != null && s.lng != null; });
-  var hasGrounds = (savedGrounds || []).length > 0 || groundFeaturesNow().length > 0;
+  var foreignSeats = sharedDisplayStands();
+  var hasGrounds = (savedGrounds || []).length > 0 || groundFeaturesNow().length > 0
+    || sharedPaintFeaturesNow().length > 0 || foreignSeats.length > 0;
   // '' (not 'block') so the .fullscreen class's flex layout wins when active.
   if (wrap) wrap.style.display = (stands.length || hasGrounds) ? '' : 'none';
   if (!stands.length && !hasGrounds) return;
@@ -17249,6 +17661,15 @@ function renderStandsMap() {
     standsMapMarkers.push(marker);
     standsMarkerById[s.id] = marker;
     bounds.push([s.lat, s.lng]);
+  });
+  // Phase 1 (shared grounds): foreign seats paint VIEW-ONLY — dashed gold
+  // ring, no click handler, so nothing can open an editor on them.
+  foreignSeats.forEach(function(fs) {
+    if (flStandsMapFilter != null && (fs.ground || '') !== flStandsMapFilter) return;
+    var fm = L.marker([fs.lat, fs.lng], { icon: flForeignStandIcon(fs.name), interactive: false, keyboard: false });
+    if (useClustering) { standsClusterGroup.addLayer(fm); } else { fm.addTo(standsMap); }
+    standsMapMarkers.push(fm);
+    bounds.push([fs.lat, fs.lng]);
   });
   if (useClustering) standsMap.addLayer(standsClusterGroup);
   flQueueDeclutter(standsMap); // finding H: seat pills vs ground/marker names
@@ -17935,7 +18356,7 @@ function renderStandsList() {
   }
   var itemHtml = flStandsState.compact ? standListRowHtml : standListCardHtml;
   if (canPlan && flStandsState.planMode) {
-    h += renderStandsPlanner(stands, f);
+    h += renderStandsPlanner(stands.concat(sharedDisplayStands()), f); // shared seats plan too (view-only)
   } else {
     // Order seats by today's best score (no-forecast last) — used flat in
     // "Best" mode and WITHIN each ground in "Ground" mode, so the best seat
@@ -17993,7 +18414,12 @@ function renderStandsList() {
   }
   listEl.innerHTML = h;
   var tonightEl = document.getElementById('stands-tonight');
-  if (tonightEl) tonightEl.innerHTML = buildTonightHero(stTonight);
+  if (tonightEl) {
+    tonightEl.innerHTML = buildTonightHero(stTonight);
+    // 13.96 (owner picked "unified next sit"): a syndicate BOOKING is a
+    // commitment — it outranks the recommendation when one exists.
+    void flStandsBookedHero(tonightEl);
+  }
   renderStandsMap();
   syncGroundInvite(); // G6: draw-invite over the map until a boundary exists
   flWriteHomeGroundCard(stTonight); // home-page ground card snapshot
@@ -18496,6 +18922,40 @@ function buildTonightHero(b) {
     + '</div></button>';
 }
 
+/** 13.96: when you hold an upcoming syndicate booking, the Stands hero shows
+ *  THAT — your next sit is the one in the book, not the one in the forecast.
+ *  Async fill-in over the recommendation (cached fetch, ≤1 network trip per
+ *  2 min); the recommendation stays when there is nothing booked. */
+async function flStandsBookedHero(tonightEl) {
+  if (!sb || !currentUser) return;
+  var bookings = [];
+  try { bookings = await fetchMyOutingBookings(); } catch (_) { return; }
+  var t0 = new Date(diaryNow()); t0.setHours(0, 0, 0, 0);
+  var todayIso = t0.getFullYear() + '-' + String(t0.getMonth() + 1).padStart(2, '0') + '-' + String(t0.getDate()).padStart(2, '0');
+  var next = nextOutingOf(bookings, currentUser.id, todayIso);
+  if (!next || !tonightEl.isConnected) return;
+  var seat = outingSeatName(next);
+  var di = synbDayIndexOf(next.date, todayIso);
+  var when = di === 0 ? 'Today' : di === 1 ? 'Tomorrow'
+    : (function () { try { return fmtDateYear(next.date); } catch (_) { return next.date; } })();
+  var slotLbl = next.slot === 'allday' ? 'all day' : next.slot;
+  var w = (di != null && next.stand_id) ? synbSeatWindow(next.stand_id, di, next.slot === 'dusk' ? 'dusk' : 'dawn') : null;
+  tonightEl.innerHTML = '<button type="button" class="stnd-tonight" data-fl-action="open-syndicate-page" data-syndicate-id="' + esc(next.syndicate_id || '') + '">'
+    + '<div class="stnd-th-eyebrow">Your next sit · booked</div>'
+    + '<div class="stnd-th-main">'
+    + '<div class="stnd-th-gauge">' + (w && w.score != null ? standScoreGaugeSvg(w.score, 62) : '<div class="stnd-th-cal">📅</div>') + '</div>'
+    + '<div class="stnd-th-body">'
+    + '<div class="stnd-th-stand">' + esc(seat || next.ground || 'Outing') + '</div>'
+    + '<div class="stnd-th-when">' + esc(when) + ' ' + esc(slotLbl) + (next.ground ? ' · ' + esc(next.ground) : '') + '</div>'
+    + '<div class="stnd-th-pills">'
+    + (next.status === 'pending' ? '<span class="stnd-th-pill">⏳ awaiting approval</span>' : '<span class="stnd-th-pill ok">✓ booked</span>')
+    + (w && w.windBad ? '<span class="stnd-th-pill bad">⚠ bad wind</span>' : '')
+    + '</div></div>'
+    + '<div class="stnd-th-cta">›</div>'
+    + '</div></button>';
+  enhanceKeyboardClickables(tonightEl);
+}
+
 // ── "Best seat this week" wind planner (ideal-wind grid) ─────────
 // Surfaces the wind verdict scoreStandDay already computed (windPenalty) as a
 // stands × 7-day grid — which seat has the right wind, which day. Each cell
@@ -18621,7 +19081,7 @@ function renderStandsPlanner(stands, f) {
   var body = '';
   rows.forEach(function(r, ri) {
     var _q = swpQual(r.s);
-    body += '<div class="swp2-name">' + esc(r.s.name) + (_q ? '<i>' + esc(_q) + '</i>' : '') + '</div><div class="swp2-cells">';
+    body += '<div class="swp2-name">' + esc(r.s.name) + (_q ? '<i>' + esc(_q) + '</i>' : '') + (r.s.foreign ? '<i>shared</i>' : '') + '</div><div class="swp2-cells">';
     for (var di = 0; di < nDays; di++) {
       var c = swpCellVerdict(r.days[di], lens);
       if (c.v === 'na') { body += '<span class="swp2-cell swp2-na">–</span>'; continue; }
@@ -19543,6 +20003,12 @@ async function saveStandFromSheet() {
 
 function openStandDetail(standId, dayIdx) {
   if (!standId) return;
+  // Phase 1 (shared grounds): a foreign seat has no detail sheet — its
+  // detail is the owner's business. Say so instead of navigating to a blank.
+  if (!(flStandsState.list || []).some(function(x) { return x.id === standId; })) {
+    var _fs = sharedDisplayStands().find(function(x) { return x.id === standId; });
+    if (_fs) { showToast('\ud83d\udc41 ' + _fs.name + ' \u2014 shared seat, view only'); return; }
+  }
   flStandsState.detailId = standId;
   flStandsState.selectedId = standId;
   flStandsState.detailDayIdx = (dayIdx != null ? dayIdx : 0);
@@ -20194,7 +20660,7 @@ function renderGroundSections() {
     // Update label
   var lbl = document.getElementById('ground-mgmt-lbl');
   if (lbl) lbl.textContent = 'No grounds yet';
-  container.innerHTML = '<div style="padding:12px 0 8px;text-align:center;font-size:12px;color:var(--muted);">No grounds yet — add one above.</div>';
+  container.innerHTML = '<div style="padding:12px 0 8px;text-align:center;font-size:12px;color:var(--sy-muted,var(--muted));">No grounds yet — add one above.</div>';
   refreshTgroundModeHint();
   renderUnassignedSteppersFromStore();
   syncUnassignedExpandedFromStore();
@@ -20408,7 +20874,47 @@ function syndicateRandomToken() {
 }
 
 var SYNDICATE_INVITE_DEFAULT_DAYS = 7;
-var SYNDICATE_INVITE_DEFAULT_MAX_USES = 10;
+var SYNDICATE_INVITE_DEFAULT_MAX_USES = 3; // 13.72: leaked-link blast radius
+
+// 13.77 (owner: "join a syndicate button and then put a code on the field"):
+// invites carry a short human code alongside the link, so it can be read
+// aloud in the field. Alphabet drops lookalikes (I/L/O/U/0/1). Stored
+// canonical (8 chars, upper, no dash); displayed as XXXX-XXXX.
+var FL_INVITE_CODE_ALPHABET = 'ABCDEFGHJKMNPQRSTVWXYZ23456789';
+function flInviteCodeGen() {
+  var a = new Uint8Array(8);
+  if (window.crypto && crypto.getRandomValues) crypto.getRandomValues(a);
+  else for (var i = 0; i < a.length; i++) a[i] = Math.floor(Math.random() * 256);
+  var out = '';
+  for (var j = 0; j < a.length; j++) out += FL_INVITE_CODE_ALPHABET[a[j] % FL_INVITE_CODE_ALPHABET.length];
+  return out;
+}
+function flInviteCodeFmt(c) {
+  var s = String(c || '');
+  return s.length === 8 ? s.slice(0, 4) + '-' + s.slice(4) : s;
+}
+// PURE: whatever lands in the join field — a pasted link, a bare token, a
+// code typed with dashes/spaces/lowercase — reduce it to what the RPC takes.
+// Returns '' when the input can't be an invite at all.
+function flInviteInputParse(raw) {
+  var s = String(raw == null ? '' : raw).trim();
+  if (!s) return '';
+  var m = s.match(/[?&]syndicate_invite=([A-Za-z0-9]+)/);
+  if (m) return m[1];
+  if (/^[a-f0-9]{40,64}$/i.test(s)) return s;
+  var c = s.replace(/[^A-Za-z0-9]/g, '').toUpperCase();
+  return (c.length >= 6 && c.length <= 12) ? c : '';
+}
+
+// 13.71 (invite funnel): stash the invite token BEFORE auth. A new invitee
+// signs up via magic link — a round trip through email that comes back
+// WITHOUT the query param. The stash survives the trip; redeem consumes it.
+try {
+  var _flInvTok = new URLSearchParams(window.location.search).get('syndicate_invite');
+  if (_flInvTok) {
+    localStorage.setItem('fl_pending_invite', JSON.stringify({ tok: _flInvTok, ts: Date.now() }));
+  }
+} catch (_) { /* private mode — URL path still works when signed in */ }
 
 function syndicateInviteUrl(token) {
   return window.location.origin + window.location.pathname + '?syndicate_invite=' + encodeURIComponent(token || '');
@@ -20529,6 +21035,2100 @@ async function syncOfflineNow() {
   }
 }
 
+/**
+ * Front door for the syndicate (owner decision 2026-08-10: header icon +
+ * settings row, stats card stays for progress). Smart routing: no syndicate
+ * → create sheet; exactly one → straight into its manage sheet; several → a
+ * small chooser whose rows reuse the existing open-syndicate-manage action.
+ */
+async function syndicateHubOpen() {
+  if (!sb || !currentUser) { showToast('\u26a0\ufe0f Sign in first'); return; }
+  closeSettingsSheet(); // launched from the settings row — don't stack sheets
+  // Owner (2026-08-10): the icon goes to a PLACE, not a picker. Navigate
+  // FIRST — a tap must answer instantly on a slow hill connection — then let
+  // the rows render in as they arrive. Known rows repaint immediately.
+  go('v-syndicate');
+  var cardEl = document.getElementById('synd-page-card');
+  if (flSynPage.rows && flSynPage.rows.length) {
+    void renderSyndicatePage();
+  } else if (cardEl) {
+    cardEl.style.display = '';
+    cardEl.innerHTML = '<div style="padding:12px;text-align:center;color:var(--sy-muted,var(--muted));font-size:12px;">Loading syndicates\u2026</div>';
+  }
+  var rows = [];
+  try { rows = await loadMySyndicateRows(); } catch (_) { rows = flSynPage.rows || []; }
+  if (!rows.length) {
+    // 13.78 (owner, second account: "this opens on syndicate page for non
+    // user?"): landing here with nothing is by design — but the stage must be
+    // BARE. Clear every panel (the map wrap is visible by default in the
+    // static HTML and stood there empty), then say the one true thing.
+    flSynPageDomClear();
+    if ((flSynPage.pending || []).length) { void renderSynPagePending(); return; }
+    if (cardEl) {
+      cardEl.style.display = '';
+      cardEl.innerHTML = '<div class="plan-empty"><div class="plan-empty-t">No syndicates yet</div>'
+        + '<div class="plan-empty-s">Join with an invite from your manager, or create a group and invite members with a link or code.'
+        + (navigator.onLine === false ? ' (Offline \u2014 anything you already belong to will appear once you have signal.)' : '')
+        + '</div>'
+        + '<button type="button" class="plan-set-btn" data-fl-action="open-syndicate-create">Join or create</button></div>';
+      enhanceKeyboardClickables(cardEl);
+    }
+    return;
+  }
+  openSyndicatePage(rows);
+}
+
+// ── Syndicate page (v-syndicate) — the syndicate's own surface ─────────────
+// v1 (owner-chosen scope): chips to pick a syndicate, its shared-ground map
+// (boundary/zones/furniture via the shared boundary painter + view-only seat
+// pins), then the same progress card the Stats tab renders (Manage included).
+// Management stays in the sheet; phase-2 bookings will live HERE.
+
+var flSynPage = { rows: null, selectedId: null, map: null, seatLayer: null, tiles: false, pending: [], groundFocus: null, peopleOpen: false };
+
+/** PURE: the chip row markup (vm-testable). */
+function syndPageChipsHtml(rows, selectedId, unreadBySid) {
+  var h = '';
+  (rows || []).forEach(function(r) {
+    var id = r.syndicate && r.syndicate.id;
+    var on = String(id) === String(selectedId);
+    // Unread dot only on chips you're NOT looking at — the open one is
+    // being marked seen by the very render that would show its dot.
+    var n = (!on && unreadBySid) ? (unreadBySid[String(id)] || 0) : 0;
+    var dot = n > 0 ? '<span class="spm-dot" aria-hidden="true"></span>' : '';
+    var t = n > 0 ? ' title="' + n + ' new message' + (n === 1 ? '' : 's') + '"' : '';
+    h += '<button type="button" class="spm-b' + (on ? ' on' : '') + '" data-fl-action="synd-page-pick" data-syndicate-id="' + esc(id) + '"' + t + '>'
+      + esc((r.syndicate && r.syndicate.name) || 'Syndicate') + dot + '</button>';
+  });
+  return h;
+}
+
+/** 13.76: what an invited-but-unapproved member sees on the syndicate page.
+ *  The syndicates row may be unreadable pre-approval (RLS) — degrade to
+ *  generic copy rather than guessing. */
+async function renderSynPagePending() {
+  flSynPageDomClear();
+  var hero = document.getElementById('synd-page-hero');
+  if (!hero) return;
+  var names = [];
+  try {
+    var r = await sb.from('syndicates').select('id, name').in('id', flSynPage.pending || []);
+    (r.data || []).forEach(function(x) {
+      var n = String(x.name || '').trim();
+      if (n) names.push(n);
+    });
+  } catch (_) { /* pre-approval read blocked — generic copy below */ }
+  hero.style.display = '';
+  hero.innerHTML = '<div class="syn-sec-t">Request sent</div>'
+    + '<div style="font-size:13px;font-weight:700;color:var(--sy-ink,var(--bark));margin-top:8px;">\u23f3 '
+    + (names.length ? 'Waiting on the manager of ' + esc(names.join(', ')) : 'Your request is with the syndicate manager')
+    + '</div>'
+    + '<div class="syn-sec-s" style="margin-top:4px;">The ground map, team thread and bookings appear here the moment you\u2019re approved.</div>';
+}
+
+async function openSyndicatePage(rowsMaybe) {
+  var rows = rowsMaybe;
+  if (!rows) { try { rows = await loadMySyndicateRows(); } catch (_) { rows = []; } }
+  if (!rows.length) {
+    // 13.76: a redeemed-but-unapproved member has a page state of their own —
+    // "request sent" — not the create sheet and never a stale shell.
+    if ((flSynPage.pending || []).length) { go('v-syndicate'); void renderSynPagePending(); return; }
+    openSyndicateCreateSheet(); return;
+  }
+  rows.sort(function(a, b2) {
+    return String(a.syndicate.name || '').localeCompare(String(b2.syndicate.name || ''), undefined, { sensitivity: 'base' });
+  });
+  flSynPage.rows = rows;
+  var stillThere = rows.some(function(r) { return String(r.syndicate.id) === String(flSynPage.selectedId); });
+  if (!stillThere) {
+    // 13.53 (audit): default to where you last were, not alphabetical-first —
+    // the page kept opening on an empty syndicate while all the activity
+    // lived on another.
+    var last = null;
+    try { last = localStorage.getItem('fl_syn_last:' + (currentUser && currentUser.id)); } catch (_) {}
+    var lastOk = last && rows.some(function(r) { return String(r.syndicate.id) === String(last); });
+    flSynPage.selectedId = lastOk ? last : rows[0].syndicate.id;
+  }
+  go('v-syndicate');
+  void renderSyndicatePage();
+}
+
+function initSynPageMap() {
+  if (flSynPage.map) return;
+  if (!document.getElementById('synd-page-map') || typeof L === 'undefined') return;
+  flSynPage.map = L.map('synd-page-map', { zoomControl: true, attributionControl: false })
+    .setView([54.0, -2.0], 6);
+  flAddScale(flSynPage.map);
+  var tiles = mapProviderTileUrls();
+  flSynPage.stdLayer = L.tileLayer(tiles.std, tileOptsForUrl(tiles.std)).addTo(flSynPage.map);
+  flSynPage.satLayer = L.tileLayer(tiles.sat, tileOptsForUrl(tiles.sat));
+  attachSynPageTileErrorHandlers(); // 13.47: fallback family membership
+  flSynPage.tiles = true;
+  // Badges <-> dots follow the zoom, exactly like the stands map.
+  flSynPage.map.on('zoomend', function() { flSynPageSeatsPaint(false); });
+  flSynPage.map.on('click', function() { try { synbPinPopClose(); } catch (_) {} });
+  // The layer toggle overlays the map — clicks never reach the body-level
+  // delegator (stands-map precedent), so bind the two buttons directly.
+  var mBtn = document.getElementById('synp-slt-map');
+  var sBtn = document.getElementById('synp-slt-sat');
+  if (mBtn) mBtn.addEventListener('click', function() { setSynPageLayer('map'); });
+  if (sBtn) sBtn.addEventListener('click', function() { setSynPageLayer('sat'); });
+  setTimeout(function() { if (flSynPage.map) flSynPage.map.invalidateSize(); }, 80);
+}
+
+/** Map <-> Satellite, mirroring setStandsLayer exactly (same .lt-b classes). */
+function setSynPageLayer(type) {
+  var map = flSynPage.map;
+  if (!map) return;
+  var mapBtn = document.getElementById('synp-slt-map');
+  var satBtn = document.getElementById('synp-slt-sat');
+  if (type === 'sat') {
+    if (flSynPage.stdLayer) map.removeLayer(flSynPage.stdLayer);
+    if (flSynPage.satLayer) flSynPage.satLayer.addTo(map);
+    if (mapBtn) mapBtn.className = 'lt-b off';
+    if (satBtn) satBtn.className = 'lt-b on';
+  } else {
+    if (flSynPage.satLayer) map.removeLayer(flSynPage.satLayer);
+    if (flSynPage.stdLayer) flSynPage.stdLayer.addTo(map);
+    if (mapBtn) mapBtn.className = 'lt-b on';
+    if (satBtn) satBtn.className = 'lt-b off';
+  }
+}
+
+/** Full-screen toggle — flToggleStandsMapFull's contract on the syn-page wrap. */
+function flToggleSynMapFull(fromPop) {
+  var wrap = document.getElementById('synd-page-map-wrap');
+  if (!wrap) return;
+  var on = !wrap.classList.contains('fullscreen');
+  wrap.classList.toggle('fullscreen', on);
+  document.body.style.overflow = on ? 'hidden' : '';
+  var btn = document.getElementById('synp-map-expand');
+  if (btn) {
+    btn.title = on ? 'Exit full screen' : 'Full screen';
+    btn.setAttribute('aria-label', on ? 'Exit full screen map' : 'Full screen map');
+  }
+  if (on) {
+    if (!fromPop) { try { history.pushState({ flSynMapFull: 1 }, ''); } catch (e) { /* sandboxed */ } }
+  } else if (!fromPop) {
+    try { if (history.state && history.state.flSynMapFull) history.back(); } catch (e) { /* fine */ }
+  }
+  setTimeout(function() { try { if (flSynPage.map) flSynPage.map.invalidateSize(); } catch (e) { /* fine */ } }, 130);
+}
+
+/** Locate — standsMapLocate's contract against the syn-page map. */
+function synPageLocate() {
+  if (!navigator.geolocation) { showToast('GPS not available'); return; }
+  showToast('\ud83d\udccd Getting location\u2026');
+  navigator.geolocation.getCurrentPosition(function(pos) {
+    var map = flSynPage.map;
+    if (!map) return;
+    var mLat = pos.coords.latitude, mLng = pos.coords.longitude;
+    map.setView([mLat, mLng], Math.max(map.getZoom(), 15));
+    if (flSynPage.meLayer) { try { map.removeLayer(flSynPage.meLayer); } catch (_) {} flSynPage.meLayer = null; }
+    try {
+      var grp = L.layerGroup();
+      var acc = pos.coords.accuracy;
+      if (acc != null && acc > 0 && acc < 1000) {
+        L.circle([mLat, mLng], { radius: acc, color: '#5aa9e6', weight: 1, opacity: 0.65,
+          fillColor: '#5aa9e6', fillOpacity: 0.12, interactive: false }).addTo(grp);
+      }
+      L.circleMarker([mLat, mLng], { radius: 6, color: '#ffffff', weight: 2,
+        fillColor: '#2f80c9', fillOpacity: 1, interactive: false }).addTo(grp);
+      grp.addTo(map);
+      flSynPage.meLayer = grp;
+    } catch (_) {}
+  }, function() { showToast('\u26a0\ufe0f Could not get a GPS fix'); }, { enableHighAccuracy: true, timeout: 12000, maximumAge: 30000 });
+}
+
+/**
+ * Seat pins for the syndicate page — the EXACT stands-map badge language
+ * (standMarkerIcon: score ring, facing tick, name pill, dots below zoom 15),
+ * just view-only. `fit` frames the shared ground(s) after painting.
+ */
+function flSynPageSeatsPaint(fit) {
+  var map = flSynPage.map;
+  var pairs = flSynPage.pairs || {};
+  if (!map) return;
+  if (flSynPage.seatLayer) { try { map.removeLayer(flSynPage.seatLayer); } catch (_) {} }
+  flSynPage.seatLayer = L.layerGroup();
+  var mini;
+  try { mini = map.getZoom() < STANDS_BADGE_MIN_ZOOM; } catch (e) { mini = false; }
+  var pairKeyOf = function(o, g) { return String(o || '') + ' ' + String(g || ''); };
+  var pts = [];
+  var addSeat = function(st, ownerId) {
+    if (!st || st.lat == null || st.lng == null) return;
+    var mk = L.marker([st.lat, st.lng], {
+      icon: standMarkerIcon(flStandMarkerScore(st.id), false, mini,
+        standNamesOn() ? flStandShortName(st) : '', st.facing != null ? st.facing : null),
+      keyboard: false
+    });
+    // A tap means "book this seat" — the form opens with it preselected.
+    mk.on('click', function() { synbPinPopShow(st, ownerId); });
+    mk.addTo(flSynPage.seatLayer);
+    pts.push([st.lat, st.lng]);
+  };
+  (flEffectiveStands() || []).forEach(function(st) {
+    if (st && currentUser && pairs[pairKeyOf(currentUser.id, st.ground)]) addSeat(st, currentUser.id);
+  });
+  sharedDisplayStands().forEach(function(st) {
+    if (pairs[pairKeyOf(st.ownerUserId, st.ground)]) addSeat(st, st.ownerUserId);
+  });
+  flSynPage.seatLayer.addTo(map);
+  if (!fit) return;
+  var feats = groundFeaturesNow().concat(sharedPaintFeaturesNow());
+  feats.forEach(function(f) {
+    var fOwner = (f && f.user_id) || (currentUser && currentUser.id);
+    if (!f || !pairs[pairKeyOf(fOwner, f.ground)]) return;
+    if (f.kind === 'marker') {
+      var mk = markerFromGeometry(f.geometry);
+      if (mk) pts.push([mk.lat, mk.lng]);
+      return;
+    }
+    var ring = parseGeometry(f.geometry, f.kind === 'line' ? 2 : undefined);
+    if (ring && ring.length) pts = pts.concat(ring);
+  });
+  setTimeout(function() {
+    try {
+      map.invalidateSize();
+      if (pts.length) map.fitBounds(pts, { padding: [24, 24], maxZoom: 16 });
+    } catch (_) {}
+  }, 90);
+}
+
+/** 13.89 (live audit): the masthead's scale line — self-sufficient so it can
+ *  re-run once stands/forecast data warms (a cold load rendered it without
+ *  the seat count and it never came back). */
+function flSynMastMetaRender() {
+  var metaEl = document.getElementById('synd-mast-meta');
+  if (!metaEl) return;
+  var rows = flSynPage.rows || [];
+  var sel = rows.find(function (r) { return String(r.syndicate.id) === String(flSynPage.selectedId); });
+  if (!sel) return;
+  var shares = (sharedGroundsNow().shares || []).filter(function (x) {
+    return x && String(x.syndicate_id) === String(sel.syndicate.id);
+  });
+  var featsAll = [];
+  try { featsAll = (flGroundsState.features || []).concat(sharedGroundsNow().features || []); } catch (_) {}
+  var areas9 = {};
+  try { areas9 = groundAreasHaFrom(featsAll); } catch (_) {}
+  var haSum = 0, seenG = {};
+  shares.forEach(function(x) {
+    if (!seenG[x.ground]) { seenG[x.ground] = 1; haSum += areas9[x.ground] || 0; }
+  });
+  var seatN = 0;
+  shares.forEach(function(x) {
+    if (x.booking_mode === 'seat') {
+      try { seatN += synbSeatOptions(x.owner_user_id, x.ground, currentUser && currentUser.id, flEffectiveStands(), sharedDisplayStands()).length; } catch (_) {}
+    }
+  });
+  var bits = [];
+  if (shares.length) bits.push(Object.keys(seenG).length === 1 ? shares[0].ground : Object.keys(seenG).length + ' grounds');
+  if (haSum > 0) bits.push(Math.round(haSum * 2.47105).toLocaleString('en-GB') + ' acres');
+  if (seatN > 0) bits.push(seatN + ' seat' + (seatN === 1 ? '' : 's'));
+  // 13.96 (Stands' freshness lesson): say when the outlook was computed.
+  var f9 = flStandsState.forecasts;
+  if (f9 && f9.asOf) {
+    try { bits.push('outlook ' + new Date(f9.asOf).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })); } catch (_) {}
+  }
+  metaEl.innerHTML = '<span style="flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + esc(bits.join(' \u00b7 ')) + '</span>'
+    + (f9 && f9.asOf ? '<button type="button" class="synd-msg-pin" style="flex:none;margin-right:6px;" data-fl-action="synd-outlook-refresh" title="Refresh the outlook">↻</button>' : '')
+    + (sel.role === 'manager' ? '<button type="button" class="synb-cta" style="flex:none;" data-fl-action="open-syndicate-manage" data-syndicate-id="' + esc(sel.syndicate.id) + '">Manage \u203a</button>' : '');
+  enhanceKeyboardClickables(metaEl);
+}
+
+// 13.88 (owner: "three grounds but no picker, only zoomed out map"): the
+// ground chips under the map. All = fit everything (the old behaviour); a
+// ground chip flies to that share's boundary/seats and points the booking
+// form at the same ground, so the page agrees with the map.
+function synPageGroundChipsRender(shares) {
+  var host = document.getElementById('synd-page-groundchips');
+  if (!host) return;
+  var distinct = {};
+  (shares || []).forEach(function (x) { distinct[String(x.ground)] = 1; });
+  if (!shares || shares.length < 2 || Object.keys(distinct).length < 2) {
+    host.style.display = 'none'; host.innerHTML = ''; return;
+  }
+  var hHtml = '<button type="button" class="spm-b' + (flSynPage.groundFocus == null ? ' on' : '') + '" data-fl-action="synp-ground-pick" data-all="1">All</button>';
+  shares.forEach(function (x, i) {
+    var key = String(x.owner_user_id || '') + ' ' + String(x.ground || '');
+    hHtml += '<button type="button" class="spm-b' + (flSynPage.groundFocus === key ? ' on' : '') + '" data-fl-action="synp-ground-pick" data-idx="' + i + '">' + esc(x.ground) + '</button>';
+  });
+  host.style.display = '';
+  host.innerHTML = hHtml;
+  enhanceKeyboardClickables(host);
+}
+
+function synPageFocusGround(el) {
+  var rows = flSynPage.rows || [];
+  var sel = rows.find(function (r) { return String(r.syndicate.id) === String(flSynPage.selectedId); });
+  if (!sel || !flSynPage.map) return;
+  var shares = (sharedGroundsNow().shares || []).filter(function (x) {
+    return x && String(x.syndicate_id) === String(sel.syndicate.id);
+  });
+  if (el.getAttribute('data-all')) {
+    flSynPage.groundFocus = null;
+    flSynPageSeatsPaint(true); // the old fit-everything
+    synPageGroundChipsRender(shares);
+    return;
+  }
+  var idx = parseInt(el.getAttribute('data-idx'), 10) || 0;
+  var sh = shares[idx];
+  if (!sh) return;
+  var key = String(sh.owner_user_id || '') + ' ' + String(sh.ground || '');
+  flSynPage.groundFocus = key;
+  var pts = [];
+  (flEffectiveStands() || []).forEach(function (st) {
+    if (String(st.ground) === String(sh.ground) && String(sh.owner_user_id) === String(currentUser && currentUser.id)
+        && st.lat != null && st.lng != null) pts.push([st.lat, st.lng]);
+  });
+  sharedDisplayStands().forEach(function (st) {
+    if (String(st.ground) === String(sh.ground) && String(st.ownerUserId) === String(sh.owner_user_id)
+        && st.lat != null && st.lng != null) pts.push([st.lat, st.lng]);
+  });
+  var feats = groundFeaturesNow().concat(sharedPaintFeaturesNow());
+  feats.forEach(function (f) {
+    var fOwner = (f && f.user_id) || (currentUser && currentUser.id);
+    if (!f || String(f.ground) !== String(sh.ground) || String(fOwner) !== String(sh.owner_user_id)) return;
+    if (f.kind === 'marker') {
+      var mk = markerFromGeometry(f.geometry);
+      if (mk) pts.push([mk.lat, mk.lng]);
+      return;
+    }
+    var ring = parseGeometry(f.geometry, f.kind === 'line' ? 2 : undefined);
+    if (ring && ring.length) pts = pts.concat(ring);
+  });
+  if (pts.length) {
+    try { flSynPage.map.fitBounds(pts, { padding: [24, 24], maxZoom: 16 }); } catch (_) {}
+  }
+  // The page follows the map: the booking form now speaks this ground.
+  flSynBook.shareIdx = idx;
+  flSynBook.standId = undefined;
+  void renderSynBookings();
+  synPageGroundChipsRender(shares);
+}
+
+// ── Bookings on the syndicate page (phase 2 increment 2) ───────────────────
+// The database RPC owns the conflict rules; this UI books, lists who's out,
+// lets the booker (or a manager) cancel, and gives managers the pending queue.
+
+var flSynBook = { open: false, shareIdx: 0, dayIdx: 0, slot: 'dawn', standId: undefined, guest: false, busy: false, customDate: null, laterOpen: false, dayMore: {}, laterAll: false };
+
+// 13.76 (owner switched accounts in one tab and saw the previous account's
+// syndicate shell): the page's hosts keep their HTML across re-renders, so a
+// bail-out path must actively clear them or the last sign-in's panels stand.
+function flSynPageDomClear() {
+  // 13.83 (pre-release audit): the popover STATE must die with the page —
+  // a warm-up completing after an account switch re-showed the previous
+  // account's seat card from flSynPage.pinPop.
+  flSynPage.pinPop = null;
+  ['synd-page-members', 'synd-page-hero', 'synd-page-settings', 'synd-page-map-empty',
+   'synd-page-notes-wrap', 'synd-page-msgs-wrap', 'synd-page-map-wrap', 'synd-page-map-note',
+   'synd-page-masthead', 'synd-page-chips', 'synd-page-groundchips', 'synb-pin-pop', 'synd-page-card']
+    .forEach(function(id) {
+      var el = document.getElementById(id);
+      if (el) el.style.display = 'none';
+    });
+  ['synd-page-chips', 'synd-page-members', 'synd-page-hero', 'synd-page-settings',
+   'synd-page-bookings', 'synd-page-notes', 'synd-page-msgs', 'synd-mast-name', 'synd-mast-bell', 'synd-mast-meta', 'synd-page-card']
+    .forEach(function(id) {
+      var el = document.getElementById(id);
+      if (el) el.innerHTML = '';
+    });
+}
+
+function flSynHeroClear() {
+  var h = document.getElementById('synd-page-hero');
+  if (h) { h.style.display = 'none'; h.innerHTML = ''; }
+}
+
+// Everything syndicate-shaped that must not survive an account switch:
+// in-memory rows/roles/policies/unread + the rendered page. Called from
+// resetSessionState (the SIGNED_OUT choke point).
+function flSyndicateStateReset() {
+  flSynPage.rows = null;
+  flSynPage.selectedId = null;
+  flSynPage.pairs = {};
+  flSynPage.pending = [];
+  flSynPage.groundFocus = null;
+  flSynPage.peopleOpen = false;
+  flSynPrefs = {};
+  flSynBook.open = false; flSynBook.shareIdx = 0; flSynBook.dayIdx = 0;
+  flSynBook.slot = 'dawn'; flSynBook.standId = undefined; flSynBook.guest = false;
+  flSynBook.busy = false; flSynBook.customDate = null; flSynBook.laterOpen = false;
+  flSynBook.dayMore = {}; flSynBook.laterAll = false; flSynBook._lastSid = null;
+  flSynBook.rows = []; flSynBook.closedMap = {}; flSynBook.anonNames = false; flSynBook.notes = '';
+  flSynUnread.bySid = {}; flSynUnread.total = 0;
+  flSynUnread.pendBySid = {}; flSynUnread.pendTotal = 0;
+  try { paintSyndicateUnreadDot(); } catch (_) {}
+  try { flSynPageDomClear(); } catch (_) {}
+}
+
+// 13.74 (owner: "what happens if there are 30 bookings here"): long lists
+// show a scannable slice and one quiet button for the rest. PURE. Rule: at or
+// under the cap, show everything; over it, show cap-1 so the hidden count is
+// never a lonely "+1 more" (expanding for one row is worse than showing it).
+function flRowBudget(n, opened, cap) {
+  n = n | 0;
+  if (opened || n <= cap) return n;
+  return cap - 1;
+}
+
+// Field diagnostic (owner, 2026-08-10: page "doesn't scroll" on one device
+// only, unreproducible remotely). Five taps on the page title within 4s
+// toasts the scroll state so the failing device can report itself.
+var _synDbgTaps = [];
+function synbDbgTap() {
+  var now = Date.now();
+  _synDbgTaps = _synDbgTaps.filter(function(t) { return now - t < 4000; });
+  _synDbgTaps.push(now);
+  if (_synDbgTaps.length < 5) return;
+  _synDbgTaps = [];
+  var ovs = [];
+  ['syn-ov', 'tsheet-ov', 'nogps-ov', 'settings-ov', 'grounds-ov', 'stand-sheet-ov'].forEach(function(i) {
+    var e = document.getElementById(i);
+    if (e && e.classList.contains('open')) ovs.push(i);
+  });
+  var mw = document.getElementById('synd-page-map-wrap');
+  showToast('dbg ' + FL_JS_BUILD
+    + ' docH=' + document.documentElement.scrollHeight
+    + ' win=' + window.innerHeight
+    + ' y=' + Math.round(window.scrollY || 0)
+    + ' lock=' + (document.body.style.overflow || '-')
+    + ' ov=' + (ovs.join(',') || '-')
+    + ' map=' + (mw && mw.style.display !== 'none' ? 1 : 0)
+    + ' fs=' + (mw && mw.classList.contains('fullscreen') ? 1 : 0));
+}
+
+/** PURE: seat options for one shared (owner, ground) pair, numeric-aware sort. */
+function synbSeatOptions(pairOwnerId, ground, myId, ownStands, foreignStands) {
+  var list = (String(pairOwnerId) === String(myId))
+    ? (ownStands || []).filter(function(st) { return st && st.ground === ground; })
+    : (foreignStands || []).filter(function(st) { return st && String(st.ownerUserId) === String(pairOwnerId) && st.ground === ground; });
+  return list.map(function(st) { return { id: st.id, name: st.name || 'Seat' }; })
+    .sort(function(a, b) { return String(a.name).localeCompare(String(b.name), undefined, { numeric: true, sensitivity: 'base' }); });
+}
+
+/** The next 7 dates as {iso, label} starting today (trusted clock). */
+function synbDays() {
+  var out = [];
+  var d0 = new Date(diaryNow()); d0.setHours(0, 0, 0, 0);
+  var dows = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+  for (var i = 0; i < 7; i++) {
+    var d = new Date(d0); d.setDate(d.getDate() + i);
+    var iso = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+    out.push({ iso: iso, label: i === 0 ? 'Today' : (i === 1 ? 'Tmrw' : dows[d.getDay()] + ' ' + d.getDate()) });
+  }
+  return out;
+}
+
+/** PURE: whole-day difference of iso vs todayIso; 0..6 = forecast window, else null. */
+function synbDayIndexOf(iso, todayIso) {
+  if (!iso || !todayIso) return null;
+  var a = new Date(iso + 'T12:00:00');
+  var b = new Date(todayIso + 'T12:00:00');
+  if (isNaN(a) || isNaN(b)) return null;
+  var diff = Math.round((a - b) / 86400000);
+  return (diff >= 0 && diff < 7) ? diff : null;
+}
+
+/**
+ * The date the form is booking: a custom picked date (months ahead allowed —
+ * the RPC accepts up to a year) or the selected chip. dayIdx is null when the
+ * date sits beyond the 7-day forecast window — hints switch off honestly.
+ */
+function synbSelectedDate() {
+  var days = synbDays();
+  if (flSynBook.customDate) {
+    var di = synbDayIndexOf(flSynBook.customDate, days[0].iso);
+    var lbl = flSynBook.customDate;
+    try { lbl = fmtDateYear(flSynBook.customDate); } catch (_) {}
+    return { iso: flSynBook.customDate, dayIdx: di, label: lbl };
+  }
+  var d = days[Math.min(flSynBook.dayIdx, 6)];
+  return { iso: d.iso, dayIdx: Math.min(flSynBook.dayIdx, 6), label: d.label };
+}
+
+/** Activity/wind for one (standId, dayIdx, window) from the stands forecasts. */
+function synbSeatWindow(standId, dayIdx, win) {
+  var f = flStandsState.forecasts;
+  var fc = f && f.byStandId && f.byStandId[standId];
+  var day = fc && fc.days && fc.days[dayIdx];
+  if (!day) return null;
+  var score = win === 'dawn' ? day.dawnScore : day.duskScore;
+  if (score == null) return null;
+  var pen = day.windPenalty && day.windPenalty[win] < 0;
+  return { score: Math.round(score), windBad: !!pen };
+}
+
+/** Best seat's window score for a ground (whole-ground / on-foot guidance). */
+function synbGroundWindow(pairOwnerId, ground, dayIdx, win) {
+  var opts = synbSeatOptions(pairOwnerId, ground, currentUser && currentUser.id, flEffectiveStands(), sharedDisplayStands());
+  var best = null;
+  opts.forEach(function(o) {
+    var w = synbSeatWindow(o.id, dayIdx, win);
+    if (w && (!best || w.score > best.score)) best = { score: w.score, name: o.name, windBad: w.windBad };
+  });
+  return best;
+}
+
+/** Warm the stands forecasts once (scores for pins + slot chips ride them). */
+function synbWarmForecasts() {
+  if (flStandsState.forecasts || navigator.onLine === false) return;
+  void refreshStandsView().then(function() {
+    var v = document.getElementById('v-syndicate');
+    if (v && v.classList.contains('active')) {
+      flSynPageSeatsPaint(false); // pins re-badge with real scores
+      renderSynBookings();
+      flSynMastMetaRender(); // 13.89: the seat count arrives with the warm
+      if (flSynPage.pinPop) synbPinPopShow(flSynPage.pinPop.st, flSynPage.pinPop.ownerId);
+    }
+  });
+}
+
+function synbToggleForm() {
+  flSynBook.open = !flSynBook.open;
+  if (flSynBook.open) synbWarmForecasts();
+  renderSynBookings();
+}
+
+/**
+ * Tap a seat pin on the syndicate map → the booking form opens with that
+ * seat preselected (owner, 2026-08-10: "stands not clickable?"). Editing
+ * stays on Stands; on THIS page a seat's meaning is "book it".
+ */
+// ── Web Push (13.85) — the approval gate finally knocks ─────────────────────
+// Public half of the VAPID pair; the private half lives ONLY in the
+// push-fanout edge function's secrets. Rotating the pair = new keys there,
+// new constant here, everyone re-enables.
+var FL_VAPID_PUBLIC = 'BPcMdrJwwQWfD9aFK17Z4TN_ON7EisNIg9dVKvMGfbSab-imGrETaSje6Xaz_V7LMAGe127XwlBFlWyHGwSUStE';
+
+/** PURE: url-base64 → bytes (the shape pushManager.subscribe demands). */
+function flPushB64ToBytes(s) {
+  var b64 = String(s || '').replace(/-/g, '+').replace(/_/g, '/');
+  while (b64.length % 4) b64 += '=';
+  var raw = atob(b64);
+  var out = new Uint8Array(raw.length);
+  for (var i = 0; i < raw.length; i++) out[i] = raw.charCodeAt(i);
+  return out;
+}
+
+function flPushSupported() {
+  return 'serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window;
+}
+
+async function flPushSubscription() {
+  try {
+    var reg = await navigator.serviceWorker.ready;
+    return await reg.pushManager.getSubscription();
+  } catch (_) { return null; }
+}
+
+async function flPushEnable() {
+  if (!sb || !currentUser || !flPushSupported()) return;
+  try {
+    var perm = await Notification.requestPermission();
+    if (perm !== 'granted') {
+      showToast('\u26a0\ufe0f Notifications are blocked for this app in your browser settings');
+      flPushNudgeRender();
+      return;
+    }
+    var reg = await navigator.serviceWorker.ready;
+    var sub = await reg.pushManager.subscribe({
+      userVisibleOnly: true,
+      applicationServerKey: flPushB64ToBytes(FL_VAPID_PUBLIC)
+    });
+    var j = sub.toJSON();
+    var r = await sb.from('push_subscriptions').upsert({
+      user_id: currentUser.id,
+      endpoint: sub.endpoint,
+      p256dh: (j.keys && j.keys.p256dh) || '',
+      auth: (j.keys && j.keys.auth) || ''
+    }, { onConflict: 'endpoint' });
+    if (r.error) throw r.error;
+    showToast('\ud83d\udd14 Notifications on \u2014 booking requests, approvals and announcements');
+  } catch (e) {
+    showToast('\u26a0\ufe0f ' + friendlyErr(e, 'Could not turn notifications on \u2014 run the push migration first'));
+  }
+  flPushNudgeRender();
+}
+
+async function flPushDisable() {
+  try {
+    var sub = await flPushSubscription();
+    if (sub) {
+      if (sb && currentUser) {
+        try { await sb.from('push_subscriptions').delete().eq('endpoint', sub.endpoint); } catch (_) {}
+      }
+      await sub.unsubscribe();
+    }
+    showToast('\ud83d\udd15 Notifications off on this device');
+  } catch (_) { /* already gone */ }
+  flPushNudgeRender();
+}
+
+/** 13.86: the push switch is a bell chip in the masthead — outline when off
+ *  (tap to enable), gold when on (tap to turn off). No band, no nudge card. */
+async function flPushNudgeRender() {
+  var host = document.getElementById('synd-mast-bell');
+  if (!host) return;
+  var rows = flSynPage.rows || [];
+  var isMember = rows.some(function (r) { return String(r.syndicate.id) === String(flSynPage.selectedId); });
+  if (!isMember || !flPushSupported() || Notification.permission === 'denied') {
+    host.innerHTML = ''; return;
+  }
+  var sub = await flPushSubscription();
+  if (sub) {
+    host.innerHTML = '<button type="button" class="synd-bell on" data-fl-action="fl-push-off" title="Notifications on \u2014 tap to turn off" aria-label="Turn notifications off">\ud83d\udd14 On</button>';
+  } else {
+    host.innerHTML = '<button type="button" class="synd-bell" data-fl-action="fl-push-on" title="Get booking requests, approvals and announcements as notifications" aria-label="Turn notifications on">\ud83d\udd14 Alerts</button>';
+  }
+  enhanceKeyboardClickables(host);
+}
+
+/** PURE (13.82): best window ACROSS shares — higher score wins; ties go to
+ *  the earlier day, then dawn before dusk (first light beats last). */
+function synbBestAcross(picks) {
+  if (!picks || !picks.length) return null;
+  var winRank = { dawn: 0, dusk: 1 };
+  return picks.slice().sort(function (a, b) {
+    return (b.b.score - a.b.score)
+      || (a.b.dayIdx - b.b.dayIdx)
+      || ((winRank[a.b.win] || 0) - (winRank[b.b.win] || 0));
+  })[0];
+}
+
+/** PURE (13.81): the confidence word — same bands as the Stands hero. */
+function synbActWord(score) {
+  return score >= 65 ? 'High activity' : score >= 45 ? 'Moderate' : score >= 20 ? 'Low activity' : 'Minimal';
+}
+
+// 13.81: tapping a seat pin opens its week at a glance (mirrors "tap a pin
+// for its forecast" on Stands) — Book from there runs the old preselect.
+function synbPinPopClose() {
+  flSynPage.pinPop = null;
+  var el = document.getElementById('synb-pin-pop');
+  if (el) { el.style.display = 'none'; el.innerHTML = ''; }
+}
+
+function synbPinPopShow(st, ownerId) {
+  var el = document.getElementById('synb-pin-pop');
+  if (!el) return;
+  flSynPage.pinPop = { st: st, ownerId: ownerId };
+  var days = synbDays();
+  var have = !!(flStandsState.forecasts && flStandsState.forecasts.byStandId && flStandsState.forecasts.byStandId[st.id]);
+  var body;
+  if (!have) {
+    body = '<div class="synb-pp-warm">Scoring the week…</div>';
+    synbWarmForecasts();
+  } else {
+    // 13.94 (owner: "not consistent with stands/grounds on personal
+    // grounds"): the seat's week speaks Stands' language now — the SAME
+    // ribbon chips the stand detail uses (Now/weekday · date · banded best
+    // score, green ring on the best day), not the bespoke matrix 13.81
+    // invented. Tap a day → the booking form opens on that day with its
+    // better window preset; dawn/dusk live in the form, exactly as a ribbon
+    // day opens inside the stand detail.
+    var bestI = -1, bestS = -1;
+    var cells = days.map(function (d, di) {
+      var closed = (flSynBook.closedMap || {})[d.iso] || null;
+      var dw = synbSeatWindow(st.id, di, 'dawn');
+      var du = synbSeatWindow(st.id, di, 'dusk');
+      var s0 = dw ? dw.score : -1, s1 = du ? du.score : -1;
+      var sc = Math.max(s0, s1);
+      if (!closed && sc > bestS) { bestS = sc; bestI = di; }
+      return { di: di, iso: d.iso, closed: closed, sc: sc, win: s1 > s0 ? 'dusk' : 'dawn' };
+    });
+    body = '<div class="synb-pd-row">';
+    cells.forEach(function (c) {
+      var dt = new Date(c.iso + 'T12:00:00');
+      var dayLbl = c.di === 0 ? 'Now' : dt.toLocaleDateString('en-GB', { weekday: 'short' });
+      if (c.closed || c.sc < 0) {
+        body += '<span class="stnd-ribbon-chip synb-pd synb-pd-off" title="' + esc(c.closed ? ('Closed — ' + c.closed) : 'No forecast') + '">'
+          + '<span class="rc-day">' + dayLbl + '</span><span class="rc-date">' + dt.getDate() + '</span>'
+          + '<span class="rc-score">' + (c.closed ? '⊘' : '–') + '</span></span>';
+        return;
+      }
+      var band = c.sc >= 65 ? '#7adf7a' : c.sc >= 45 ? '#f0cc74' : 'rgba(255,255,255,0.55)';
+      body += '<button type="button" class="stnd-ribbon-chip synb-pd' + (c.di === bestI ? ' best' : '') + '" data-fl-action="synb-pin-day" data-day="' + c.di + '" data-slot="' + c.win + '" title="' + esc(dayLbl + ' ' + c.win + ' · activity ' + c.sc) + '">'
+        + '<span class="rc-day">' + dayLbl + '</span><span class="rc-date">' + dt.getDate() + '</span>'
+        + '<span class="rc-score" style="color:' + band + ';">' + c.sc + '</span></button>';
+    });
+    body += '</div>'
+      + '<div class="synb-pd-note">Tap a day to book its better window · ring = best this week</div>';
+  }
+  // Your own seat keeps its full Stands life one tap away; a member's view
+  // of a foreign seat stays read-only (no detail exists for them by design).
+  var own = !!(currentUser && String(ownerId) === String(currentUser.id));
+  el.innerHTML = '<div style="display:flex;align-items:center;gap:8px;">'
+    + '<div style="flex:1 1 auto;font-size:12px;font-weight:800;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + esc(st.name || 'Seat') + '</div>'
+    + (own ? '<button type="button" class="synd-msg-pin" data-fl-action="synb-pin-stands">Stands ›</button>' : '')
+    + '<button type="button" class="synb-cta" style="padding:5px 12px;font-size:10.5px;" data-fl-action="synb-pin-book">Book ›</button>'
+    + '<button type="button" class="synb-pp-x" data-fl-action="synb-pin-close" aria-label="Close">×</button>'
+    + '</div>' + body;
+  el.style.display = '';
+  enhanceKeyboardClickables(el);
+}
+
+function synbSeatTap(st, ownerId, preset) {
+  var rows = flSynPage.rows || [];
+  var sel = rows.find(function(r) { return String(r.syndicate.id) === String(flSynPage.selectedId); });
+  if (!sel) return;
+  var shares = (sharedGroundsNow().shares || []).filter(function(x) {
+    return x && String(x.syndicate_id) === String(sel.syndicate.id);
+  });
+  var idx = -1;
+  shares.forEach(function(x, i) {
+    if (idx === -1 && x.ground === st.ground && String(x.owner_user_id) === String(ownerId)) idx = i;
+  });
+  if (idx === -1) return;
+  flSynBook.open = true;
+  flSynBook.shareIdx = idx;
+  flSynBook.standId = (shares[idx].booking_mode === 'seat') ? st.id : undefined;
+  synbWarmForecasts();
+  void renderSynBookings();
+  showToast('\ud83c\udfaf ' + (st.name || 'Seat') + ' \u2014 ' + (preset || 'pick a day and window'));
+  setTimeout(function() {
+    var b = document.getElementById('synd-page-bookings');
+    if (b) { try { b.scrollIntoView({ behavior: 'smooth', block: 'start' }); } catch (_) { b.scrollIntoView(); } }
+  }, 250);
+}
+
+/** Member display names for one syndicate (cached per open). */
+async function synbNames(sid) {
+  flSynPage.names = flSynPage.names || {};
+  if (flSynPage.names[sid]) return flSynPage.names[sid];
+  var map = {};
+  try {
+    var r = await sb.from('syndicate_members').select('user_id, display_name').eq('syndicate_id', sid).eq('status', 'active');
+    (r.data || []).forEach(function(m) {
+      map[m.user_id] = (m.display_name && String(m.display_name).trim()) ? String(m.display_name).trim() : ('Member ' + (m.user_id || '').slice(0, 8));
+    });
+  } catch (_) {}
+  flSynPage.names[sid] = map;
+  return map;
+}
+
+/** 13.59 (owner: "should there not be a manage button for manager, where
+ *  they can do configurations…") — the Settings card, manager-only, on the
+ *  page itself. Bookings policy + cap moved into daylight; three new conduct
+ *  policies (who posts messages, who adds notes, whether cull shouts are
+ *  offered). Messages/notes are enforced by DB triggers
+ *  (scripts/migrate-syndicate-policies.sql); pre-migration the toggles save
+ *  with a friendly nudge to run it. */
+function renderSynPageSettings(sel) {
+  var host = document.getElementById('synd-page-settings');
+  if (!host) return;
+  if (!sel || sel.role !== 'manager') { host.style.display = 'none'; host.innerHTML = ''; return; }
+  var sn = sel.syndicate;
+  // 13.61 (owner: "doesn't look very professional") — a settings LIST, not a
+  // chip wall: grouped sections, label + one-line description per row, and a
+  // joined segmented control on the right. Same synd-set-pref action.
+  function segRow(label, desc, pref, pairs, cur) {
+    var h = '<div class="synset-row">'
+      + '<div class="synset-lbl">' + label + '<span class="synset-desc">' + desc + '</span></div>'
+      + '<div class="synset-seg" role="group" aria-label="' + label + '">';
+    pairs.forEach(function (p) {
+      var on = String(cur) === String(p.v) || (cur == null && p.def);
+      h += '<button type="button" class="synset-sb' + (on ? ' on' : '') + '" data-fl-action="synd-set-pref" data-syndicate-id="' + esc(sn.id) + '" data-pref="' + pref + '" data-value="' + p.v + '"' + (on ? ' aria-pressed="true"' : '') + '>' + p.l + '</button>';
+    });
+    return h + '</div></div>';
+  }
+  // 13.65 (owner: "the manager settings take the whole of top screen") —
+  // collapsed by default to one line + a digest of NON-default policies;
+  // taps open it, the choice is remembered. Configuration is monthly work,
+  // the map is daily work.
+  var openNow = false;
+  try { openNow = localStorage.getItem('fl_synset_open') === '1'; } catch (_) {}
+  var digestBits = [];
+  if (sn.booking_policy === 'approval') digestBits.push('approval');
+  if (sn.booking_cap != null) digestBits.push('cap ' + sn.booking_cap);
+  if (sn.guest_policy === 'off') digestBits.push('no guests');
+  if (sn.booking_horizon_days != null && String(sn.booking_horizon_days) !== '365') digestBits.push(sn.booking_horizon_days + '-day horizon');
+  if (sn.booking_privacy === 'anon') digestBits.push('anonymous');
+  if (sn.msg_policy === 'managers') digestBits.push('managers-only posts');
+  if (sn.notes_policy === 'managers') digestBits.push('managers-only notes');
+  if (sn.shout_policy === 'off') digestBits.push('shouts off');
+  if (sn.join_policy === 'open') digestBits.push('instant joining'); // 13.73 audit fix
+  var digest = digestBits.length ? digestBits.join(' \u00b7 ') : 'all defaults';
+  var h = '<button type="button" data-fl-action="synd-settings-toggle" style="display:flex;align-items:center;justify-content:space-between;gap:10px;width:100%;background:none;border:none;padding:0;cursor:pointer;text-align:left;font-family:\'DM Sans\',sans-serif;">'
+    + '<span style="min-width:0;"><span class="syn-sec-t">Syndicate settings</span>'
+    + '<span class="syn-sec-s" style="display:block;margin-top:2px;">' + esc(digest) + ' \u00b7 manager only</span></span>'
+    + '<span style="flex:none;color:rgba(216,176,84,0.85);font-size:15px;font-weight:700;transform:rotate(' + (openNow ? '90deg' : '0deg') + ');transition:transform 0.15s;">\u203a</span>'
+    + '</button>';
+  h += '<div id="synset-body" style="display:' + (openNow ? 'block' : 'none') + ';">';
+
+  h += '<div class="synset-group">Bookings</div>';
+  h += segRow('Confirmation', 'How member bookings confirm', 'booking_policy', [
+    { v: 'instant', l: 'Instant', def: true }, { v: 'approval', l: 'Approval' }
+  ], sn.booking_policy);
+  h += segRow('Fair-use cap', 'Upcoming bookings each member may hold', 'booking_cap', [
+    { v: 'null', l: 'Off', def: true }, { v: '1', l: '1' }, { v: '2', l: '2' }, { v: '3', l: '3' }, { v: '5', l: '5' }
+  ], sn.booking_cap == null ? 'null' : String(sn.booking_cap));
+  h += segRow('Guests', 'Members bringing a companion', 'guest_policy', [
+    { v: 'all', l: 'Allowed', def: true }, { v: 'off', l: 'Off' }
+  ], sn.guest_policy);
+  h += segRow('Horizon', 'How far ahead bookings open', 'booking_horizon_days', [
+    { v: '30', l: '1 mo' }, { v: '90', l: '3 mo' }, { v: '365', l: 'Season', def: true }
+  ], sn.booking_horizon_days == null ? '365' : String(sn.booking_horizon_days));
+  h += segRow('Privacy', 'What members see on others\u2019 bookings', 'booking_privacy', [
+    { v: 'names', l: 'Names', def: true }, { v: 'anon', l: 'Anonymous' }
+  ], sn.booking_privacy);
+
+  h += '<div class="synset-group">Community</div>';
+  h += segRow('Messages', 'Who can post in the thread', 'msg_policy', [
+    { v: 'all', l: 'Everyone', def: true }, { v: 'managers', l: 'Managers' }
+  ], sn.msg_policy);
+  h += segRow('Ground notes', 'Who can add field notes', 'notes_policy', [
+    { v: 'all', l: 'Everyone', def: true }, { v: 'managers', l: 'Managers' }
+  ], sn.notes_policy);
+  h += segRow('Joining', 'How invite links admit people', 'join_policy', [
+    { v: 'approve', l: 'You approve', def: true }, { v: 'open', l: 'Instant' }
+  ], sn.join_policy);
+  h += segRow('Cull shouts', 'Members may post culls to Messages', 'shout_policy', [
+    { v: 'all', l: 'On', def: true }, { v: 'off', l: 'Off' }
+  ], sn.shout_policy);
+
+  // 13.92 (Option A): invites live HERE, beside the Joining rule they obey —
+  // the manage sheet's invite section is retired. List fills async like
+  // closed dates; the generate button writes the link + code box in place.
+  h += '<div class="synset-group">Invites</div>';
+  h += '<div class="synset-desc" style="display:block;margin-top:2px;">A code or link admits people — the Joining rule above decides instant or approval. Each invite lasts ' + SYNDICATE_INVITE_DEFAULT_DAYS + ' days, ' + SYNDICATE_INVITE_DEFAULT_MAX_USES + ' uses.</div>';
+  h += '<div id="synd-invite-list" style="margin-top:8px;font-size:11px;color:var(--sy-muted,var(--muted));">Loading…</div>';
+  h += '<div id="syn-invite-out" class="synd-invite-box" style="display:none;"></div>';
+  h += '<div class="synset-closedbar"><button type="button" data-fl-action="synd-generate-invite" data-syndicate-id="' + esc(sn.id) + '">New invite — code + link</button></div>';
+
+  h += '<div class="synset-group">Closed dates</div>';
+  h += '<div class="synset-desc" style="display:block;margin-top:2px;">Shoot days, estate work \u2014 members can\u2019t book them; you can.</div>';
+  h += '<div id="synd-closed-list" style="margin-top:8px;font-size:11px;color:var(--sy-muted,var(--muted));">Loading\u2026</div>';
+  var minIso = (function () { var d = new Date(diaryNow()); d.setHours(0,0,0,0);
+    return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); })();
+  h += '<div class="synset-closedbar">'
+    + '<input type="date" id="synd-closed-date" min="' + minIso + '" aria-label="First date to close">'
+    + '<span class="synset-closedto">to</span>'
+    + '<input type="date" id="synd-closed-end" min="' + minIso + '" aria-label="Last date to close (optional)">'
+    + '<input type="text" id="synd-closed-reason" maxlength="120" placeholder="Reason (optional)" aria-label="Reason">'
+    + '<button type="button" data-fl-action="synd-closed-add" data-syndicate-id="' + esc(sn.id) + '">Close date</button>'
+    + '</div>';
+  h += '</div>'; // #synset-body
+  host.innerHTML = h;
+  host.style.display = '';
+  enhanceKeyboardClickables(host);
+  if (openNow) { void syndClosedListFill(sn.id); void syndSetInvitesFill(sn.id); }
+}
+
+/** Toggle the settings card open/closed; the choice sticks. */
+function syndSettingsToggle() {
+  var open = false;
+  try { open = localStorage.getItem('fl_synset_open') === '1'; } catch (_) {}
+  try { localStorage.setItem('fl_synset_open', open ? '0' : '1'); } catch (_) {}
+  var rows = flSynPage.rows || [];
+  var sel = rows.find(function (r) { return String(r.syndicate.id) === String(flSynPage.selectedId); });
+  if (sel) renderSynPageSettings(sel);
+}
+
+/** PURE (13.62): coalesce closed dates into consecutive runs — a keeper's
+ *  week reads as one row, not seven. Same-reason neighbours join; a day gap
+ *  or a different reason starts a new run. Rows must carry {id, date, reason}. */
+function flClosedRuns(rows) {
+  var sorted = (rows || []).slice().sort(function (a, b) { return String(a.date).localeCompare(String(b.date)); });
+  var runs = [];
+  sorted.forEach(function (r) {
+    var last = runs[runs.length - 1];
+    var contiguous = false;
+    if (last) {
+      var prev = Date.parse(last.endIso + 'T12:00:00');
+      var cur = Date.parse(String(r.date) + 'T12:00:00');
+      contiguous = Number.isFinite(prev) && Number.isFinite(cur)
+        && Math.round((cur - prev) / 86400000) === 1
+        && String(last.reason || '') === String(r.reason || '');
+    }
+    if (contiguous) { last.endIso = r.date; last.ids.push(r.id); last.days++; }
+    else runs.push({ startIso: r.date, endIso: r.date, reason: r.reason || null, ids: [r.id], days: 1 });
+  });
+  return runs;
+}
+
+/** Fill the settings card's closed-dates list (upcoming only). */
+async function syndClosedListFill(sid) {
+  var box = document.getElementById('synd-closed-list');
+  if (!box || !sb) return;
+  var minIso = (function () { var d = new Date(diaryNow()); d.setHours(0,0,0,0);
+    return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); })();
+  var rows = [];
+  try {
+    var r = await sb.from('syndicate_closed_dates')
+      .select('id, date, reason').eq('syndicate_id', sid)
+      .gte('date', minIso).order('date', { ascending: true }).limit(400);
+    rows = (r && !r.error && r.data) ? r.data : [];
+  } catch (_) { rows = []; }
+  if (!rows.length) { box.textContent = 'None \u2014 every day is open.'; return; }
+  function dLbl(iso) {
+    try { return new Date(iso + 'T12:00:00').toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' }); }
+    catch (_) { return iso; }
+  }
+  var h = '';
+  flClosedRuns(rows).forEach(function (run) {
+    var lbl = run.days === 1 ? dLbl(run.startIso)
+      : dLbl(run.startIso) + ' \u2013 ' + dLbl(run.endIso) + ' (' + run.days + ' days)';
+    h += '<div style="display:flex;align-items:center;gap:8px;padding:7px 0;border-bottom:1px solid rgba(0,0,0,0.05);">'
+      + '<span style="font-weight:700;color:var(--sy-ink,var(--bark));">' + esc(lbl) + '</span>'
+      + (run.reason ? '<span style="color:var(--sy-muted,var(--muted));">\u2014 ' + esc(run.reason) + '</span>' : '')
+      + '<span style="flex:1 1 auto;"></span>'
+      + '<button type="button" class="synd-msg-pin" data-fl-action="synd-closed-remove" data-closed-ids="' + esc(run.ids.join(',')) + '">Reopen</button>'
+      + '</div>';
+  });
+  box.innerHTML = h;
+  enhanceKeyboardClickables(box);
+}
+
+/** 13.92: fill the settings card's active-invite list — code lead, uses and
+ *  expiry, quiet pill actions. Async like syndClosedListFill: the card paints
+ *  instantly, this fills in. */
+async function syndSetInvitesFill(sid) {
+  var box = document.getElementById('synd-invite-list');
+  if (!box || !sb) return;
+  var invRows = [];
+  try {
+    var r = await sb.from('syndicate_invites')
+      .select('id, token, short_code, created_at, expires_at, max_uses, used_count')
+      .eq('syndicate_id', sid)
+      .order('created_at', { ascending: false })
+      .limit(12);
+    if (r.error && /short_code/i.test(String(r.error.message || ''))) {
+      r = await sb.from('syndicate_invites')
+        .select('id, token, created_at, expires_at, max_uses, used_count')
+        .eq('syndicate_id', sid)
+        .order('created_at', { ascending: false })
+        .limit(12);
+    }
+    if (!r.error && r.data) invRows = r.data;
+  } catch (_) { invRows = []; }
+  var nowMs = Date.now();
+  var active = (invRows || []).filter(function (inv) {
+    var expMs = Date.parse(String(inv.expires_at || ''));
+    var used = parseInt(inv.used_count, 10) || 0;
+    var max = parseInt(inv.max_uses, 10) || 0;
+    return expMs > nowMs && used < max;
+  });
+  if (!active.length) { box.textContent = 'No active invites.'; return; }
+  var h = '';
+  active.forEach(function (inv) {
+    var left = Math.max(0, (parseInt(inv.max_uses, 10) || 0) - (parseInt(inv.used_count, 10) || 0));
+    var expDate = inv.expires_at ? new Date(inv.expires_at) : null;
+    var expLbl = (expDate && !isNaN(expDate.getTime()))
+      ? expDate.toLocaleString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })
+      : 'unknown';
+    var u = syndicateInviteUrl(inv.token);
+    h += '<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:7px 0;border-bottom:1px solid rgba(0,0,0,0.05);">'
+      + '<span style="min-width:0;flex:1 1 140px;">'
+      + (inv.short_code
+          ? '<span style="font-size:13px;font-weight:800;letter-spacing:1.5px;font-family:\'DM Mono\',monospace;color:var(--sy-ink,var(--bark));">' + esc(flInviteCodeFmt(inv.short_code)) + '</span>'
+          : '<span style="font-weight:600;color:var(--sy-ink,var(--bark));">' + esc(String(inv.token || '').slice(0, 10)) + '…</span>')
+      + '<span style="display:block;font-size:10px;color:var(--sy-muted,var(--muted));margin-top:1px;">' + esc(String(left)) + ' use' + (left === 1 ? '' : 's') + ' left · expires ' + esc(expLbl) + '</span>'
+      + '</span>'
+      + (inv.short_code ? '<button type="button" class="synd-msg-pin" data-fl-action="synd-copy-code" data-invite-code="' + esc(flInviteCodeFmt(inv.short_code)) + '">Copy code</button>' : '')
+      + '<button type="button" class="synd-msg-pin" data-fl-action="synd-copy-existing-invite" data-invite-url="' + esc(u) + '">Copy link</button>'
+      + '<button type="button" class="synd-msg-del" data-fl-action="synd-revoke-invite" data-invite-id="' + esc(inv.id) + '" data-syndicate-id="' + esc(sid) + '">Revoke</button>'
+      + '</div>';
+  });
+  box.innerHTML = h;
+  enhanceKeyboardClickables(box);
+}
+
+async function syndClosedAdd(el) {
+  if (!sb || !currentUser) return;
+  var sid = el.getAttribute('data-syndicate-id');
+  var dInp = document.getElementById('synd-closed-date');
+  var eInp = document.getElementById('synd-closed-end');
+  var rInp = document.getElementById('synd-closed-reason');
+  if (!sid || !dInp || !dInp.value) { showToast('\u26a0\ufe0f Pick a date to close'); return; }
+  // 13.62 (owner: "if lets say a week or month needs closing?") — an optional
+  // end date closes the whole run, one row per day, existing days skipped.
+  var startIso = dInp.value;
+  var endIso = (eInp && eInp.value) ? eInp.value : startIso;
+  if (endIso < startIso) { var _t = startIso; startIso = endIso; endIso = _t; }
+  var d0 = new Date(startIso + 'T12:00:00');
+  var d1 = new Date(endIso + 'T12:00:00');
+  var span = Math.round((d1 - d0) / 86400000) + 1;
+  if (!Number.isFinite(span) || span < 1) { showToast('\u26a0\ufe0f Check the dates'); return; }
+  if (span > 92) { showToast('\u26a0\ufe0f That\u2019s over 3 months \u2014 close it in smaller runs'); return; }
+  var reason = (rInp && rInp.value.trim()) || null;
+  var batch = [];
+  for (var i = 0; i < span; i++) {
+    var d = new Date(d0); d.setDate(d.getDate() + i);
+    batch.push({
+      syndicate_id: sid,
+      date: d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'),
+      reason: reason
+    });
+  }
+  var r = await sb.from('syndicate_closed_dates')
+    .upsert(batch, { onConflict: 'syndicate_id,date', ignoreDuplicates: true });
+  if (r.error) { showToast('\u26a0\ufe0f ' + friendlyErr(r.error, 'Could not close the dates')); return; }
+  showToast('\u2713 ' + (span === 1 ? 'Date closed' : span + ' days closed'));
+  dInp.value = ''; if (eInp) eInp.value = ''; if (rInp) rInp.value = '';
+  void syndClosedListFill(sid);
+  void renderSynBookings(); // the grid greys it immediately
+}
+
+async function syndClosedRemove(el) {
+  if (!sb) return;
+  var ids = (el.getAttribute('data-closed-ids') || el.getAttribute('data-closed-id') || '')
+    .split(',').filter(Boolean);
+  if (!ids.length) return;
+  var r = await sb.from('syndicate_closed_dates').delete().in('id', ids);
+  if (r.error) { showToast('\u26a0\ufe0f ' + friendlyErr(r.error, 'Could not reopen')); return; }
+  showToast('\u2713 Date reopened');
+  var sid = (flSynPage.selectedId || '');
+  void syndClosedListFill(sid);
+  void renderSynBookings();
+}
+
+async function syndSetPref(el) {
+  if (!sb || !currentUser) return;
+  var sid = el.getAttribute('data-syndicate-id');
+  var key = el.getAttribute('data-pref');
+  var val = el.getAttribute('data-value');
+  if (!sid || !key) return;
+  var patch = {};
+  if (key === 'booking_cap' || key === 'booking_horizon_days') patch[key] = val === 'null' ? null : parseInt(val, 10);
+  else patch[key] = val;
+  var r = await sb.from('syndicates').update(patch).eq('id', sid);
+  if (r.error) {
+    var msg = String(r.error.message || '');
+    showToast('\u26a0\ufe0f ' + (msg.indexOf('column') !== -1
+      ? 'Run scripts/migrate-syndicate-policies.sql first'
+      : friendlyErr(r.error, 'Could not save')));
+    return;
+  }
+  showToast('\u2713 Saved');
+  try { flSynPage.rows = await loadMySyndicateRows(); } catch (_) {}
+  void renderSyndicatePage();
+}
+
+/** 13.57 (audit round 3): the syndicate gets faces — avatar row + member
+ *  count under the chips. Managers gold, same initials/hue system as the
+ *  messages thread. The "out this week" sub-line is filled by
+ *  renderSynBookings once bookings are in hand. */
+async function renderSynPageMembers(sel) {
+  var host = document.getElementById('synd-page-members');
+  if (!host || !sel) return;
+  var rows = [], pending = [];
+  try {
+    var r = await sb.from('syndicate_members')
+      .select('user_id, display_name, role, status')
+      .eq('syndicate_id', sel.syndicate.id).in('status', ['active', 'invited']);
+    (r && !r.error && r.data ? r.data : []).forEach(function (m) {
+      if (m.status === 'invited') pending.push(m); else rows.push(m);
+    });
+  } catch (_) { rows = []; }
+  if (!rows.length && !pending.length) { host.style.display = 'none'; host.innerHTML = ''; return; }
+  rows.sort(function (a, b) {
+    if ((a.role === 'manager') !== (b.role === 'manager')) return a.role === 'manager' ? -1 : 1;
+    return String(a.display_name || '').localeCompare(String(b.display_name || ''), undefined, { sensitivity: 'base' });
+  });
+  var h = '<div class="synm-avs">';
+  var CAP = 8;
+  rows.slice(0, CAP).forEach(function (m) {
+    var nm = (m.display_name && String(m.display_name).trim()) || ('Member ' + String(m.user_id || '').slice(0, 8));
+    var hue = flAvatarHue(nm);
+    var mgr = m.role === 'manager';
+    h += '<span class="synm-av' + (mgr ? ' synm-av--mgr' : '') + '"'
+      + (mgr ? '' : ' style="background:hsl(' + hue + ',42%,84%);color:hsl(' + hue + ',48%,30%)"')
+      + ' title="' + esc(nm) + (mgr ? ' \u00b7 manager' : '') + '">' + esc(flInitialsOf(nm)) + '</span>';
+  });
+  if (rows.length > CAP) h += '<span class="synm-av synm-av--more">+' + (rows.length - CAP) + '</span>';
+  h += '</div>';
+  h += '<div class="synm-meta">' + rows.length + ' member' + (rows.length === 1 ? '' : 's')
+    + '<span id="synd-page-members-out"></span></div>';
+  // 13.69: a syndicate of one or two is a syndicate being set up — put the
+  // invite in reach instead of buried in the manage sheet.
+  if (sel.role === 'manager' && rows.length < 3) {
+    h += '<button type="button" class="synb-cta" style="padding:6px 12px;font-size:11px;" data-fl-action="synd-invite-quick" data-syndicate-id="' + esc(sel.syndicate.id) + '">Invite a member \u203a</button>';
+  }
+  // 13.92 (Option A): people admin lives HERE, next to the faces — the manage
+  // sheet keeps the constitution only. Managers get a quiet People toggle;
+  // open, each member has a row with Promote / Demote / Remove pills.
+  if (sel.role === 'manager' && rows.length >= 2) {
+    h += '<button type="button" class="synd-msg-pin" style="margin-left:auto;" data-fl-action="synd-people-toggle" aria-expanded="' + (flSynPage.peopleOpen ? 'true' : 'false') + '">People ' + (flSynPage.peopleOpen ? '⌄' : '›') + '</button>';
+  }
+  // 13.72: join requests land HERE, in daylight — a leaked link produces
+  // requests to decline, never members. Managers only; requesters see
+  // nothing anywhere until approved (RLS treats invited as not-a-member).
+  if (sel.role === 'manager' && pending.length) {
+    pending.forEach(function (m) {
+      var nm = (m.display_name && String(m.display_name).trim()) || ('Member ' + String(m.user_id || '').slice(0, 8));
+      h += '<div style="flex-basis:100%;display:flex;align-items:center;gap:8px;margin-top:8px;padding:8px 11px;border:1px solid rgba(216,176,84,0.35);border-radius:10px;background:rgba(216,176,84,0.08);">'
+        + '<span style="font-size:11.5px;color:#f0e6cf;flex:1 1 auto;min-width:0;"><b>' + esc(nm) + '</b> asked to join</span>'
+        + '<button type="button" class="synb-cta" style="padding:5px 12px;font-size:11px;" data-fl-action="synd-join-decide" data-user-id="' + esc(m.user_id) + '" data-syndicate-id="' + esc(sel.syndicate.id) + '" data-approve="1">Approve</button>'
+        + '<button type="button" class="synb-cxl" data-fl-action="synd-join-decide" data-user-id="' + esc(m.user_id) + '" data-syndicate-id="' + esc(sel.syndicate.id) + '" data-approve="0">Decline</button>'
+        + '</div>';
+    });
+  }
+  if (sel.role === 'manager' && flSynPage.peopleOpen && rows.length >= 2) {
+    var mgrCount = rows.filter(function (m) { return m.role === 'manager'; }).length;
+    rows.forEach(function (m) {
+      var nm = (m.display_name && String(m.display_name).trim()) || ('Member ' + String(m.user_id || '').slice(0, 8));
+      var isSelf = m.user_id === currentUser.id;
+      var mgr = m.role === 'manager';
+      var right = '';
+      if (!mgr && !isSelf) {
+        right = '<button type="button" class="synd-msg-pin" data-fl-action="synd-promote-member" data-member-user-id="' + esc(m.user_id) + '" data-syndicate-id="' + esc(sel.syndicate.id) + '">Promote</button>'
+          + '<button type="button" class="synd-msg-del" data-fl-action="synd-remove-member" data-member-user-id="' + esc(m.user_id) + '" data-syndicate-id="' + esc(sel.syndicate.id) + '">Remove</button>';
+      } else if (mgr && !isSelf && mgrCount >= 2) {
+        right = '<button type="button" class="synd-msg-pin" data-fl-action="synd-demote-member" data-member-user-id="' + esc(m.user_id) + '" data-syndicate-id="' + esc(sel.syndicate.id) + '">Demote</button>';
+      } else if (mgr && isSelf) {
+        right = '<span style="font-size:10px;color:rgba(240,230,207,0.5);white-space:nowrap;">' + (mgrCount >= 2 ? 'Another manager can demote you' : 'Only manager') + '</span>';
+      }
+      h += '<div style="flex-basis:100%;display:flex;align-items:center;gap:6px;margin-top:6px;padding:7px 11px;border:1px solid rgba(255,255,255,0.12);border-radius:10px;">'
+        + '<span style="font-size:11.5px;color:#f0e6cf;flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;"><b>' + esc(nm) + '</b>' + (isSelf ? ' <span style="color:rgba(240,230,207,0.55);">(you)</span>' : '') + ' <span style="color:rgba(240,230,207,0.55);">· ' + (mgr ? 'Manager' : 'Member') + '</span></span>'
+        + right + '</div>';
+    });
+  }
+  host.innerHTML = h;
+  host.style.display = '';
+  enhanceKeyboardClickables(host);
+}
+
+async function renderSynBookings() {
+  var box = document.getElementById('synd-page-bookings');
+  if (!box) return;
+  var rows = flSynPage.rows || [];
+  var sel = rows.find(function(r) { return String(r.syndicate.id) === String(flSynPage.selectedId); });
+  if (!sel) { box.innerHTML = ''; flSynHeroClear(); return; }
+  var isMgr = sel.role === 'manager';
+  var shares = (sharedGroundsNow().shares || []).filter(function(x) {
+    return x && String(x.syndicate_id) === String(sel.syndicate.id);
+  });
+  if (!shares.length || bookingsUnavailable()) { box.innerHTML = ''; flSynHeroClear(); return; }
+  if (flSynBook.shareIdx >= shares.length) flSynBook.shareIdx = 0;
+
+  // 13.74: expansion state is per-syndicate — don't leak across chips.
+  if (String(flSynBook._lastSid || '') !== String(sel.syndicate.id)) {
+    flSynBook._lastSid = sel.syndicate.id;
+    flSynBook.dayMore = {};
+    flSynBook.laterAll = false;
+  }
+
+  var names = await synbNames(sel.syndicate.id);
+  var all = [];
+  var stale = null; // 13.57: offline — serve the last snapshot, say so
+  try {
+    all = await fetchBookings(sb);
+    try {
+      localStorage.setItem('fl_bookings_cache:' + currentUser.id,
+        JSON.stringify({ ts: Date.now(), rows: all }));
+    } catch (_) { /* quota/private mode — cache is a bonus */ }
+  } catch (_) {
+    try {
+      var cached = JSON.parse(localStorage.getItem('fl_bookings_cache:' + currentUser.id) || 'null');
+      if (cached && Array.isArray(cached.rows)) { all = cached.rows; stale = cached.ts || 0; }
+    } catch (_) { all = []; }
+  }
+  if (bookingsUnavailable()) { box.innerHTML = ''; flSynHeroClear(); return; }
+  var mine = all.filter(function(b) { return String(b.syndicate_id) === String(sel.syndicate.id); });
+  flSynBook.rows = mine; // 13.53: the form marks taken/yours from these
+  // 13.60: closed dates for the grid/day chips; anonymous-names privacy.
+  flSynBook.anonNames = sel.syndicate.booking_privacy === 'anon' && !isMgr;
+  var closedMap = {};
+  try {
+    var cr = await sb.from('syndicate_closed_dates')
+      .select('id, date, reason').eq('syndicate_id', sel.syndicate.id)
+      .gte('date', synbDays()[0].iso);
+    (cr.data || []).forEach(function (c) { closedMap[c.date] = c.reason || 'Closed'; });
+  } catch (_) { /* pre-migration — nothing closed */ }
+  flSynBook.closedMap = closedMap;
+
+  // ── 13.69: the hero — BEST WINDOW THIS WEEK, computed from what's already
+  // in hand (forecasts + bookings + closures). Stands opens with "your next
+  // sit"; this page now opens with the week's best free chance.
+  (function () {
+    var heroEl = document.getElementById('synd-page-hero');
+    if (!heroEl) return;
+    if (!shares.length) { heroEl.style.display = 'none'; return; }
+    if (!flStandsState.forecasts) {
+      heroEl.style.display = '';
+      heroEl.innerHTML = '<div class="syn-sec-t">Best window this week</div>'
+        + '<div class="syn-sec-s" style="margin-top:4px;">Scoring the week\u2026</div>';
+      return;
+    }
+    // 13.82 (owner: "same syndicate but two grounds"): the hero scans EVERY
+    // shared ground and recommends the best window across the lot — not just
+    // whichever ground the form last had selected.
+    var days0 = synbDays();
+    var picks = [];
+    shares.forEach(function (shX, sxi) {
+      var modeX = shX.booking_mode === 'seat' ? 'seat' : 'whole';
+      var seatIdsX = modeX === 'seat'
+        ? synbSeatOptions(shX.owner_user_id, shX.ground, currentUser && currentUser.id, flEffectiveStands(), sharedDisplayStands()).map(function (o) { return o.id; })
+        : [];
+      var spentX = {
+        dawn: synbWindowSpentToday('dawn', shX.owner_user_id, shX.ground),
+        dusk: synbWindowSpentToday('dusk', shX.owner_user_id, shX.ground)
+      };
+      var bX = synbBestWindow(mine, shX, seatIdsX, days0,
+        function (sid, di, win) {
+          var w = sid ? synbSeatWindow(sid, di, win) : synbGroundWindow(shX.owner_user_id, shX.ground, di, win);
+          return w ? w.score : null;
+        }, spentX, flSynBook.closedMap, currentUser.id);
+      if (bX) picks.push({ b: bX, sh: shX, idx: sxi, seatIds: seatIdsX });
+    });
+    var top = synbBestAcross(picks);
+    if (!top) { heroEl.style.display = 'none'; heroEl.innerHTML = ''; return; }
+    var best = top.b, sh0 = top.sh, seatIds0 = top.seatIds;
+    var gNames0 = {};
+    shares.forEach(function (x) { gNames0[x.ground] = 1; });
+    var heroGround = Object.keys(gNames0).length > 1 ? sh0.ground : null;
+    var wDet = best.seatId ? synbSeatWindow(best.seatId, best.dayIdx, best.win)
+                           : synbGroundWindow(sh0.owner_user_id, sh0.ground, best.dayIdx, best.win);
+    var seatName = null;
+    if (best.seatId) {
+      var opts0 = synbSeatOptions(sh0.owner_user_id, sh0.ground, currentUser && currentUser.id, flEffectiveStands(), sharedDisplayStands());
+      var hit0 = opts0.find(function (o) { return String(o.id) === String(best.seatId); });
+      seatName = hit0 ? hit0.name : null;
+    }
+    var cell0 = synbGridCell(mine, sh0, seatIds0, best.iso, best.win, currentUser.id);
+    var freeTxt = seatIds0.length ? cell0.free + ' of ' + cell0.total + ' seats free' : 'ground free';
+    // 13.81: the Stands hero speaks in decisions — from-time, confidence,
+    // moon. Same forecast day the score came from.
+    var fDay = null;
+    try {
+      var fcAll0 = flStandsState.forecasts && flStandsState.forecasts.byStandId;
+      var fcId0 = best.seatId || seatIds0[0] || null;
+      if (!fcId0) {
+        var opts9 = synbSeatOptions(sh0.owner_user_id, sh0.ground, currentUser && currentUser.id, flEffectiveStands(), sharedDisplayStands());
+        fcId0 = opts9[0] && opts9[0].id;
+      }
+      var fcRec0 = fcAll0 && fcId0 ? fcAll0[fcId0] : null;
+      fDay = (fcRec0 && fcRec0.days && fcRec0.days[best.dayIdx]) || null;
+    } catch (_) { fDay = null; }
+    var fromT = fDay ? (best.win === 'dawn' ? fDay.dawnTime : fDay.duskTime) : null;
+    heroEl.style.display = '';
+    heroEl.innerHTML = '<div class="syn-sec-t">Best window this week</div>'
+      + '<div style="display:flex;align-items:center;gap:14px;margin-top:9px;">'
+      + '<div class="syn-hero-score">' + best.score + '</div>'
+      + '<div style="flex:1 1 auto;min-width:0;">'
+      + '<div class="syn-hero-title">' + esc(best.label) + ' ' + (best.win === 'dawn' ? 'dawn' : 'dusk')
+      + (seatName ? ' \u00b7 ' + esc(seatName) : '') + (heroGround ? ' on ' + esc(heroGround) : '') + '</div>'
+      + '<div class="syn-hero-sub">'
+      + (fromT ? '<span>from ' + esc(String(fromT)) + '</span>' : '')
+      + '<span>' + synbActWord(best.score) + '</span>'
+      + '<span>' + esc(freeTxt) + '</span>'
+      + (wDet && wDet.windBad ? '<span>\u26a0 wind against this seat</span>' : '<span>\u2713 wind clear</span>')
+      + ((fDay && fDay.moon) ? '<span>' + fDay.moon.icon + ' ' + fDay.moon.illumination + '%</span>' : '')
+      + '</div>'
+      + '</div>'
+      + '<button type="button" class="synb-cta" data-fl-action="synb-hero-book" data-day="' + best.dayIdx + '" data-slot="' + best.win + '" data-stand-id="' + esc(best.seatId || '') + '" data-share-idx="' + top.idx + '">Book \u203a</button>'
+      + '</div>';
+    // 13.96 (Stands' "your next sit" lesson): the hero suggests; this line
+    // remembers. Your actual booked outing, right under the recommendation.
+    var myNext = nextOutingOf(mine, currentUser && currentUser.id, days0[0].iso);
+    if (myNext) {
+      var mySeat = outingSeatName(myNext);
+      var myDi = synbDayIndexOf(myNext.date, days0[0].iso);
+      var myLbl = myDi != null ? days0[myDi].label
+        : (function () { try { return fmtDateYear(myNext.date); } catch (_) { return myNext.date; } })();
+      heroEl.innerHTML += '<div class="syn-hero-you">You’re out: <b>' + esc(myLbl) + ' '
+        + (myNext.slot === 'allday' ? 'all day' : esc(myNext.slot))
+        + (mySeat ? ' · ' + esc(mySeat) : '') + (myNext.ground ? ' · ' + esc(myNext.ground) : '') + '</b>'
+        + (myNext.status === 'pending' ? '<span class="syn-hero-pend">awaiting approval</span>' : '')
+        + '<button type="button" class="synd-msg-pin" data-fl-action="synb-ics" title="Add to calendar">📅 Calendar</button></div>';
+    }
+    enhanceKeyboardClickables(heroEl);
+  })();
+
+  var capSt = bookingCapState(mine, sel.syndicate.id, currentUser.id, sel.syndicate.booking_cap, synbDays()[0].iso);
+  var capBlocked = !isMgr && capSt.reached;
+  var h = '<div style="margin-top:14px;padding:14px;border:1.5px solid var(--sy-line,var(--line));border-radius:14px;background:var(--sy-card2,var(--sand));">'
+    + '<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;">'
+    + '<div class="syn-sec-t">Bookings'
+    + (!isMgr && capSt.cap != null ? ' <span style="font-weight:600;color:var(--sy-muted,var(--muted));">\u00b7 ' + capSt.used + ' of ' + capSt.cap + ' held</span>' : '')
+    + '</div>'
+    + (capBlocked
+        ? '<span style="font-size:10.5px;color:var(--sy-muted,var(--muted));font-weight:600;text-align:right;">Fair-use cap reached \u2014 cancel one to book another</span>'
+        : '<button type="button" class="synb-cta" data-fl-action="synb-open-form">' + (flSynBook.open ? 'Close' : 'Book an outing \u203a') + '</button>')
+    + '</div>';
+
+  // Manager queue: pendings first, oldest first.
+  if (isMgr) {
+    var pend = mine.filter(function(b) { return b.status === 'pending'; });
+    if (pend.length) {
+      h += '<div style="font-size:10px;color:var(--sy-muted,var(--muted));font-weight:700;text-transform:uppercase;letter-spacing:0.6px;margin:12px 0 6px 0;">Awaiting your approval</div>';
+      pend.forEach(function(b) { h += synbRowHtml(b, names, true, isMgr); });
+    }
+  }
+
+  // The booking form (never at the cap — the RPC would refuse anyway).
+  if (capBlocked) flSynBook.open = false;
+  if (flSynBook.open) h += synbFormHtml(sel, shares);
+
+  // Who's out — the next 7 days.
+  var days = synbDays();
+  var any = false;
+  var upHtml = '';
+  days.forEach(function(d) {
+    var dayRows = whosOutRows(mine, d.iso).filter(function(b) { return isMgr || b.status !== 'pending' || b.booked_by === currentUser.id; });
+    if (!dayRows.length) return;
+    any = true;
+    upHtml += '<div style="font-size:10px;color:var(--sy-muted,var(--muted));font-weight:700;text-transform:uppercase;letter-spacing:0.6px;margin:12px 0 6px 0;">' + esc(d.label) + '</div>';
+    // 13.74: a busy day shows 4 rows tops, then "+ N more".
+    var dayShow = flRowBudget(dayRows.length, !!(flSynBook.dayMore || {})[d.iso], 4);
+    dayRows.slice(0, dayShow).forEach(function(b) { upHtml += synbRowHtml(b, names, false, isMgr); });
+    if (dayShow < dayRows.length) {
+      upHtml += '<div style="margin:2px 0 6px 0;"><button type="button" class="synd-msg-pin" data-fl-action="synb-day-more" data-iso="' + esc(d.iso) + '">+ ' + (dayRows.length - dayShow) + ' more \u203a</button></div>';
+    }
+  });
+  // Months-ahead bookings (owner, 2026-08-10): a date booked for October must
+  // be visible NOW, not appear silently when it enters the 7-day window.
+  var horizonIso = days[6].iso;
+  var later = mine.filter(function(b) {
+    if (!bookingActive(b) || String(b.date) <= horizonIso) return false;
+    return isMgr || b.status !== 'pending' || b.booked_by === currentUser.id;
+  }).sort(function(a, b) { return String(a.date).localeCompare(String(b.date)); });
+  if (later.length) {
+    any = true;
+    // 13.74: the tail is unbounded (months of weekends) — show the next 4
+    // dates, then one quiet "Show all N" for the rest.
+    var lDates = [];
+    later.forEach(function(b) { if (lDates.indexOf(b.date) === -1) lDates.push(b.date); });
+    var lShowD = flRowBudget(lDates.length, !!flSynBook.laterAll, 4);
+    var lastD = null;
+    upHtml += '<div style="font-size:10px;color:var(--sy-muted,var(--muted));font-weight:700;text-transform:uppercase;letter-spacing:0.6px;margin:12px 0 6px 0;">Further ahead</div>';
+    later.forEach(function(b) {
+      if (lDates.indexOf(b.date) >= lShowD) return;
+      if (b.date !== lastD) {
+        lastD = b.date;
+        var lbl = b.date;
+        try { lbl = fmtDateYear(b.date); } catch (_) {}
+        upHtml += '<div style="font-size:10px;color:var(--sy-ink,var(--bark));font-weight:700;margin:8px 0 4px 0;">' + esc(lbl) + '</div>';
+      }
+      upHtml += synbRowHtml(b, names, false, isMgr);
+    });
+    if (lShowD < lDates.length) {
+      upHtml += '<div style="margin:2px 0 6px 0;"><button type="button" class="synd-msg-pin" data-fl-action="synb-later-all">Show all ' + later.length + ' further ahead \u203a</button></div>';
+    }
+  }
+  h += any ? upHtml
+           : '<p style="font-size:11px;color:var(--sy-muted,var(--muted));margin:10px 0 0 0;">Nobody is booked out in the next 7 days.</p>';
+  var myUpcoming = mine.some(function (b) {
+    return bookingActive(b) && String(b.booked_by) === String(currentUser.id) && String(b.date) >= days[0].iso;
+  });
+  if (myUpcoming) {
+    h += '<div style="text-align:right;margin-top:8px;"><button type="button" class="synd-msg-pin" data-fl-action="synb-ics">Add my bookings to calendar</button></div>';
+  }
+  if (stale != null) {
+    var ago = '';
+    try { ago = ' from ' + new Date(stale).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }); } catch (_) {}
+    h += '<p style="font-size:10px;color:#a07818;margin:8px 0 0 0;font-family:\'DM Mono\',monospace;">\u26a1 Offline \u2014 showing the last snapshot' + ago + '. Booking needs signal.</p>';
+  }
+  h += '</div>';
+  box.innerHTML = h;
+  // 13.57: member strip sub-line — how many are out in the next 7 days.
+  var outEl = document.getElementById('synd-page-members-out');
+  if (outEl) {
+    var days7 = synbDays();
+    var outIds = {};
+    mine.forEach(function(b) {
+      if (!bookingActive(b)) return;
+      if (String(b.date) < days7[0].iso || String(b.date) > days7[6].iso) return;
+      outIds[String(b.booked_by)] = true;
+    });
+    var nOut = Object.keys(outIds).length;
+    outEl.textContent = nOut ? ' \u00b7 ' + nOut + ' out this week' : '';
+  }
+  enhanceKeyboardClickables(box);
+  var dateInp = document.getElementById('synb-date-inp');
+  if (dateInp) {
+    dateInp.addEventListener('change', function() {
+      flSynBook.customDate = dateInp.value || null;
+      renderSynBookings();
+    });
+  }
+  var notesInp = document.getElementById('synb-notes-inp');
+  if (notesInp) {
+    notesInp.addEventListener('input', function() { flSynBook.notes = notesInp.value; });
+  }
+}
+
+function synbRowHtml(b, names, decideRow, isMgr) {
+  // 13.60: anonymous mode — members see that a slot is taken, not by whom.
+  var who = b.booked_by === (currentUser && currentUser.id) ? 'You'
+    : (flSynBook.anonNames ? 'A member' : (names[b.booked_by] || ('Member ' + String(b.booked_by || '').slice(0, 8))));
+  var seatLbl = b.stand_id ? (synbStandName(b) || 'Seat') : ((synbModeFor(b) === 'seat') ? 'On foot \u00b7 whole ground' : 'Whole ground');
+  var slotLbl = b.slot === 'allday' ? 'All day' : (b.slot === 'dawn' ? 'Dawn' : 'Dusk');
+  var canCancel = bookingActive(b) && (b.booked_by === (currentUser && currentUser.id) || isMgr);
+  var hRow = '<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding:9px 11px;background:var(--sy-card,white);border:1.5px solid var(--sy-line,var(--line));border-radius:10px;margin-bottom:6px;">'
+    + '<div style="flex:1 1 auto;min-width:0;">'
+    + '<div style="font-size:12px;font-weight:700;color:var(--sy-ink,var(--bark));overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + esc(slotLbl) + ' \u00b7 ' + esc(b.ground) + '</div>'
+    + '<div style="font-size:10px;color:var(--sy-muted,var(--muted));margin-top:2px;">' + esc(who) + ' \u00b7 ' + esc(seatLbl)
+    + (b.with_guest ? ' \u00b7 +guest' : '')
+    + ((flSynBook.closedMap || {})[b.date] ? ' \u00b7 <span style="color:#c08a40;">closed day</span>' : '')
+    + (b.status === 'pending' ? ' \u00b7 <b style="color:#b8860b;">awaiting approval</b>' : '')
+    + (b.notes ? '<br>' + esc(b.notes) : '')
+    + '</div></div>';
+  if (decideRow) {
+    hRow += '<div style="display:flex;gap:6px;flex:none;">'
+      + '<button type="button" style="padding:6px 11px;font-size:11px;font-weight:700;border:1.5px solid var(--forest,#3c5a26);border-radius:8px;background:var(--sy-card,white);color:var(--forest,#3c5a26);cursor:pointer;" data-fl-action="synb-decide" data-id="' + esc(b.id) + '" data-approve="1">Approve</button>'
+      + '<button type="button" style="padding:6px 11px;font-size:11px;font-weight:600;border:1.5px solid var(--red);border-radius:8px;background:transparent;color:var(--red);cursor:pointer;" data-fl-action="synb-decide" data-id="' + esc(b.id) + '" data-approve="0">Decline</button>'
+      + '</div>';
+  } else if (canCancel) {
+    hRow += '<button type="button" class="synb-cxl" data-fl-action="synb-cancel-booking" data-id="' + esc(b.id) + '">Cancel</button>';
+  }
+  return hRow + '</div>';
+}
+
+/** Seat name for a booking row (own or foreign seat id). */
+function synbStandName(b) {
+  var own = (flEffectiveStands() || []).find(function(st) { return st && st.id === b.stand_id; });
+  if (own) return own.name;
+  var f = sharedDisplayStands().find(function(st) { return st.id === b.stand_id; });
+  return f ? f.name : null;
+}
+
+/** Booking mode for a booking's (owner, ground) from the share rows. */
+function synbModeFor(b) {
+  var sh = (sharedGroundsNow().shares || []).find(function(x) {
+    return x && String(x.syndicate_id) === String(b.syndicate_id)
+      && String(x.owner_user_id) === String(b.owner_user_id) && x.ground === b.ground;
+  });
+  return sh ? (sh.booking_mode === 'seat' ? 'seat' : 'whole') : 'whole';
+}
+
+/** 13.55 (audit round 2) — one cell of the week-at-a-glance grid.
+ *  Seat-mode: how many of seatIds are still free for (dateIso, win), whether
+ *  one of the takers is ME, and whether the whole window is blocked by a
+ *  whole-ground/on-foot booking. Whole-mode: total 1, free 0|1.
+ *  Pure — feed it bookings, read the answer; the RPC still owns submit. */
+/** PURE (13.96, owner walked Stands and picked its planner): the syndicate
+ *  PLAN THE WEEK model — seats × days, each cell the day's best FREE window
+ *  for that seat (score + word), struck when booked, with the day's best
+ *  free seat flagged for the ring. Stands' planner taught the shape; the
+ *  bookings engine supplies the truth about contention.
+ *  seatsIn: [{id,name}] or [] for a whole-ground share (one 'Ground' row).
+ *  scoreOf(seatIdOrNull, di, win) -> {score,windBad}|null.
+ *  takenOf(seatIdOrNull, iso, win) -> {taken, mine}.
+ *  spentOf: {dawn,dusk} (today only). closedMap: iso -> reason.
+ *  isMgr: managers book through closed days (13.63 precedent). */
+function flSynPlanModel(days, seatsIn, scoreOf, takenOf, spentOf, closedMap, isMgr) {
+  var seats = (seatsIn && seatsIn.length) ? seatsIn : [{ id: null, name: 'Ground' }];
+  var rows = seats.map(function (x) { return { id: x.id, name: x.name, cells: [] }; });
+  var bestByDay = [];
+  (days || []).forEach(function (d, di) {
+    var closed = (closedMap || {})[d.iso] || null;
+    var bestRi = -1, bestScore = -1;
+    rows.forEach(function (r, ri) {
+      var seatId = seats[ri].id;
+      var cell = { di: di, iso: d.iso, state: 'spent', win: null, score: null, windBad: false, mine: false, closed: closed };
+      if (closed && !isMgr) { cell.state = 'closed'; r.cells.push(cell); return; }
+      var freeBest = null, anyTaken = false, anyWindow = false;
+      ['dawn', 'dusk'].forEach(function (win) {
+        if (di === 0 && spentOf && spentOf[win]) return;
+        anyWindow = true;
+        var t = takenOf(seatId, d.iso, win) || {};
+        if (t.mine) cell.mine = true;
+        if (t.taken) { anyTaken = true; return; }
+        var w = scoreOf(seatId, di, win);
+        var sc = w ? w.score : null;
+        if (!freeBest || (sc != null && (freeBest.score == null || sc > freeBest.score))) {
+          freeBest = { win: win, score: sc, windBad: !!(w && w.windBad) };
+        }
+      });
+      if (!anyWindow) cell.state = 'spent';
+      else if (freeBest) {
+        cell.state = 'free'; cell.win = freeBest.win; cell.score = freeBest.score; cell.windBad = freeBest.windBad;
+        if (cell.score != null && cell.score > bestScore) { bestScore = cell.score; bestRi = ri; }
+      } else if (anyTaken) cell.state = 'taken';
+      r.cells.push(cell);
+    });
+    bestByDay.push(bestRi);
+  });
+  return { rows: rows, bestByDay: bestByDay };
+}
+
+function synbGridCell(bookings, sh, seatIds, dateIso, win, myId) {
+  var act = (bookings || []).filter(function (b) {
+    return b && bookingActive(b)
+      && String(b.owner_user_id) === String(sh.owner_user_id)
+      && String(b.ground) === String(sh.ground)
+      && String(b.date) === String(dateIso)
+      && (b.slot === win || b.slot === 'allday' || win === 'allday');
+  });
+  var mine = act.some(function (b) { return String(b.booked_by) === String(myId); });
+  var wholeBlock = act.some(function (b) { return b.stand_id == null; });
+  if (!seatIds || !seatIds.length) {
+    // Whole-ground share: one slot per window.
+    return { total: 1, free: act.length ? 0 : 1, mine: mine, blocked: act.length > 0 };
+  }
+  if (wholeBlock) return { total: seatIds.length, free: 0, mine: mine, blocked: true };
+  var taken = {};
+  act.forEach(function (b) { if (b.stand_id != null) taken[String(b.stand_id)] = true; });
+  var free = 0;
+  seatIds.forEach(function (id) { if (!taken[String(id)]) free++; });
+  return { total: seatIds.length, free: free, mine: mine, blocked: false };
+}
+
+/** PURE (13.69, the hero): the highest-scoring day+window+seat still FREE
+ *  this week. days = [{iso,label}] (index = forecast dayIdx); scoreOf(seatId
+ *  |null, dayIdx, win) -> number|null (null = no forecast); taken decisions
+ *  ride the tested bookingsConflict via synbChipClash. Spent windows and
+ *  closed dates are skipped for everyone — the hero recommends what the
+ *  whole syndicate may actually book. Whole-ground shares pass seatIds=[]
+ *  and get seatId null back. Ties go to the EARLIER day, then dawn. */
+function synbBestWindow(bookings, sh, seatIds, days, scoreOf, spentOf, closedMap, myId) {
+  var best = null;
+  (days || []).forEach(function (d, di) {
+    if (closedMap && closedMap[d.iso]) return;
+    ['dawn', 'dusk'].forEach(function (win) {
+      if (di === 0 && spentOf && spentOf[win]) return;
+      var cands = (seatIds && seatIds.length) ? seatIds : [null];
+      cands.forEach(function (sid) {
+        if (synbChipClash(bookings, sh, d.iso, win, sid)) return;
+        var sc = scoreOf(sid, di, win);
+        if (sc == null) return;
+        if (!best || sc > best.score) {
+          best = { dayIdx: di, iso: d.iso, label: d.label, win: win, seatId: sid, score: sc };
+        }
+      });
+    });
+  });
+  return best;
+}
+
+/** 13.53 (audit): would booking (dateIso, slot, standIdOrNull) on this share
+ *  clash with an existing active booking? Returns the clashing row or null.
+ *  Client mirror only — the RPC still owns the truth at submit. */
+function synbChipClash(bookings, sh, dateIso, slot, standIdOrNull) {
+  var cand = {
+    owner_user_id: sh.owner_user_id, ground: sh.ground,
+    date: dateIso, slot: slot, stand_id: standIdOrNull, status: 'confirmed'
+  };
+  var hit = null;
+  (bookings || []).forEach(function(b) {
+    if (hit || !bookingActive(b)) return;
+    if (bookingsConflict(b, cand)) hit = b;
+  });
+  return hit;
+}
+
+/** Chip suffix + disabled flag for a clash. Yours reads differently — you
+ *  don't need protecting from your own booking, just reminding of it. */
+function synbClashMark(hit) {
+  if (!hit) return null;
+  var mineHit = String(hit.booked_by) === String(currentUser && currentUser.id);
+  return {
+    label: mineHit ? ' \u00b7 yours' : (hit.status === 'pending' ? ' \u00b7 held' : ' \u00b7 booked'),
+    disabled: !mineHit
+  };
+}
+
+/** 13.53 (audit): is TODAY's window already over at this ground? Dawn closes
+ *  sunrise+2h, dusk (and with it the day) sunset+45m — the same windows the
+ *  wind stepper uses. Falls back to "not spent" when no seat has a pin. */
+function synbWindowSpentToday(slot, pairOwnerId, ground) {
+  var st = null;
+  var mineOwner = String(pairOwnerId) === String(currentUser && currentUser.id);
+  var list = mineOwner ? flEffectiveStands() : sharedDisplayStands();
+  (list || []).forEach(function(x) {
+    if (st || !x || x.ground !== ground) return;
+    if (!mineOwner && String(x.ownerUserId) !== String(pairOwnerId)) return;
+    if (x.lat != null && x.lng != null) st = x;
+  });
+  if (!st) return false;
+  try {
+    var nowMin = flToMinutes(new Date());
+    var d0 = new Date(diaryNow());
+    if (slot === 'dawn') {
+      var sr = flCalcSunTime(d0, st.lat, st.lng, true);
+      return !!sr && nowMin > flToMinutes(sr) + 120;
+    }
+    var ss = flCalcSunTime(d0, st.lat, st.lng, false);
+    return !!ss && nowMin > flToMinutes(ss) + 45;
+  } catch (_) { return false; }
+}
+
+function synbFormHtml(sel, shares) {
+  var sh = shares[flSynBook.shareIdx];
+  var mode = sh.booking_mode === 'seat' ? 'seat' : 'whole';
+  var days = synbDays();
+  if (flSynBook.dayIdx > 6) flSynBook.dayIdx = 0;
+  var f = '<div style="margin-top:12px;padding:11px;border:1.5px dashed var(--line);border-radius:12px;background:var(--sy-card,white);">';
+
+  if (shares.length > 1) {
+    f += '<div style="font-size:10px;color:var(--sy-muted,var(--muted));font-weight:700;text-transform:uppercase;letter-spacing:0.6px;margin-bottom:6px;">Ground</div><div class="stnd-plan-tog" style="flex-wrap:wrap;">';
+    shares.forEach(function(x, i) {
+      f += '<button type="button" class="spm-b' + (i === flSynBook.shareIdx ? ' on' : '') + '" data-fl-action="synb-pick-ground" data-idx="' + i + '">' + esc(x.ground) + '</button>';
+    });
+    f += '</div>';
+  } else {
+    f += '<div style="font-size:11px;font-weight:700;color:var(--sy-ink,var(--bark));margin-bottom:6px;">' + esc(sh.ground) + '</div>';
+  }
+
+  var selDay = synbSelectedDate();
+
+  // 13.53/13.56: spent-window state + auto-bump, computed BEFORE the grid so
+  // the grid's selection outline and the Window chips agree on the same render.
+  var isToday = selDay.dayIdx === 0 && !flSynBook.customDate;
+  var spentOf = { dawn: false, dusk: false, allday: false };
+  if (isToday) {
+    spentOf.dawn = synbWindowSpentToday('dawn', sh.owner_user_id, sh.ground);
+    spentOf.dusk = synbWindowSpentToday('dusk', sh.owner_user_id, sh.ground);
+    spentOf.allday = spentOf.dusk; // day's over when dusk is
+    if (spentOf[flSynBook.slot]) flSynBook.slot = !spentOf.dawn ? 'dawn' : (!spentOf.dusk ? 'dusk' : flSynBook.slot);
+  }
+
+  // ── 13.96 (owner picked Stands' planner): PLAN THE WEEK — seats × days
+  // with the score AND the contention. Each cell is the day's best FREE
+  // window for that seat (score + word, Stands' colour bands); booked cells
+  // are struck (gold dot = that's you); the day's best free seat wears the
+  // ring; a tap books exactly what the cell shows. Replaces the 13.55
+  // numbers-only free-count strip — availability without quality made
+  // members do the scoring in their heads.
+  (function () {
+    var gDays = synbDays();
+    var gSeats = mode === 'seat'
+      ? synbSeatOptions(sh.owner_user_id, sh.ground, currentUser && currentUser.id, flEffectiveStands(), sharedDisplayStands())
+      : [];
+    var isMgrHere = sel.role === 'manager';
+    var actOf = function (iso, win) {
+      return (flSynBook.rows || []).filter(function (b) {
+        return b && bookingActive(b)
+          && String(b.owner_user_id) === String(sh.owner_user_id)
+          && String(b.ground) === String(sh.ground)
+          && String(b.date) === String(iso)
+          && (b.slot === win || b.slot === 'allday');
+      });
+    };
+    var takenOf = function (seatId, iso, win) {
+      var act = actOf(iso, win);
+      var mine = act.some(function (b) {
+        return String(b.booked_by) === String(currentUser && currentUser.id)
+          && (seatId == null || b.stand_id == null || String(b.stand_id) === String(seatId));
+      });
+      if (seatId == null) return { taken: act.length > 0, mine: mine };
+      var whole = act.some(function (b) { return b.stand_id == null; });
+      return { taken: whole || act.some(function (b) { return String(b.stand_id) === String(seatId); }), mine: mine };
+    };
+    var scoreOf = function (seatId, di, win) {
+      return seatId != null ? synbSeatWindow(seatId, di, win) : synbGroundWindow(sh.owner_user_id, sh.ground, di, win);
+    };
+    var model = flSynPlanModel(gDays, gSeats, scoreOf, takenOf, spentOf, flSynBook.closedMap || {}, isMgrHere);
+    f += '<div style="font-size:10px;color:var(--sy-muted,var(--muted));font-weight:700;text-transform:uppercase;letter-spacing:0.6px;margin:2px 0 6px 0;">Plan the week</div>';
+    f += '<div class="synb-grid">';
+    f += '<div class="synb-grid-lbl"></div>';
+    gDays.forEach(function (d, i) {
+      var dayNum = parseInt(d.iso.slice(8), 10);
+      f += '<div class="synb-grid-hd' + (i === 0 ? ' synb-grid-hd--today' : '') + '">' + (i === 0 ? 'Tdy' : dayNum) + '</div>';
+    });
+    model.rows.forEach(function (r, ri) {
+      f += '<div class="synb-grid-lbl" title="' + esc(r.name) + '">' + esc(String(r.name).slice(0, 6)) + '</div>';
+      r.cells.forEach(function (c, di) {
+        var on = !flSynBook.customDate && flSynBook.dayIdx === di && flSynBook.slot === c.win
+          && (gSeats.length ? String(flSynBook.standId || '') === String(r.id || '') : true);
+        var pick = model.bestByDay[di] === ri && c.state === 'free';
+        var band = (c.state !== 'free' || c.score == null) ? ''
+          : c.score >= 65 ? ' synb-pc--good' : c.score >= 45 ? ' synb-pc--mid' : ' synb-pc--lowb';
+        var cls = 'synb-gc synb-pc' + band
+          + (c.state === 'taken' ? ' synb-gc--full' : '')
+          + ((c.state === 'spent' || c.state === 'closed') ? ' synb-gc--spent' : '')
+          + (c.closed && isMgrHere ? ' synb-gc--closedmgr' : '')
+          + (c.mine ? ' synb-gc--mine' : '')
+          + (pick ? ' synb-pc--pick' : '')
+          + (on ? ' synb-gc--on' : '');
+        var body = c.state === 'closed' ? '⊘'
+          : c.state === 'spent' ? '–'
+          : c.state === 'taken' ? '×'
+          : '<b>' + (c.score == null ? '–' : c.score) + '</b><i>' + (c.win === 'dawn' ? 'dawn' : 'dusk') + '</i>';
+        var lbl = r.name + ' · ' + gDays[di].label + (c.win ? ' ' + c.win : '')
+          + ' — ' + (c.state === 'free' ? ('free' + (c.score != null ? ', activity ' + c.score : '')) : (c.state === 'taken' ? 'booked' : c.state))
+          + (c.mine ? ', you are booked' : '') + (c.closed ? ', closed — ' + c.closed : '');
+        var dead = c.state !== 'free';
+        f += '<button type="button" class="' + cls + '"' + (dead ? ' disabled' : '')
+          + ' data-fl-action="synb-plan-pick" data-day="' + di + '" data-slot="' + (c.win || 'dawn') + '"'
+          + (r.id != null ? ' data-stand-id="' + esc(r.id) + '"' : '')
+          + (c.closed ? ' title="' + esc(c.closed) + '"' : '')
+          + ' aria-label="' + esc(lbl) + '">'
+          + body + (c.mine ? '<span class="synb-gc-dot" aria-hidden="true"></span>' : '')
+          + (c.closed && isMgrHere ? '<span class="synb-gc-closed" aria-hidden="true">⊘</span>' : '') + '</button>';
+      });
+    });
+    f += '</div>';
+    f += '<div style="font-size:9px;color:var(--sy-muted,var(--muted));font-family:\'DM Mono\',monospace;margin:-4px 0 8px 0;">score · window = best free sit · × booked · ring = best free that day · tap to book</div>';
+  })();
+
+  f += '<div style="font-size:10px;color:var(--sy-muted,var(--muted));font-weight:700;text-transform:uppercase;letter-spacing:0.6px;margin:10px 0 6px 0;">Day</div><div class="stnd-plan-tog" style="flex-wrap:wrap;">';
+  days.forEach(function(d, i) {
+    var chipOn = !flSynBook.customDate && i === flSynBook.dayIdx;
+    var dc = (flSynBook.closedMap || {})[d.iso] || null;
+    var dcHard = dc && sel.role !== 'manager';
+    f += '<button type="button" class="spm-b' + (chipOn ? ' on' : '') + '"'
+      + (dcHard ? ' disabled style="opacity:0.45;cursor:not-allowed;"' : '')
+      + (dc ? ' title="' + esc(dc) + '"' : '')
+      + ' data-fl-action="synb-pick-day" data-day="' + i + '">' + esc(d.label) + (dc ? ' \u2298' : '') + '</button>';
+  });
+  // Syndicates plan months out (owner, 2026-08-10) — the RPC takes up to a
+  // year; the chips are just the scored week. "Pick a date" opens the rest.
+  f += '<button type="button" class="spm-b' + ((flSynBook.laterOpen || flSynBook.customDate) ? ' on' : '') + '" data-fl-action="synb-pick-later">' + (flSynBook.customDate ? esc(selDay.label) : 'Pick a date\u2026') + '</button>';
+  f += '</div>';
+  if (flSynBook.laterOpen || flSynBook.customDate) {
+    var minIso = days[0].iso;
+    var horizonDays = parseInt(sel.syndicate.booking_horizon_days, 10) || 365;
+    var maxD = new Date(diaryNow()); maxD.setDate(maxD.getDate() + horizonDays);
+    var maxIso = maxD.getFullYear() + '-' + String(maxD.getMonth() + 1).padStart(2, '0') + '-' + String(maxD.getDate()).padStart(2, '0');
+    f += '<div style="margin-top:8px;">'
+      + '<input type="date" id="synb-date-inp" value="' + esc(flSynBook.customDate || '') + '" min="' + minIso + '" max="' + maxIso + '" style="padding:8px 10px;border:1.5px solid var(--sy-line,var(--line));border-radius:9px;font-family:\'DM Sans\',sans-serif;font-size:12px;color:var(--sy-ink,var(--bark));background:var(--sy-card,white);">'
+      + (selDay.dayIdx == null && flSynBook.customDate ? '<p style="font-size:10px;color:var(--sy-muted,var(--muted));margin:5px 0 0 0;">Forecast scores appear once the day is within a week \u2014 the booking itself is locked in now.</p>' : '')
+      + '</div>';
+  }
+
+  // 13.80: a member can LAND on a closed day (today is the default selection;
+  // custom dates too) — the chips only stop new taps. Say closed plainly and
+  // hand them the next open day, instead of a form the RPC would refuse.
+  var selClosed = (flSynBook.closedMap || {})[selDay.iso] || null;
+  if (selClosed && sel.role !== 'manager') {
+    var nextOpenIdx = null;
+    for (var oi = 0; oi < days.length; oi++) {
+      if (!(flSynBook.closedMap || {})[days[oi].iso]) { nextOpenIdx = oi; break; }
+    }
+    f += '<div style="margin-top:12px;padding:11px;border:1.5px solid var(--sy-line,var(--line));border-radius:10px;background:var(--sy-card2,var(--sand));">'
+      + '<div style="font-size:12px;font-weight:700;color:var(--sy-ink,var(--bark));">\u2298 ' + esc(selDay.label) + ' is closed'
+      + (selClosed !== 'Closed' ? ' \u2014 ' + esc(selClosed) : '') + '</div>'
+      + '<div style="font-size:10.5px;color:var(--sy-muted,var(--muted));margin-top:3px;">The manager has closed this date for booking.</div>'
+      + (nextOpenIdx != null
+          ? '<button type="button" class="synb-cta" style="margin-top:9px;" data-fl-action="synb-pick-day" data-day="' + nextOpenIdx + '">Next open day \u2014 ' + esc(days[nextOpenIdx].label) + ' \u203a</button>'
+          : '<div style="font-size:10.5px;color:var(--sy-muted,var(--muted));margin-top:6px;">The whole scored week is closed \u2014 try \u201cPick a date\u201d.</div>')
+      + '</div>';
+    f += '</div>';
+    return f;
+  }
+
+  // Slot picker with the planner's own numbers (activity % + wind flag).
+  var seatSel = (mode === 'seat' && flSynBook.standId && flSynBook.standId !== 'foot') ? flSynBook.standId : null;
+  var mineRows = flSynBook.rows || [];
+  f += '<div style="font-size:10px;color:var(--sy-muted,var(--muted));font-weight:700;text-transform:uppercase;letter-spacing:0.6px;margin:10px 0 6px 0;">Window</div><div class="stnd-plan-tog">';
+  ['dawn', 'dusk', 'allday'].forEach(function(slot) {
+    var lbl = slot === 'allday' ? 'All day' : (slot === 'dawn' ? 'Dawn' : 'Dusk');
+    var hint = '';
+    var wins = slot === 'allday' ? ['dawn', 'dusk'] : [slot];
+    var bits = [];
+    wins.forEach(function(w) {
+      var g = selDay.dayIdx == null ? null
+        : (seatSel ? synbSeatWindow(seatSel, selDay.dayIdx, w) : synbGroundWindow(sh.owner_user_id, sh.ground, selDay.dayIdx, w));
+      if (g) bits.push(g.score + '%' + (g.windBad ? '\u26a0' : ''));
+    });
+    if (bits.length) hint = ' \u00b7 ' + bits.join('/');
+    var spent = isToday && spentOf[slot];
+    // Whole-ground shares carry availability on the WINDOW chips (there is
+    // no seat row to carry it).
+    var mark = (!spent && mode !== 'seat')
+      ? synbClashMark(synbChipClash(mineRows, sh, selDay.iso, slot, null)) : null;
+    var dis = spent || (mark && mark.disabled);
+    f += '<button type="button" class="spm-b' + (flSynBook.slot === slot ? ' on' : '') + '"'
+      + (dis ? ' disabled style="opacity:0.45;cursor:not-allowed;"' : '')
+      + ' data-fl-action="synb-pick-slot" data-slot="' + slot + '">' + lbl
+      + (spent ? ' \u00b7 over' : esc(hint) + (mark ? mark.label : '')) + '</button>';
+  });
+  f += '</div>';
+  if (!flStandsState.forecasts && selDay.dayIdx != null) f += '<p style="font-size:10px;color:var(--sy-muted,var(--muted));margin:4px 0 0 0;">Fetching the 7-day outlook for scores\u2026</p>';
+
+  if (mode === 'seat') {
+    var opts = synbSeatOptions(sh.owner_user_id, sh.ground, currentUser && currentUser.id, flEffectiveStands(), sharedDisplayStands());
+    f += '<div style="font-size:10px;color:var(--sy-muted,var(--muted));font-weight:700;text-transform:uppercase;letter-spacing:0.6px;margin:10px 0 6px 0;">Seat</div><div class="stnd-plan-tog" style="flex-wrap:wrap;">';
+    opts.forEach(function(o) {
+      var w = selDay.dayIdx == null ? null : synbSeatWindow(o.id, selDay.dayIdx, flSynBook.slot === 'allday' ? 'dawn' : flSynBook.slot);
+      // 13.53: say "booked / held / yours" BEFORE the tap, not after the RPC.
+      var mk = synbClashMark(synbChipClash(mineRows, sh, selDay.iso, flSynBook.slot, o.id));
+      var dis = mk && mk.disabled;
+      f += '<button type="button" class="spm-b' + (flSynBook.standId === o.id ? ' on' : '') + '"'
+        + (dis ? ' disabled style="opacity:0.45;cursor:not-allowed;"' : '')
+        + ' data-fl-action="synb-pick-seat" data-stand-id="' + esc(o.id) + '">' + esc(o.name)
+        + (w ? ' \u00b7 ' + w.score + (w.windBad ? '\u26a0' : '') : '') + (mk ? mk.label : '') + '</button>';
+    });
+    var mkFoot = synbClashMark(synbChipClash(mineRows, sh, selDay.iso, flSynBook.slot, null));
+    f += '<button type="button" class="spm-b' + (flSynBook.standId === 'foot' ? ' on' : '') + '"'
+      + (mkFoot && mkFoot.disabled ? ' disabled style="opacity:0.45;cursor:not-allowed;"' : '')
+      + ' data-fl-action="synb-pick-seat" data-stand-id="foot">On foot \u00b7 takes whole ground'
+      + (mkFoot ? mkFoot.label : '') + '</button>';
+    f += '</div>';
+  } else {
+    f += '<p style="font-size:10px;color:var(--sy-muted,var(--muted));margin:8px 0 0 0;">This ground books as a whole \u2014 your booking takes it for the window.</p>';
+  }
+
+  // 13.53 (audit): the RPC has always accepted a note — the form never asked.
+  f += '<input type="text" id="synb-notes-inp" maxlength="300" placeholder="Note for the team \u2014 optional (\u201cin by 5:30, bringing the dog\u201d)" value="' + esc(flSynBook.notes || '') + '" '
+    + 'style="width:100%;box-sizing:border-box;margin-top:12px;padding:9px 11px;border:1.5px solid var(--sy-line,var(--line));border-radius:9px;font-family:\'DM Sans\',sans-serif;font-size:12px;color:var(--sy-ink,var(--bark));background:var(--sy-card,white);">';
+  var guestsOff = sel.syndicate.guest_policy === 'off' && sel.role !== 'manager';
+  if (guestsOff) flSynBook.guest = false; // policy flipped mid-form — never submit a dead flag
+  f += '<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:12px;">'
+    + (guestsOff
+        ? '<span style="font-size:10px;color:var(--sy-muted,var(--muted));">Guests are off in this syndicate</span>'
+        : '<button type="button" class="synb-guest' + (flSynBook.guest ? ' on' : '') + '" data-fl-action="synb-guest-toggle">' + (flSynBook.guest ? '+ Guest coming' : 'Bringing a guest?') + '</button>')
+    + '<button type="button" class="plan-set-btn" style="margin:0;width:auto;padding:9px 18px;" data-fl-action="synb-submit">' + (flSynBook.busy ? 'Booking\u2026' : 'Book it') + '</button>'
+    + '</div>';
+  f += '</div>';
+  return f;
+}
+
+async function synbSubmit() {
+  if (flSynBook.busy || !sb || !currentUser) return;
+  var rows = flSynPage.rows || [];
+  var sel = rows.find(function(r) { return String(r.syndicate.id) === String(flSynPage.selectedId); });
+  if (!sel) return;
+  var shares = (sharedGroundsNow().shares || []).filter(function(x) {
+    return x && String(x.syndicate_id) === String(sel.syndicate.id);
+  });
+  var sh = shares[flSynBook.shareIdx];
+  if (!sh) return;
+  var mode = sh.booking_mode === 'seat' ? 'seat' : 'whole';
+  if (mode === 'seat' && flSynBook.standId === undefined) {
+    showToast('\u26a0\ufe0f Pick a seat \u2014 or \u201cOn foot\u201d');
+    return;
+  }
+  var standId = (mode === 'seat' && flSynBook.standId !== 'foot') ? flSynBook.standId : null;
+  var day = synbSelectedDate();
+  // 13.63 (owner: "dates closed, but still allowed booking") — the manager
+  // bypass is deliberate (the keeper still stalks on estate days), but it
+  // must never be silent. Members never reach here: their chips are
+  // disabled and the RPC refuses anyway.
+  var closedNote = (flSynBook.closedMap || {})[day.iso];
+  if (closedNote && sel.role === 'manager') {
+    if (!(await flConfirm({
+      title: 'This day is closed',
+      body: (closedNote === 'Closed' ? 'You closed this date.' : closedNote)
+        + ' Members can\u2019t book it \u2014 book anyway as manager?',
+      action: 'Book anyway',
+      tone: 'warn'
+    }))) return;
+  }
+  flSynBook.busy = true;
+  renderSynBookings();
+  try {
+    var booked = await bookGround(sb, {
+      syndicateId: sel.syndicate.id, ownerUserId: sh.owner_user_id, ground: sh.ground,
+      standId: standId, date: day.iso, slot: flSynBook.slot, withGuest: flSynBook.guest,
+      notes: (flSynBook.notes || '').trim() || null
+    });
+    showToast(booked && booked.status === 'pending'
+      ? '\u23f3 Sent to the manager for approval'
+      : '\u2713 Booked \u2014 ' + (flSynBook.slot === 'allday' ? 'all day' : flSynBook.slot) + ' ' + day.label);
+    flSynBook.open = false;
+    flSynBook.guest = false;
+    flSynBook.standId = undefined;
+    flSynBook.customDate = null;
+    flSynBook.laterOpen = false;
+    flSynBook.notes = '';
+  } catch (e) {
+    showToast('\u26a0\ufe0f ' + friendlyErr(e, String((e && e.message) || 'Could not book')));
+  }
+  flSynBook.busy = false;
+  renderSynBookings();
+}
+
+async function synbCancel(bookingId) {
+  if (!sb || !bookingId) return;
+  if (!(await flConfirm({
+    title: 'Cancel this booking?',
+    body: 'The slot frees up for other members immediately.',
+    action: 'Cancel booking',
+    tone: 'warn'
+  }))) return;
+  try { await cancelBooking(sb, bookingId); showToast('\u2713 Booking cancelled'); }
+  catch (e) { showToast('\u26a0\ufe0f ' + friendlyErr(e, 'Could not cancel')); }
+  renderSynBookings();
+}
+
+/** 13.69: my upcoming bookings as an .ics download. Window times from the
+ *  ground's sun (dawn: sunrise-1h to +2h; dusk: sunset-2h to +1h; all day
+ *  spans both); fixed sensible hours when no seat has a pin. Floating local
+ *  times on purpose — a stalking alarm should ring in UK wall-clock. */
+function synbIcsDownload() {
+  var mine = (flSynBook.rows || []).filter(function (b) {
+    return bookingActive(b) && String(b.booked_by) === String(currentUser && currentUser.id)
+      && String(b.date) >= synbDays()[0].iso;
+  });
+  if (!mine.length) { showToast('No upcoming bookings to export'); return; }
+  function pad2(n) { return String(n).padStart(2, '0'); }
+  function stampLocal(iso, mins) {
+    var h = Math.floor(mins / 60), m = Math.round(mins % 60);
+    return iso.replace(/-/g, '') + 'T' + pad2(Math.max(0, Math.min(23, h))) + pad2(Math.max(0, Math.min(59, m))) + '00';
+  }
+  var lines = ['BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//First Light//Cull Diary//EN'];
+  mine.forEach(function (b) {
+    var st = null;
+    var meOwner = String(b.owner_user_id) === String(currentUser.id);
+    var list = meOwner ? flEffectiveStands() : sharedDisplayStands();
+    (list || []).forEach(function (x) {
+      if (st || !x || x.ground !== b.ground) return;
+      if (!meOwner && String(x.ownerUserId) !== String(b.owner_user_id)) return;
+      if (x.lat != null && x.lng != null) st = x;
+    });
+    var d0 = new Date(b.date + 'T12:00:00');
+    var srM = null, ssM = null;
+    try {
+      if (st) {
+        var sr = flCalcSunTime(d0, st.lat, st.lng, true);
+        var ss = flCalcSunTime(d0, st.lat, st.lng, false);
+        if (sr) srM = flToMinutes(sr);
+        if (ss) ssM = flToMinutes(ss);
+      }
+    } catch (_) {}
+    var startM, endM;
+    if (b.slot === 'dawn') { startM = srM != null ? srM - 60 : 300; endM = srM != null ? srM + 120 : 540; }
+    else if (b.slot === 'dusk') { startM = ssM != null ? ssM - 120 : 1140; endM = ssM != null ? ssM + 60 : 1320; }
+    else { startM = srM != null ? srM - 60 : 300; endM = ssM != null ? ssM + 60 : 1320; }
+    var seat = b.stand_id ? (synbStandName(b) || 'seat') : 'on foot';
+    lines.push('BEGIN:VEVENT');
+    lines.push('UID:flbk-' + b.id + '@firstlightdeer.co.uk');
+    lines.push('DTSTART:' + stampLocal(b.date, startM));
+    lines.push('DTEND:' + stampLocal(b.date, endM));
+    lines.push('SUMMARY:Stalking \u2014 ' + String(b.ground || '').replace(/[,;\\]/g, ' ') + ' (' + seat + ', ' + (b.slot === 'allday' ? 'all day' : b.slot) + ')');
+    if (b.notes) lines.push('DESCRIPTION:' + String(b.notes).replace(/[\r\n]+/g, ' ').replace(/[,;\\]/g, ' '));
+    lines.push('END:VEVENT');
+  });
+  lines.push('END:VCALENDAR');
+  try {
+    var blob = new Blob([lines.join('\r\n')], { type: 'text/calendar' });
+    var a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = 'first-light-bookings.ics';
+    document.body.appendChild(a);
+    a.click();
+    setTimeout(function () { URL.revokeObjectURL(a.href); a.remove(); }, 2000);
+    showToast('\ud83d\udcc5 ' + mine.length + ' booking' + (mine.length === 1 ? '' : 's') + ' exported');
+  } catch (e) { showToast('\u26a0\ufe0f Could not build the calendar file'); }
+}
+
+async function synbDecide(bookingId, approve) {
+  if (!sb || !bookingId) return;
+  try {
+    await decideBooking(sb, bookingId, approve);
+    showToast(approve ? '\u2713 Approved' : '\u2713 Declined');
+    void refreshSyndicateUnreadFromRows(flSynPage.rows); // 13.70: badge follows the queue
+  } catch (e) { showToast('\u26a0\ufe0f ' + friendlyErr(e, 'Could not update the booking')); }
+  renderSynBookings();
+}
+
+async function renderSyndicatePage() {
+  var rows = flSynPage.rows || [];
+  var sel = rows.find(function(r) { return String(r.syndicate.id) === String(flSynPage.selectedId); });
+  // 13.76: no selection (fresh account, cleared state) — leave a blank page,
+  // not the previous render's panels.
+  if (!sel) { flSynPageDomClear(); return; }
+  // 13.88: map focus is per-syndicate — switching chips returns to fit-all.
+  // 13.92: so is the People expansion.
+  if (String(flSynPage._lastPageSid || '') !== String(sel.syndicate.id)) {
+    flSynPage._lastPageSid = sel.syndicate.id;
+    flSynPage.groundFocus = null;
+    flSynPage.peopleOpen = false;
+  }
+  try { localStorage.setItem('fl_syn_last:' + (currentUser && currentUser.id), String(flSynPage.selectedId)); } catch (_) { /* private mode */ }
+  var chips = document.getElementById('synd-page-chips');
+  if (chips) {
+    // 13.86: one syndicate needs no picker — the masthead names it.
+    if (rows.length > 1) {
+      chips.style.display = '';
+      chips.innerHTML = syndPageChipsHtml(rows, flSynPage.selectedId, flSynDotCounts());
+      enhanceKeyboardClickables(chips);
+    } else {
+      chips.style.display = 'none';
+      chips.innerHTML = '';
+    }
+  }
+
+  // Which (owner, ground) pairs does THIS syndicate share?
+  var shares = (sharedGroundsNow().shares || []).filter(function(x) {
+    return x && String(x.syndicate_id) === String(sel.syndicate.id);
+  });
+  var mapWrap = document.getElementById('synd-page-map-wrap');
+  var emptyEl = document.getElementById('synd-page-map-empty');
+  var mapNote = document.getElementById('synd-page-map-note');
+  if (!shares.length) {
+    if (mapWrap) mapWrap.style.display = 'none';
+    if (mapNote) mapNote.style.display = 'none';
+    var gcEl = document.getElementById('synd-page-groundchips');
+    if (gcEl) { gcEl.style.display = 'none'; gcEl.innerHTML = ''; }
+    if (emptyEl) {
+      emptyEl.style.display = '';
+      // 13.93: the manager's empty state ACTS instead of pointing — share an
+      // existing mapped ground, or start a new one right here (the bridge).
+      if (sel.role === 'manager') {
+        emptyEl.innerHTML = '<div style="margin-bottom:9px;">No ground is shared with this syndicate yet — share one you’ve already mapped, or start one here.</div>'
+          + '<div style="margin-bottom:9px;"><button type="button" class="synb-cta" style="padding:6px 12px;font-size:11px;" data-fl-action="open-syndicate-manage" data-syndicate-id="' + esc(sel.syndicate.id) + '">Share a mapped ground ›</button></div>'
+          + flGroundBridgeFormHtml(sel.syndicate.id, sel.syndicate.name);
+        enhanceKeyboardClickables(emptyEl);
+      } else {
+        emptyEl.textContent = 'No ground is shared with this syndicate yet.';
+      }
+    }
+  } else {
+    if (emptyEl) emptyEl.style.display = 'none';
+    if (mapWrap) mapWrap.style.display = '';
+    if (mapNote) mapNote.style.display = '';
+    synPageGroundChipsRender(shares);
+    initSynPageMap();
+    if (flSynPage.map) {
+      // Re-shown after a display:none spell (account switch, no-share view):
+      // Leaflet measured a zero box — remeasure or the tiles stay blank.
+      setTimeout(function() { try { if (flSynPage.map) flSynPage.map.invalidateSize(); } catch (_) {} }, 80);
+      // Boundaries/zones/furniture: the shared painter already draws own +
+      // foreign features; registering this map keeps it repainting on refresh.
+      var pairs = {};
+      shares.forEach(function(x) { pairs[String(x.owner_user_id || '') + ' ' + String(x.ground || '')] = true; });
+      flSynPage.pairs = pairs;
+      // 13.53: paint ONLY the syndicate's shared ground(s) — not every ground
+      // the viewer owns (audit: West Acre furniture on Wigmore 3's map).
+      renderGroundBoundaries(flSynPage.map, { onlyPairs: pairs });
+      flSynPageSeatsPaint(flSynPage.groundFocus == null); // focused view keeps its frame
+      synbWarmForecasts(); // pins badge with real scores, not "\u2013"
+    }
+  }
+
+  // 13.86: THE MASTHEAD — name + bell on one line, the people underneath
+  // (renderSynPageMembers fills that slot), then scale + Manage on the meta
+  // line. One block where five bands used to stack.
+  var mastEl = document.getElementById('synd-page-masthead');
+  if (mastEl) {
+    mastEl.style.display = '';
+    var nmEl = document.getElementById('synd-mast-name');
+    if (nmEl) nmEl.textContent = sel.syndicate.name || 'Syndicate';
+    flSynMastMetaRender();
+  }
+
+  // The bell lives in the masthead now (13.86) — chip, not card.
+  void flPushNudgeRender();
+
+  // Bookings card (phase 2) — fire-and-forget so the map never waits on it.
+  void renderSynBookings();
+
+  // Messages + announcements (owner, 2026-08-10): the same thread the manage
+  // sheet hosts, rendered here too — pinned stickies on top. Reading the page
+  // marks the thread seen, clearing the unread chip on the Stats card.
+  var msgsWrap = document.getElementById('synd-page-msgs-wrap');
+  if (msgsWrap) msgsWrap.style.display = '';
+  void renderSyndicateMessagesSection(sel.syndicate, sel.role === 'manager', 'synd-page-msgs');
+  // Ground notes card (13.49) — same dual-surface renderer as the sheet.
+  void renderGroundNotesSection(sel.syndicate, sel.role === 'manager', 'synd-page-notes');
+  // Member strip (13.57) — the syndicate gets faces.
+  void renderSynPageMembers(sel);
+  // Settings card (13.59) — manager-only configurations in daylight.
+  renderSynPageSettings(sel);
+
+  // The syndicate's progress card — the exact builder the Stats tab uses.
+  var cardEl = document.getElementById('synd-page-card');
+  if (cardEl) {
+    cardEl.style.display = '';
+    cardEl.innerHTML = '<div style="padding:12px;text-align:center;color:var(--sy-muted,var(--muted));font-size:12px;">Loading\u2026</div>';
+    try {
+      // 13.87: the masthead already says the name — the card leads with the
+      // page's own section label instead (its internal title hides via CSS).
+      cardEl.innerHTML = '<div class="syn-sec-t" style="margin-bottom:8px;">Season targets</div>'
+        + await renderOneSyndicateCard(sel);
+      enhanceKeyboardClickables(cardEl);
+    } catch (e) {
+      cardEl.innerHTML = '<div style="padding:12px;font-size:12px;color:var(--red);">' + esc(e.message || 'Could not load the syndicate') + '</div>';
+    }
+  }
+}
+
 function openSynModal() {
   var ov = document.getElementById('syn-ov');
   if (ov) { ov.classList.add('open'); document.body.style.overflow = 'hidden'; }
@@ -20603,16 +23203,452 @@ function readSyndicateSteppers(prefix) {
   return o;
 }
 
+// ── Shared grounds (SYNDICATE-GROUNDS-PLAN phase 1): manage-sheet actions ──
+
+// ── 13.93: the ground bridge (owner: "should there not be an option to
+// create a new ground?") ──────────────────────────────────────────────────
+// A syndicate needs a mapped ground before members see anything, but grounds
+// are born on the map surface. The bridge closes the round trip: name the
+// ground FROM the syndicate (or start an import), draw it in the overlay
+// editor that opens right here, and when the first shape lands the app
+// remembers why you went and offers the share — same landowner-permission
+// consent the manual path asks for. Grounds stay personal; sharing stays a
+// reference. Nothing about ownership changes.
+
+var FL_GROUND_BRIDGE_TTL_MS = 30 * 60000; // half an hour of "I meant this"
+
+/** PURE (13.93): what does a feature save mean for a pending bridge intent?
+ *  Returns { target, done }: target = ground to offer for sharing (or null);
+ *  done = the intent is spent (fulfilled, ambiguous import, expired,
+ *  malformed) vs still waiting (named ground not mapped yet, or an import
+ *  that landed nothing usable yet). */
+function flGroundBridgeTarget(intent, savedGroundNames, mappedSet, nowMs) {
+  if (!intent || !intent.sid) return { target: null, done: true };
+  var ts = Number(intent.ts) || 0;
+  if (!(nowMs - ts >= 0) || nowMs - ts > FL_GROUND_BRIDGE_TTL_MS) return { target: null, done: true };
+  var m = mappedSet || {};
+  if (intent.ground) {
+    if (m[intent.ground] === true) return { target: intent.ground, done: true };
+    return { target: null, done: false };
+  }
+  // Import mode: the file names the ground(s) — only an unambiguous single
+  // mapped ground is offered; several means the user must choose in Manage.
+  var names = [];
+  (Array.isArray(savedGroundNames) ? savedGroundNames : []).forEach(function (g) {
+    if (g && m[g] === true && names.indexOf(g) === -1) names.push(g);
+  });
+  if (names.length === 1) return { target: names[0], done: true };
+  return { target: null, done: names.length > 1 };
+}
+
+function flGroundBridgeKey() { return 'fl_ground_bridge:' + ((currentUser && currentUser.id) || 'anon'); }
+function flGroundBridgeSet(sid, synName, ground, mode) {
+  try {
+    localStorage.setItem(flGroundBridgeKey(), JSON.stringify({
+      sid: sid, synName: synName || '', ground: ground || null, mode: mode || 'draw', ts: Date.now()
+    }));
+  } catch (_) { /* private mode — the bridge simply won't auto-offer */ }
+}
+function flGroundBridgeGet() {
+  try {
+    var v = JSON.parse(localStorage.getItem(flGroundBridgeKey()) || 'null');
+    return (v && v.sid) ? v : null;
+  } catch (_) { return null; }
+}
+function flGroundBridgeClear() { try { localStorage.removeItem(flGroundBridgeKey()); } catch (_) {} }
+
+/** Syndicate display name for intent labels — data attr first, rows fallback. */
+function flSynNameOf(sid, el) {
+  var n = (el && el.getAttribute) ? (el.getAttribute('data-syn-name') || '') : '';
+  if (n) return n;
+  var row = (flSynPage.rows || []).find(function (r) { return String(r.syndicate.id) === String(sid); });
+  return row ? (row.syndicate.name || '') : '';
+}
+
+/** The bridge form — one row that starts a new ground for this syndicate.
+ *  Two doors: Draw (name first; the boundary editor opens as an overlay and
+ *  you land back where you started) and Import (KML/KMZ/GPX/GeoJSON — the
+ *  file names the ground). Rendered in Manage › Shared grounds and in the
+ *  page's empty-map state; sy-vars skin it for either surface. */
+function flGroundBridgeFormHtml(sid, synName) {
+  return '<div class="synd-bridge-form" style="display:flex;gap:6px;flex-wrap:wrap;align-items:stretch;">'
+    + '<input type="text" class="synd-bridge-name" maxlength="120" placeholder="Name a new ground — e.g. Home Farm" autocomplete="off" style="flex:1 1 150px;min-width:0;padding:8px 10px;border:1.5px solid var(--sy-line,var(--line));border-radius:9px;font-size:11.5px;font-family:\'DM Sans\',sans-serif;box-sizing:border-box;background:var(--sy-card,white);color:var(--sy-ink,var(--bark));">'
+    + '<button type="button" class="synb-cta" style="padding:8px 12px;font-size:11px;" data-fl-action="synd-ground-draw" data-syndicate-id="' + esc(sid) + '" data-syn-name="' + esc(synName || '') + '">Draw ›</button>'
+    + '<button type="button" class="synb-cxl" data-fl-action="synd-ground-import" data-syndicate-id="' + esc(sid) + '" data-syn-name="' + esc(synName || '') + '">Import file ›</button>'
+    + '<p style="flex-basis:100%;font-size:10px;color:var(--sy-muted,var(--muted));margin:2px 0 0 0;">Draw opens the boundary editor right here. Import takes KML, KMZ, GPX or GeoJSON — the file names the ground. Either way you come back with the share one tap away.</p>'
+    + '</div>';
+}
+
+/** Bridge door 1 — Draw: save the name, remember why, open the editor. */
+async function syndGroundDraw(el) {
+  if (!sb || !currentUser) return;
+  var sid = (el.getAttribute('data-syndicate-id')) || syndicateEditingId || flSynPage.selectedId;
+  if (!sid) return;
+  var wrap = el.closest ? el.closest('.synd-bridge-form') : null;
+  var inp = wrap ? wrap.querySelector('.synd-bridge-name') : null;
+  var name = inp ? String(inp.value || '').trim() : '';
+  if (!name) { showToast('⚠️ Name the ground first'); if (inp) { try { inp.focus(); } catch (_) {} } return; }
+  if (name.length > 120) { showToast('⚠️ Ground name too long (120 characters max)'); return; }
+  if (!navigator.onLine) { showToast('⚠️ Still offline — drawing needs signal'); return; }
+  flGroundBridgeSet(sid, flSynNameOf(sid, el), name, 'draw');
+  await saveGround(name);
+  closeSynModal();
+  openBoundaryEditor(name, null, 'boundary', standsMapSeedLL());
+}
+
+/** Bridge door 2 — Import: remember why, open the file picker. The importer
+ *  names grounds from the file; a single-ground import comes back shareable. */
+function syndGroundImport(el) {
+  if (!sb || !currentUser) return;
+  var sid = (el.getAttribute('data-syndicate-id')) || syndicateEditingId || flSynPage.selectedId;
+  if (!sid) return;
+  if (!navigator.onLine) { showToast('⚠️ Still offline — importing needs signal'); return; }
+  flGroundBridgeSet(sid, flSynNameOf(sid, el), null, 'import');
+  closeSynModal();
+  groundsImportClick();
+}
+
+/** Bridge door 3 — Map it: an unmapped ground in the share list is one tap
+ *  from its own boundary editor, and remembers the syndicate it is for. */
+function syndGroundMapIt(el) {
+  if (!sb || !currentUser) return;
+  var sid = (el.getAttribute('data-syndicate-id')) || syndicateEditingId || flSynPage.selectedId;
+  var g = el.getAttribute('data-ground');
+  if (!sid || !g) return;
+  if (!navigator.onLine) { showToast('⚠️ Still offline — drawing needs signal'); return; }
+  flGroundBridgeSet(sid, flSynNameOf(sid, el), g, 'draw');
+  closeSynModal();
+  openBoundaryEditor(g, null, 'boundary', standsMapSeedLL());
+}
+
+/** The return leg — called after any feature save or import. If what just
+ *  landed fulfils a pending intent, offer the share right there. Accepted or
+ *  declined, the intent is spent: no re-nagging on the next zone or line. */
+async function flGroundBridgeAfterSave(groundNames) {
+  if (!sb || !currentUser) return;
+  var intent = flGroundBridgeGet();
+  if (!intent) return;
+  var res = flGroundBridgeTarget(intent, groundNames, flMappedGroundSet(groundFeaturesNow()), Date.now());
+  if (!res.target) {
+    if (res.done) {
+      flGroundBridgeClear();
+      if (!intent.ground && Array.isArray(groundNames) && groundNames.length > 1) {
+        showToast('Imported ' + groundNames.length + ' grounds — share them from the syndicate’s Manage sheet', 4500);
+      }
+    }
+    return;
+  }
+  flGroundBridgeClear();
+  // Mapping MORE onto an already-shared ground needs no second share.
+  var dup = (sharedGroundsNow().shares || []).some(function (x) {
+    return x && String(x.syndicate_id) === String(intent.sid)
+      && x.owner_user_id === currentUser.id && x.ground === res.target;
+  });
+  if (dup) return;
+  var who = intent.synName ? ' with “' + intent.synName + '”' : ' with your syndicate';
+  if (!(await flConfirm({
+    title: 'Share “' + res.target + '”' + who + '?',
+    body: 'It’s mapped — every active member would see it read-only on their map: boundary, no-shoot zones, lines and furniture. Culls and diaries stay private. Please confirm you have the landowner’s permission to share these locations with the syndicate.',
+    action: 'Share ground',
+    tone: 'info'
+  }))) return;
+  try {
+    await shareGround(sb, currentUser.id, intent.sid, res.target, 'whole');
+  } catch (e) {
+    showToast('⚠️ ' + friendlyErr(e, 'Could not share the ground'));
+    return;
+  }
+  showToast('✓ “' + res.target + '” shared' + (intent.synName ? ' with ' + intent.synName : '') + ' — members can see it now', 4500);
+  void refreshSharedGrounds().then(function () {
+    try { void renderSyndicatePage(); } catch (_) { /* page not built yet */ }
+  });
+}
+
+async function syndShareGround(ground) {
+  if (!sb || !currentUser || !syndicateEditingId || !ground) return;
+  if (!flMappedGroundSet(groundFeaturesNow())[ground]) {
+    showToast('\u26a0\ufe0f \u201c' + ground + '\u201d has nothing mapped yet \u2014 draw its boundary first');
+    return;
+  }
+  var synName = '';
+  var tEl = document.getElementById('syn-modal-title');
+  if (tEl) synName = String(tEl.textContent || '').trim();
+  if (!(await flConfirm({
+    title: 'Share \u201c' + ground + '\u201d' + (synName ? ' with ' + synName : '') + '?',
+    body: 'Every active member will see this ground read-only on their map \u2014 boundary, no-shoot zones, lines, furniture and high seats. Culls and diaries stay private. Please confirm you have the landowner\u2019s permission to share these locations with the syndicate.',
+    action: 'Share ground',
+    tone: 'info'
+  }))) return;
+  try {
+    await shareGround(sb, currentUser.id, syndicateEditingId, ground, 'whole');
+    showToast('\u2713 \u201c' + ground + '\u201d shared');
+    // 13.93: a manual share settles a pending bridge intent for this ground.
+    var _bi = flGroundBridgeGet();
+    if (_bi && _bi.ground === ground && String(_bi.sid) === String(syndicateEditingId)) flGroundBridgeClear();
+  } catch (e) {
+    showToast('\u26a0\ufe0f ' + friendlyErr(e, 'Could not share the ground'));
+    return;
+  }
+  void refreshSharedGrounds();
+  openSyndicateManageSheet(syndicateEditingId);
+}
+
+async function syndUnshareGround(shareId, ground) {
+  if (!sb || !shareId) return;
+  if (!(await flConfirm({
+    title: 'Stop sharing' + (ground ? ' \u201c' + ground + '\u201d' : '') + '?',
+    body: 'Members lose access on their next sync. A copy already cached on a member\u2019s device cannot be wiped remotely.',
+    action: 'Stop sharing',
+    tone: 'warn'
+  }))) return;
+  try {
+    await unshareGround(sb, shareId);
+    showToast('\u2713 No longer shared');
+  } catch (e) {
+    showToast('\u26a0\ufe0f ' + friendlyErr(e, 'Could not stop sharing'));
+    return;
+  }
+  void refreshSharedGrounds();
+  openSyndicateManageSheet(syndicateEditingId);
+}
+
+async function syndShareModeToggle(shareId, modeNext) {
+  if (!sb || !shareId) return;
+  var mode = modeNext === 'seat' ? 'seat' : 'whole';
+  var r = await sb.from('syndicate_shared_grounds').update({ booking_mode: mode }).eq('id', shareId);
+  if (r.error) { showToast('\u26a0\ufe0f ' + friendlyErr(r.error, 'Could not change booking mode')); return; }
+  showToast(mode === 'seat' ? '\u2713 Members will book individual seats' : '\u2713 Members will book the whole ground');
+  void refreshSharedGrounds();
+  openSyndicateManageSheet(syndicateEditingId);
+}
+
+// ── Ground notes (phase 1, decision #3 · 13.49 dual-surface) ────────────────
+// Owner: "Ground notes are hidden here in manage screen, and this note I have
+// added doesn't appear on main syndicate page." Same cure as messages got in
+// 13.43: ONE renderer feeds the manage sheet AND a card on the syndicate
+// page; every action resolves its context (syndicate, owner, ground, role)
+// from the .gmn-host element it was tapped in, and a change repaints every
+// surface currently showing that syndicate — no more full-sheet reopen.
+
+/** Render the ground-notes threads for a syndicate into `containerId`.
+ *  A sibling `<containerId>-wrap` element (if present) is shown/hidden with
+ *  the content, so empty states cost no chrome on either surface. */
+async function renderGroundNotesSection(syndicate, isMgr, containerId) {
+  if (!sb || !currentUser || !syndicate) return;
+  var section = document.getElementById(containerId);
+  if (!section) return;
+  var wrapEl = document.getElementById(containerId + '-wrap');
+  function hide() { section.innerHTML = ''; if (wrapEl) wrapEl.style.display = 'none'; }
+  var html = '';
+  try {
+    var shrN = await sb.from('syndicate_shared_grounds')
+      .select('owner_user_id, ground')
+      .eq('syndicate_id', syndicate.id)
+      .order('ground', { ascending: true });
+    if (shrN.error || !shrN.data || !shrN.data.length) { hide(); return; }
+    var allNotes = [];
+    try { allNotes = await fetchMemberNotes(sb); } catch (_) { allNotes = []; }
+    if (memberNotesUnavailable()) { hide(); return; }
+    var names = {};
+    try {
+      var nmf = await sb.from('syndicate_members')
+        .select('user_id, display_name').eq('syndicate_id', syndicate.id).eq('status', 'active');
+      (nmf.data || []).forEach(function(m) {
+        names[m.user_id] = (m.display_name && String(m.display_name).trim())
+          ? String(m.display_name).trim()
+          : ('Member ' + (m.user_id || '').slice(0, 8));
+      });
+    } catch (_) { /* names are decoration */ }
+
+    // 13.90 (owner: "are you happy with this?" — no): the legend belongs to
+    // the CARD, said once; each ground's name shares a line with its Add
+    // button; grounds with notes come before empty ones — a field book
+    // opens at the written page, not two blank ones.
+    html += '<div style="font-size:10px;color:var(--sy-muted,var(--muted));margin:0 0 8px 0;">Gold rule = shared \u00b7 grey = only you</div>';
+    var gmnGroups = shrN.data.map(function(sg) {
+      var t = notesForGround(allNotes, sg.owner_user_id, sg.ground)
+        .filter(function(n) { return n.syndicate_id === syndicate.id; });
+      return { sg: sg, thread: t, newest: t.length ? (Date.parse(t[0].created_at) || 0) : 0 };
+    });
+    gmnGroups.sort(function(a, b) {
+      return (b.newest - a.newest)
+        || String(a.sg.ground).localeCompare(String(b.sg.ground), undefined, { sensitivity: 'base' });
+    });
+    var gmnMulti = gmnGroups.length > 1;
+    gmnGroups.forEach(function(gG) {
+      var sg = gG.sg;
+      var thread = gG.thread;
+      html += '<div class="gmn-host" data-gmn-sid="' + esc(syndicate.id) + '" data-gmn-owner="' + esc(sg.owner_user_id) + '" data-gmn-ground="' + esc(sg.ground) + '" data-gmn-mgr="' + (isMgr ? '1' : '0') + '">';
+      // 13.59: managers-only notes — members read the field book, no add-row.
+      var gmnLocked = syndicate.notes_policy === 'managers' && !isMgr;
+      if (gmnLocked && gmnMulti) {
+        html += '<div style="font-size:10px;color:var(--sy-muted,var(--muted));font-weight:700;text-transform:uppercase;letter-spacing:0.6px;margin:10px 0 6px 0;">' + esc(sg.ground) + '</div>';
+      }
+      // 13.52 (owner: "is ground notes and messages not a duplication of
+      // sorts?") — the cure for the lookalike is FORM: no standing empty
+      // textarea mirroring the chat card. A slim add-row reveals the
+      // composer only when wanted; notes render as compact intel rows.
+      if (!gmnLocked) html += '<div class="gmn-addrow" style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin:' + (gmnMulti ? '10px' : '0') + ' 0 7px 0;">'
+        + (gmnMulti
+            ? '<span style="font-size:10px;color:var(--sy-muted,var(--muted));font-weight:700;text-transform:uppercase;letter-spacing:0.6px;">' + esc(sg.ground) + '</span>'
+            : '<span></span>')
+        + '<button type="button" data-fl-action="gmn-compose-toggle" style="flex:none;padding:5px 11px;font-size:10.5px;font-weight:700;border:1.5px solid var(--sy-line,var(--line));border-radius:8px;background:var(--sy-card,white);color:var(--sy-ink,var(--bark));cursor:pointer;font-family:\'DM Sans\',sans-serif;">+ Add note</button>'
+        + '</div>';
+      if (!gmnLocked) html += '<div class="gmn-compose" style="display:none;border:1.5px solid var(--sy-line,var(--line));border-radius:10px;background:var(--sy-card,white);padding:8px;margin-bottom:8px;">'
+        + '<textarea class="gmn-inp" maxlength="1000" rows="2" placeholder="e.g. Deer crossing by the oak most dawns\u2026" style="width:100%;border:none;background:transparent;resize:vertical;font-family:\'DM Sans\',sans-serif;font-size:12px;color:var(--sy-ink,var(--bark));outline:none;box-sizing:border-box;"></textarea>'
+        + '<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-top:6px;">'
+        + '<button type="button" class="gmn-priv" data-fl-action="gmn-priv-toggle" data-shared="0" style="padding:5px 10px;font-size:10px;font-weight:700;border:1.5px solid var(--sy-line,var(--line));border-radius:8px;background:var(--sy-card2,var(--sand));color:var(--sy-muted,var(--muted));cursor:pointer;font-family:\'DM Sans\',sans-serif;">Private \u00b7 only you</button>'
+        + '<button type="button" data-fl-action="gmn-post" style="flex:none;padding:6px 14px;font-size:11px;font-weight:700;border:1.5px solid var(--sy-line,var(--stone));border-radius:8px;background:var(--sy-card,white);color:var(--sy-ink,var(--bark));cursor:pointer;font-family:\'DM Sans\',sans-serif;">Post</button>'
+        + '</div></div>';
+      if (!thread.length) {
+        html += '<p style="font-size:11px;color:var(--sy-muted,var(--muted));margin:0 0 6px 0;">No field notes on this ground yet.</p>';
+      } else {
+        var GMN_CAP = 30;
+        thread.slice(0, GMN_CAP).forEach(function(n) {
+          var mine = n.user_id === currentUser.id;
+          var who = mine ? 'You' : (names[n.user_id] || ('Member ' + String(n.user_id || '').slice(0, 8)));
+          var when = '';
+          try {
+            var dtN = new Date(n.created_at);
+            when = dtN.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }) + ' ' + dtN.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
+          } catch (_) {}
+          var rule = n.shared ? 'rgba(216,176,84,0.75)' : 'var(--sy-rule, rgba(0,0,0,0.14))';
+          html += '<div style="padding:4px 0 4px 10px;border-left:2.5px solid ' + rule + ';margin-bottom:7px;">'
+            + '<div style="display:flex;align-items:center;gap:7px;font-size:10px;color:var(--sy-muted,var(--muted));flex-wrap:wrap;">'
+            + '<span style="font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + esc(who) + ' \u00b7 ' + esc(when) + '</span>'
+            + '<span style="font-weight:700;color:' + (n.shared ? '#8a6a12' : 'var(--muted)') + ';">' + (n.shared ? 'Shared' : 'Private') + '</span>'
+            + '<span style="flex:1 1 auto;"></span>';
+          if (mine) {
+            html += '<button type="button" class="synd-msg-pin" data-fl-action="gmn-toggle-shared" data-note-id="' + esc(n.id) + '" data-next="' + (n.shared ? '0' : '1') + '">' + (n.shared ? 'Make private' : 'Share') + '</button>';
+          }
+          if (mine || isMgr) {
+            html += '<button type="button" class="synd-msg-del" data-fl-action="gmn-delete" data-note-id="' + esc(n.id) + '">Delete</button>';
+          }
+          html += '</div>'
+            + '<div style="font-size:12px;color:var(--sy-ink,var(--bark));margin-top:2px;white-space:pre-wrap;word-break:break-word;">' + esc(n.body || '') + '</div>'
+            + '</div>';
+        });
+        if (thread.length > GMN_CAP) {
+          html += '<p style="font-size:10px;color:var(--sy-muted,var(--muted));margin:0 0 6px 0;">' + (thread.length - GMN_CAP) + ' older notes are not shown.</p>';
+        }
+      }
+      html += '</div>';
+    });
+  } catch (_) { hide(); return; } /* pre-migration or offline \u2014 hides quietly */
+  section.innerHTML = html;
+  if (wrapEl) wrapEl.style.display = html ? '' : 'none';
+  enhanceKeyboardClickables(section);
+}
+
+/** Which syndicate / share / role does this tap belong to? The host knows. */
+function gmnCtxFrom(el) {
+  var host = (el && el.closest) ? el.closest('.gmn-host') : null;
+  return {
+    host: host,
+    sid: host ? host.getAttribute('data-gmn-sid') : (syndicateEditingId || null),
+    owner: host ? host.getAttribute('data-gmn-owner') : null,
+    ground: host ? host.getAttribute('data-gmn-ground') : null,
+    isMgr: host ? host.getAttribute('data-gmn-mgr') === '1' : syndicateManageSheetIsManager
+  };
+}
+
+/** Repaint every surface currently showing this syndicate's notes. */
+async function gmnRerenderFor(sid) {
+  if (!sb || !sid) return;
+  var sr = await sb.from('syndicates').select('*').eq('id', sid).single();
+  if (sr.error || !sr.data) return;
+  if (document.getElementById('synd-page-notes') && String(flSynPage.selectedId) === String(sid)) {
+    var row = (flSynPage.rows || []).find(function(r) { return String(r.syndicate.id) === String(sid); });
+    await renderGroundNotesSection(sr.data, !!(row && row.role === 'manager'), 'synd-page-notes');
+  }
+}
+
+/** "+ Add note" → reveal this host's composer (13.52 compact form). */
+function gmnComposeToggle(el) {
+  var ctx = gmnCtxFrom(el);
+  if (!ctx.host) return;
+  var addRow = ctx.host.querySelector('.gmn-addrow');
+  var compose = ctx.host.querySelector('.gmn-compose');
+  if (addRow) addRow.style.display = 'none';
+  if (compose) {
+    compose.style.display = '';
+    var inp = compose.querySelector('.gmn-inp');
+    if (inp) inp.focus();
+  }
+}
+
+/** Composer privacy flip — pure DOM state, read by gmnPost at send time. */
+function gmnPrivToggle(el) {
+  var ctx = gmnCtxFrom(el);
+  var b = ctx.host ? ctx.host.querySelector('.gmn-priv') : null;
+  if (!b) return;
+  var next = b.getAttribute('data-shared') !== '1';
+  b.setAttribute('data-shared', next ? '1' : '0');
+  b.textContent = next ? 'Shared with syndicate' : 'Private \u00b7 only you';
+  b.style.color = next ? 'var(--bark)' : 'var(--muted)';
+}
+
+async function gmnPost(el) {
+  var ctx = gmnCtxFrom(el);
+  if (!sb || !currentUser || !ctx.sid || !ctx.owner || !ctx.ground) return;
+  var inp = ctx.host ? ctx.host.querySelector('.gmn-inp') : null;
+  var bodyTxt = inp ? inp.value : '';
+  var privBtn = ctx.host ? ctx.host.querySelector('.gmn-priv') : null;
+  var shared = !!(privBtn && privBtn.getAttribute('data-shared') === '1');
+  try {
+    await addMemberNote(sb, {
+      userId: currentUser.id, syndicateId: ctx.sid,
+      ownerUserId: ctx.owner, ground: ctx.ground, body: bodyTxt, shared: shared
+    });
+    showToast(shared ? '\u2713 Note saved \u2014 shared with the syndicate' : '\u2713 Note saved \u2014 private to you');
+  } catch (e) {
+    showToast('\u26a0\ufe0f ' + friendlyErr(e, String((e && e.message) || 'Could not save the note')));
+    return;
+  }
+  void gmnRerenderFor(ctx.sid);
+}
+
+async function gmnToggleShared(el, noteId, next) {
+  var ctx = gmnCtxFrom(el);
+  if (!sb || !noteId) return;
+  try { await setNoteShared(sb, noteId, next === '1'); }
+  catch (e) { showToast('\u26a0\ufe0f ' + friendlyErr(e, 'Could not update the note')); return; }
+  showToast(next === '1' ? '\u2713 Shared with the syndicate' : '\u2713 Private again');
+  void gmnRerenderFor(ctx.sid);
+}
+
+async function gmnDelete(el, noteId) {
+  var ctx = gmnCtxFrom(el);
+  if (!sb || !noteId) return;
+  if (!(await flConfirm({
+    title: 'Delete note?',
+    body: 'This removes the note permanently.',
+    action: 'Delete note',
+    tone: 'danger'
+  }))) return;
+  try { await deleteMemberNote(sb, noteId); }
+  catch (e) { showToast('\u26a0\ufe0f ' + friendlyErr(e, 'Could not delete the note')); return; }
+  showToast('\u2713 Note deleted');
+  void gmnRerenderFor(ctx.sid);
+}
+
 async function loadMySyndicateRows() {
   if (!sb || !currentUser) return [];
-  var mr = await sb.from('syndicate_members').select('syndicate_id, role').eq('user_id', currentUser.id).eq('status', 'active');
-  if (mr.error || !mr.data || !mr.data.length) return [];
-  var ids = mr.data.map(function(x) { return x.syndicate_id; });
-  if (!ids.length) return [];
+  // 13.76: one query, two truths — active rows drive the page and chips;
+  // invited rows drive the "request sent, awaiting approval" state.
+  var mr = await sb.from('syndicate_members').select('syndicate_id, role, status').eq('user_id', currentUser.id).in('status', ['active', 'invited']);
+  if (mr.error || !mr.data) { flSynPage.pending = []; return []; }
+  flSynPage.pending = mr.data.filter(function(x) { return x.status === 'invited'; })
+    .map(function(x) { return x.syndicate_id; });
+  var act = mr.data.filter(function(x) { return x.status === 'active'; });
+  if (!act.length) return [];
+  var ids = act.map(function(x) { return x.syndicate_id; });
   var roles = {};
-  mr.data.forEach(function(r) { roles[r.syndicate_id] = r.role; });
+  act.forEach(function(r) { roles[r.syndicate_id] = r.role; });
   var sr = await sb.from('syndicates').select('*').in('id', ids);
   if (sr.error || !sr.data || !sr.data.length) return [];
+  // 13.59: policy cache for sync surfaces (the shout checkbox can't await).
+  sr.data.forEach(function(x) { flSynPrefs[String(x.id)] = x; });
   return sr.data.map(function(s) { return { syndicate: s, role: roles[s.id] }; });
 }
 
@@ -20778,7 +23814,28 @@ async function fetchSyndicateSummaryFallback(syndicate, season, isManager) {
   return { ok: true, rows: rows, fallback: true };
 }
 
-function renderSyndicateProgressBars(s, summaryRows, season) {
+/** PURE (13.70): how far through the syndicate's season are we, 0..100.
+ *  Season runs 12 months from the 1st of startMonth. */
+function flSeasonElapsedPct(now, startMonth) {
+  var m = parseInt(startMonth, 10);
+  if (!Number.isFinite(m) || m < 1 || m > 12 || !now) return null;
+  var y = (now.getMonth() + 1) >= m ? now.getFullYear() : now.getFullYear() - 1;
+  var start = new Date(y, m - 1, 1);
+  var pct = (now - start) / (365.25 * 86400000) * 100;
+  return Math.max(0, Math.min(100, Math.round(pct)));
+}
+
+/** PURE (13.70): pace verdict — generous early, honest late. Ahead when the
+ *  cull runs ≥5 points past the season; behind when it trails by >15. */
+function flPaceVerdict(elapsedPct, culledPct) {
+  if (elapsedPct == null || culledPct == null) return null;
+  var d = culledPct - elapsedPct;
+  if (d >= 5) return 'ahead of pace';
+  if (d <= -15) return 'behind pace';
+  return 'on pace';
+}
+
+function renderSyndicateProgressBars(s, summaryRows, season, opts) {
   var mode = s.allocation_mode;
   var bySp = {};
   (summaryRows || []).forEach(function(row) {
@@ -20868,7 +23925,7 @@ function renderSyndicateProgressBars(s, summaryRows, season) {
   });
 
   if (!rendered) {
-    return '<div style="font-size:11px;color:var(--muted);padding:4px 0;">No targets for ' + esc(season) + ' yet.</div>';
+    return '<div style="font-size:11px;color:var(--sy-muted,var(--muted));padding:4px 0;">No targets for ' + esc(season) + ' yet.</div>';
   }
   var deerPct = totalTarget > 0 ? Math.min(100, Math.round(totalActual / totalTarget * 100)) : 0;
   var _prC = 2 * Math.PI * 16;
@@ -20918,6 +23975,34 @@ function renderSyndicateProgressBars(s, summaryRows, season) {
     html += '<div class="plan-total-count">' + _fltDeerCount + '</div>';
     html += '</div>';
   }
+  // ── 13.70: the manager's season pulse — is the plan on schedule? Only
+  // when targets exist; members see the bars, managers see the verdict.
+  if (opts && opts.isMgr && totalTarget > 0 && opts.elapsedPct != null) {
+    var culledPct = Math.min(100, Math.round(totalActual / totalTarget * 100));
+    var verdict = flPaceVerdict(opts.elapsedPct, culledPct);
+    if (verdict) {
+      var vColor = verdict === 'behind pace' ? '#e09040' : (verdict === 'ahead of pace' ? '#9fdf7a' : 'var(--sy-muted,var(--muted))');
+      html += '<div style="font-size:10.5px;font-family:\'DM Mono\',monospace;color:var(--sy-muted,var(--muted));text-align:center;margin-top:8px;">'
+        + 'season ' + opts.elapsedPct + '% gone \u00b7 cull ' + culledPct + '% done \u00b7 '
+        + '<b style="color:' + vColor + ';">' + verdict + '</b>'
+        + (opts.byMember ? '<br>' + esc(opts.byMember) : '')
+        + '</div>';
+    }
+  }
+  // 13.50 (owner: "shall it not say something around log the cull in diary
+  // and select syndicate to log your counts here?") — an empty board should
+  // teach the route. Shown only until the first cull lands; after that the
+  // numbers explain themselves.
+  if (totalActual === 0 && pestTotal === 0) {
+    var _hintSame = s.ground_filter
+      && String(s.ground_filter).trim().toLowerCase() === String(s.name || '').trim().toLowerCase();
+    html += '<div style="font-size:10.5px;color:var(--sy-muted,var(--muted));text-align:center;margin-top:8px;line-height:1.5;">'
+      + (_hintSame
+        ? 'Counts fill in from your diary \u2014 culls logged on \u201c' + esc(s.ground_filter) + '\u201d count here automatically.'
+        : 'Counts fill in from your diary \u2014 log the cull and pick \u201c' + esc(s.name || 'this syndicate') + '\u201d on the entry.'
+          + (s.ground_filter ? ' Culls on ' + esc(s.ground_filter) + ' pick it for you.' : ''))
+      + '</div>';
+  }
   return html;
 }
 
@@ -20934,8 +24019,12 @@ async function renderOneSyndicateCard(row) {
     var fb = await fetchSyndicateSummaryFallback(s, season, isMgr);
     rows = fb.rows || [];
   }
-  var sub = (s.allocation_mode === 'group' ? 'Group targets' : 'Individual allocations') +
-    (s.ground_filter ? ' · ' + s.ground_filter : '');
+  // 13.48: don't echo the ground when it just repeats the syndicate's name —
+  // "Wigmore 3 / Group targets · Wigmore 3" said nothing twice.
+  var subGround = s.ground_filter
+    && String(s.ground_filter).trim().toLowerCase() !== String(s.name || '').trim().toLowerCase()
+    ? ' · ' + s.ground_filter : '';
+  var sub = (s.allocation_mode === 'group' ? 'Group targets' : 'Individual allocations') + subGround;
   // Cheap unread check: one bounded query per card. `syndicate_messages` may
   // not be deployed yet on every project; the helper swallows errors so this
   // gracefully degrades to "no badge" if the RLS / table are missing.
@@ -20943,24 +24032,49 @@ async function renderOneSyndicateCard(row) {
   try { unreadCount = await syndicateUnreadMessageCount(s.id); } catch (_) {}
   var unreadNoun = unreadCount === 1 ? 'message' : 'messages';
   var unreadLabel = (unreadCount > 9 ? '9+' : String(unreadCount)) + ' new ' + unreadNoun;
-  // Pip is a button — tapping it opens the manage sheet (where the messages
-  // section lives) so the user doesn't have to read the chip then aim at the
-  // separate Manage / View button.
+  // 13.95: the pip and the primary button go to the PAGE — the thread,
+  // bookings and people live there now. (13.92 made the sheet constitution-
+  // only, which had quietly left this pip promising a thread the sheet no
+  // longer holds.) Managers keep a second button for the sheet.
   var pip = unreadCount > 0
     ? '<button type="button" class="synd-unread-pip" '
-      + 'data-fl-action="open-syndicate-manage" data-syndicate-id="' + esc(s.id) + '" '
+      + 'data-fl-action="open-syndicate-page" data-syndicate-id="' + esc(s.id) + '" '
       + 'title="' + unreadLabel + ' — open thread" aria-label="' + unreadLabel + ' — open thread">'
       + esc(unreadLabel) + '</button>'
     : '';
-  var btnLabel = isMgr ? 'Manage' : 'View';
   var btn = '<div class="synd-block-cta">' + pip
-    + '<button type="button" class="plan-edit-btn" data-fl-action="open-syndicate-manage" data-syndicate-id="' + esc(s.id) + '">' + btnLabel + '</button>'
+    + '<button type="button" class="plan-edit-btn" data-fl-action="open-syndicate-page" data-syndicate-id="' + esc(s.id) + '">Open</button>'
+    + (isMgr ? '<button type="button" class="plan-edit-btn" data-fl-action="open-syndicate-manage" data-syndicate-id="' + esc(s.id) + '">Manage</button>' : '')
     + '</div>';
+  // 13.70: the manager pulse — season elapsed vs cull done, plus who's
+  // contributing once anything is on the board.
+  var pulseOpts = null;
+  if (isMgr) {
+    var elapsed = flSeasonElapsedPct(new Date(diaryNow()), syndicateSeasonStartMonth(s));
+    var byMember = null;
+    var anyActual = (rows || []).some(function (r) { return (parseInt(r.actual_total, 10) || 0) > 0; });
+    if (anyActual) {
+      try {
+        var br = await sb.rpc('syndicate_member_actuals_for_manager', { p_syndicate_id: s.id, p_season: season });
+        if (!br.error && br.data && br.data.length) {
+          var perM = {};
+          br.data.forEach(function (r) {
+            var nm = (r.display_name && String(r.display_name).trim()) || ('Member ' + String(r.user_id || '').slice(0, 6));
+            perM[nm] = (perM[nm] || 0) + (parseInt(r.actual, 10) || 0);
+          });
+          var top = Object.keys(perM).filter(function (k) { return perM[k] > 0; })
+            .sort(function (a, b) { return perM[b] - perM[a]; }).slice(0, 3);
+          if (top.length) byMember = 'by member: ' + top.map(function (k) { return k + ' ' + perM[k]; }).join(' \u00b7 ');
+        }
+      } catch (_) { /* pulse is decoration */ }
+    }
+    pulseOpts = { isMgr: true, elapsedPct: elapsed, byMember: byMember };
+  }
   return '<div class="synd-block">'
     + '<div class="synd-block-hdr">'
     + '<div><div class="synd-block-title">' + esc(s.name) + '</div>'
     + '<div class="synd-block-meta">' + esc(sub) + '</div></div>' + btn + '</div>'
-    + renderSyndicateProgressBars(s, rows, season)
+    + renderSyndicateProgressBars(s, rows, season, pulseOpts)
     + '</div>';
 }
 
@@ -20988,14 +24102,21 @@ async function renderSyndicateSection() {
     return Promise.resolve();
   }
   if (btn) btn.style.display = '';
-  body.innerHTML = '<div style="padding:12px;text-align:center;color:var(--muted);font-size:12px;">Loading syndicates…</div>';
+  body.innerHTML = '<div style="padding:12px;text-align:center;color:var(--sy-muted,var(--muted));font-size:12px;">Loading syndicates…</div>';
   try {
     var list = await loadMySyndicateRows();
+    // Settings sheet "Syndicate" row value (placement round, 2026-08-10).
+    var psv = document.getElementById('profile-syndicate-value');
+    if (psv) {
+      psv.textContent = !list.length ? 'None yet'
+        : (list.length === 1 ? String(list[0].syndicate.name || 'Syndicate')
+                             : list.length + ' syndicates');
+    }
     if (list.length) await syncSyndicateGroundFiltersFromRows(list);
     if (!list.length) {
       body.innerHTML = '<div class="plan-empty"><div class="plan-empty-t">No syndicates yet</div>'
-        + '<div class="plan-empty-s">Create a group, set shared targets, and invite members with a link.</div>'
-        + '<button type="button" class="plan-set-btn" data-fl-action="open-syndicate-create">Create syndicate</button></div>';
+        + '<div class="plan-empty-s">Join with an invite from your manager, or create a group and invite members with a link or code.</div>'
+        + '<button type="button" class="plan-set-btn" data-fl-action="open-syndicate-create">Join or create</button></div>';
       enhanceKeyboardClickables(body);
       return;
     }
@@ -21031,21 +24152,33 @@ async function openSyndicateCreateSheet() {
     console.warn('Syndicate modal nodes missing');
     return;
   }
-  tEl.textContent = 'New syndicate';
-  sEl.textContent = 'Create a group and set targets';
+  tEl.textContent = 'Join or create';
+  sEl.textContent = 'Enter an invite \u2014 or start your own group';
   var groundOpts = buildSyndicateCreateGroundSelectInnerHtml();
   bEl.innerHTML =
-    '<label style="display:block;font-size:10px;font-weight:700;text-transform:uppercase;color:var(--muted);margin-bottom:6px;">Name</label>'
+    // 13.77: most people arrive here holding an invite, not founding a group —
+    // the join field comes first. Takes the pasted link or the spoken code.
+    '<div style="padding:12px;border:1.5px dashed #d0b878;border-radius:12px;background:#faf6ec;margin-bottom:18px;">'
+    + '<label style="display:block;font-size:10px;font-weight:700;text-transform:uppercase;color:var(--sy-muted,var(--muted));margin-bottom:6px;">Joining an existing syndicate?</label>'
+    + '<div style="display:flex;gap:8px;">'
+    + '<input type="text" id="syn-join-inp" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="Paste invite link \u2014 or type the code" style="flex:1 1 auto;min-width:0;padding:10px 12px;border:1.5px solid #e0dcd6;border-radius:10px;font-size:13px;box-sizing:border-box;">'
+    + '<button type="button" class="copy-targets-btn" style="width:auto;flex:none;margin:0;padding:10px 16px;" data-fl-action="synd-join-code">Join</button>'
+    + '</div>'
+    + '<p style="font-size:10.5px;color:var(--sy-muted,var(--muted));margin:6px 0 0 0;">Your manager has the link and the code \u2014 either works.</p>'
+    + '</div>'
+    + '<div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.6px;color:var(--sy-muted,var(--muted));margin-bottom:14px;text-align:center;">\u2014 or create your own \u2014</div>'
+    + '<label style="display:block;font-size:10px;font-weight:700;text-transform:uppercase;color:var(--sy-muted,var(--muted));margin-bottom:6px;">Name</label>'
     + '<input type="text" id="syn-inp-name" style="width:100%;padding:10px 12px;border:1.5px solid #e0dcd6;border-radius:10px;margin-bottom:14px;font-size:14px;" placeholder="e.g. North Block syndicate">'
-    + '<label style="display:block;font-size:10px;font-weight:700;text-transform:uppercase;color:var(--muted);margin-bottom:6px;">Allocation</label>'
+    + '<label style="display:block;font-size:10px;font-weight:700;text-transform:uppercase;color:var(--sy-muted,var(--muted));margin-bottom:6px;">Allocation</label>'
     + '<select id="syn-inp-mode" style="width:100%;padding:10px 12px;border:1.5px solid #e0dcd6;border-radius:10px;margin-bottom:14px;font-size:14px;">'
     + '<option value="group">Group total (shared pool)</option>'
     + '<option value="individual">Per-member allocations</option></select>'
-    + '<label style="display:block;font-size:10px;font-weight:700;text-transform:uppercase;color:var(--muted);margin-bottom:6px;">Ground filter (optional)</label>'
+    + '<label style="display:block;font-size:10px;font-weight:700;text-transform:uppercase;color:var(--sy-muted,var(--muted));margin-bottom:6px;">Ground filter (optional)</label>'
     + '<select id="syn-inp-ground" style="width:100%;padding:10px 12px;border:1.5px solid #e0dcd6;border-radius:10px;margin-bottom:0;font-size:13px;">' + groundOpts + '</select>'
     + '<input type="text" id="syn-inp-ground-custom" autocomplete="off" placeholder="Type ground label (must match entry Permission / Ground)" style="display:none;width:100%;padding:10px 12px;border:1.5px solid #e0dcd6;border-radius:10px;margin-top:8px;margin-bottom:16px;font-size:14px;box-sizing:border-box;">'
-    + '<p style="font-size:11px;color:var(--muted);margin-bottom:8px;">Entries must match this ground label to count. Leave empty to count all entries from members.</p>'
-    + '<p style="font-size:11px;color:var(--muted);margin-bottom:14px;">This filter applies only to the syndicate you are creating. It does not change syndicates you already belong to.</p>'
+    + '<p style="font-size:11px;color:var(--sy-muted,var(--muted));margin-bottom:8px;">Entries must match this ground label to count. Leave empty to count all entries from members.</p>'
+    + '<p style="font-size:11px;color:var(--sy-muted,var(--muted));margin-bottom:14px;">This filter applies only to the syndicate you are creating. It does not change syndicates you already belong to.</p>'
+    + '<p style="font-size:11px;color:var(--sy-muted,var(--muted));margin-bottom:14px;">The shared map is separate from this filter — after creating, use Shared grounds to share a mapped ground with members, or draw a new one right there.</p>'
     + '<button type="button" class="tsheet-save" style="width:100%;" data-fl-action="save-syndicate-create">Create syndicate</button>';
   enhanceKeyboardClickables(bEl);
   var synG = document.getElementById('syn-inp-ground');
@@ -21145,73 +24278,18 @@ async function openSyndicateManageSheet(sid) {
 
   var bodyHtml = '';
 
-  // Messages section — single rolling thread visible to both members and
-  // managers. Section content is injected asynchronously after the sheet's
-  // innerHTML is set; the placeholder keeps tab order and CSS layout stable.
-  bodyHtml += '<div class="synd-msg-section-wrap">'
-    + '<div class="synd-msg-section-hdr">'
-    + '<div class="synd-msg-section-title">Messages</div>'
-    + '<div class="synd-msg-section-sub">Single thread visible to every active member</div>'
-    + '</div>'
-    + '<div id="syn-msg-section" class="synd-msg-section-body">'
-    + '<div class="synd-msg-loading">Loading messages…</div>'
-    + '</div>'
-    + '</div>';
-
-  if (isMgr && memberRows && memberRows.length) {
-    var sortedMembers = memberRows.slice().sort(function(a, b) {
-      if (a.role !== b.role) return a.role === 'manager' ? -1 : 1;
-      var na = memberNameById[a.user_id] || '';
-      var nb = memberNameById[b.user_id] || '';
-      return na.localeCompare(nb, undefined, { sensitivity: 'base' });
-    });
-    var managerCount = sortedMembers.filter(function(x) { return x.role === 'manager'; }).length;
-    bodyHtml += '<div style="font-size:11px;font-weight:700;margin-bottom:8px;color:var(--bark);">Members</div>'
-      + '<p style="font-size:11px;color:var(--muted);margin:0 0 10px 0;">Everyone in this syndicate right now. Promote at least one member to manager before you leave. With two or more managers, a manager can demote another manager to member (not yourself — ask the other manager).</p>'
-      + '<div id="syn-member-list" style="display:flex;flex-direction:column;gap:8px;margin-bottom:18px;">';
-    sortedMembers.forEach(function(m) {
-      var label = memberNameById[m.user_id] || ('Member ' + (m.user_id || '').slice(0, 8));
-      var isSelf = m.user_id === currentUser.id;
-      var roleLbl = m.role === 'manager' ? 'Manager' : 'Member';
-      var joined = m.joined_at
-        ? new Date(m.joined_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })
-        : '';
-      var rmCell = '';
-      if (m.role === 'member' && !isSelf) {
-        rmCell = '<div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;justify-content:flex-end;">'
-          + '<button type="button" class="syn-member-promote" data-fl-action="synd-promote-member" data-member-user-id="' + esc(m.user_id) + '" style="flex-shrink:0;padding:6px 10px;font-size:11px;border:1.5px solid #2d7a1a;color:#2d7a1a;border-radius:8px;background:transparent;font-weight:600;cursor:pointer;">Promote</button>'
-          + '<button type="button" class="syn-member-rm" data-fl-action="synd-remove-member" data-member-user-id="' + esc(m.user_id) + '" style="flex-shrink:0;padding:6px 10px;font-size:11px;border:1.5px solid var(--red);color:var(--red);border-radius:8px;background:transparent;font-weight:600;cursor:pointer;">Remove</button>'
-          + '</div>';
-      } else if (m.role === 'member' && isSelf) {
-        rmCell = '<span style="font-size:10px;color:var(--muted);white-space:nowrap;">Use Leave below</span>';
-      } else if (m.role === 'manager' && managerCount >= 2 && !isSelf) {
-        rmCell = '<div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;justify-content:flex-end;">'
-          + '<button type="button" data-fl-action="synd-demote-member" data-member-user-id="' + esc(m.user_id) + '" style="flex-shrink:0;padding:6px 10px;font-size:11px;border:1.5px solid #8d6b2a;color:#6b4f0a;border-radius:8px;background:transparent;font-weight:600;cursor:pointer;">Demote to member</button>'
-          + '</div>';
-      } else if (m.role === 'manager' && managerCount >= 2 && isSelf) {
-        rmCell = '<span style="font-size:10px;color:var(--muted);white-space:nowrap;text-align:right;max-width:140px;">Another manager can demote you</span>';
-      } else if (m.role === 'manager') {
-        rmCell = '<span style="font-size:10px;color:var(--muted);white-space:nowrap;">Only manager</span>';
-      } else {
-        rmCell = '<span style="font-size:10px;color:var(--muted);white-space:nowrap;">—</span>';
-      }
-      bodyHtml += '<div class="syn-member-row" style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding:10px 12px;background:var(--sand);border:1.5px solid var(--line);border-radius:10px;">'
-        + '<div style="min-width:0;">'
-        + '<div style="font-weight:600;font-size:13px;color:var(--bark);">' + esc(label)
-        + (isSelf ? ' <span style="color:var(--muted);font-weight:500;">(you)</span>' : '')
-        + '</div>'
-        + '<div style="font-size:10px;color:var(--muted);">' + esc(roleLbl) + (joined ? ' · Joined ' + esc(joined) : '') + '</div>'
-        + '</div>' + rmCell + '</div>';
-    });
-    bodyHtml += '</div>';
-  }
+  // 13.92 (Option A — owner: "Go with A"): this sheet is the syndicate's
+  // CONSTITUTION — targets, allocations, season start, shared grounds,
+  // delete, leave. Daily life (messages, notes, people, invites, booking
+  // rules) lives on the Syndicate page in daylight; nothing renders on two
+  // surfaces any more.
 
   if (s.allocation_mode === 'group' && isMgr) {
-    bodyHtml += '<div style="font-size:11px;font-weight:700;margin-bottom:8px;color:var(--bark);">Group targets · ' + esc(seasonLabel(synSeason, synMonth)) + '</div>'
+    bodyHtml += '<div style="font-size:11px;font-weight:700;margin-bottom:8px;color:var(--sy-ink,var(--bark));">Group targets · ' + esc(seasonLabel(synSeason, synMonth)) + '</div>'
       + buildSyndicateStepperGrid(targets, 'syntt')
       + '<button type="button" class="tsheet-save" style="width:100%;margin-top:14px;" data-fl-action="save-syndicate-targets">Save targets</button>';
   } else if (s.allocation_mode === 'group' && !isMgr) {
-    bodyHtml += '<p style="font-size:12px;color:var(--muted);">Group totals are set by the manager. You see syndicate-wide progress on the Stats card.</p>';
+    bodyHtml += '<p style="font-size:12px;color:var(--sy-muted,var(--muted));">Group totals are set by the manager. You see syndicate-wide progress on the Stats card.</p>';
   }
 
   if (s.allocation_mode === 'individual' && isMgr) {
@@ -21230,7 +24308,7 @@ async function openSyndicateManageSheet(sid) {
       + '<div id="syn-alloc-grid"></div>'
       + '<button type="button" class="tsheet-save" style="width:100%;margin-top:12px;display:none;" id="syn-alloc-save" data-fl-action="save-syndicate-alloc">Save allocations for member</button>';
   } else if (s.allocation_mode === 'individual' && !isMgr) {
-    bodyHtml += '<p style="font-size:12px;color:var(--muted);">Your personal allocation is set by the manager. Syndicate totals are on the Stats card.</p>';
+    bodyHtml += '<p style="font-size:12px;color:var(--sy-muted,var(--muted));">Your personal allocation is set by the manager. Syndicate totals are on the Stats card.</p>';
   }
 
   if (isMgr) {
@@ -21247,59 +24325,72 @@ async function openSyndicateManageSheet(sid) {
     // in diary.css, so a side-by-side flex row collapses the select to a
     // sliver (found in preview, 2026-07-06). Mirrors the Per-member
     // allocations select + invite-button patterns already in this sheet.
-    bodyHtml += '<div style="margin-top:20px;padding-top:16px;border-top:1px solid var(--line);">'
+    bodyHtml += '<div style="margin-top:20px;padding-top:16px;border-top:1px solid var(--sy-line,var(--line));">'
       + '<div style="font-size:11px;font-weight:700;margin-bottom:8px;">Season start month</div>'
-      + '<p style="font-size:11px;color:var(--muted);margin-bottom:8px;">This syndicate&rsquo;s year runs 12 months from this month. It sets how targets, allocations, summaries and team exports are grouped — for every member.</p>'
+      + '<p style="font-size:11px;color:var(--sy-muted,var(--muted));margin-bottom:8px;">This syndicate&rsquo;s year runs 12 months from this month. It sets how targets, allocations, summaries and team exports are grouped — for every member.</p>'
       + '<select id="syn-season-start-select" aria-label="Syndicate season start month" style="width:100%;padding:10px;border:1.5px solid #e0dcd6;border-radius:10px;font-size:13px;">' + monthOpts + '</select>'
       + '<button type="button" class="copy-targets-btn" data-fl-action="synd-save-season-start">Save season start</button>'
       + '</div>';
 
-    var invRows = [];
+    // Shared grounds (SYNDICATE-GROUNDS-PLAN phase 1): the manager shares one
+    // of their OWN grounds; members then see it read-only on their maps. The
+    // section hides quietly until the migration has run (table absent).
     try {
-      var invFetch = await sb.from('syndicate_invites')
-        .select('id, token, created_at, expires_at, max_uses, used_count')
+      var shr = await sb.from('syndicate_shared_grounds')
+        .select('id, owner_user_id, ground, booking_mode')
         .eq('syndicate_id', s.id)
-        .order('created_at', { ascending: false })
-        .limit(12);
-      if (invFetch.data) invRows = invFetch.data;
-    } catch (e) { /* ignore invite list errors */ }
-    var nowMs = Date.now();
-    var activeInv = (invRows || []).filter(function(inv) {
-      var expMs = Date.parse(String(inv.expires_at || ''));
-      var used = parseInt(inv.used_count, 10) || 0;
-      var max = parseInt(inv.max_uses, 10) || 0;
-      if (!(expMs > 0)) return false;
-      return expMs > nowMs && used < max;
-    });
-
-    bodyHtml += '<div style="margin-top:20px;padding-top:16px;border-top:1px solid var(--line);">'
-      + '<div style="font-size:11px;font-weight:700;margin-bottom:8px;">Invite link</div>'
-      + '<p style="font-size:11px;color:var(--muted);margin-bottom:8px;">Generate a link and send it to members. They must be signed in to accept.</p>'
-      + '<button type="button" class="copy-targets-btn" style="width:100%;margin-bottom:8px;" data-fl-action="synd-generate-invite">Generate new invite link</button>'
-      + '<div id="syn-invite-out" class="synd-invite-box" style="display:none;"></div>';
-
-    if (activeInv.length) {
-      bodyHtml += '<div style="margin-top:10px;font-size:10px;color:var(--muted);font-weight:700;text-transform:uppercase;letter-spacing:0.6px;">Active invites</div>'
-        + '<div style="display:flex;flex-direction:column;gap:8px;margin-top:6px;">';
-      activeInv.forEach(function(inv) {
-        var left = Math.max(0, (parseInt(inv.max_uses, 10) || 0) - (parseInt(inv.used_count, 10) || 0));
-        var expDate = inv.expires_at ? new Date(inv.expires_at) : null;
-        var expLbl = (expDate && !isNaN(expDate.getTime()))
-          ? expDate.toLocaleString('en-GB', { day:'numeric', month:'short', hour:'2-digit', minute:'2-digit' })
-          : 'unknown';
-        var shortToken = String(inv.token || '').slice(0, 10) + '…';
-        var u = syndicateInviteUrl(inv.token);
-        bodyHtml += '<div style="padding:10px 10px;border:1.5px solid var(--line);border-radius:10px;background:var(--sand);">'
-          + '<div style="font-size:11px;color:var(--bark);font-weight:600;">' + esc(shortToken) + '</div>'
-          + '<div style="font-size:10px;color:var(--muted);margin-top:2px;">Uses left: ' + esc(String(left)) + ' · Expires: ' + esc(expLbl) + '</div>'
-          + '<div style="display:flex;gap:6px;margin-top:8px;flex-wrap:wrap;">'
-          + '<button type="button" class="copy-targets-btn" style="padding:6px 10px;font-size:11px;" data-fl-action="synd-copy-existing-invite" data-invite-url="' + esc(u) + '">Copy</button>'
-          + '<button type="button" style="padding:6px 10px;font-size:11px;border:1.5px solid var(--red);color:var(--red);border-radius:8px;background:transparent;font-weight:600;cursor:pointer;" data-fl-action="synd-revoke-invite" data-invite-id="' + esc(inv.id) + '">Revoke</button>'
-          + '</div></div>';
-      });
-      bodyHtml += '</div>';
-    }
-    bodyHtml += '</div>';
+        .order('ground', { ascending: true });
+      if (!shr.error && shr.data) {
+        var myShared = {};
+        shr.data.forEach(function(row) { if (row.owner_user_id === currentUser.id) myShared[row.ground] = true; });
+        bodyHtml += '<div style="margin-top:20px;padding-top:16px;border-top:1px solid var(--sy-line,var(--line));">'
+          + '<div style="font-size:11px;font-weight:700;margin-bottom:8px;">Shared grounds</div>'
+          + '<p style="font-size:11px;color:var(--sy-muted,var(--muted));margin:0 0 10px 0;">Members see a shared ground read-only on their maps \u2014 boundary, no-shoot zones, lines and furniture. Culls and diaries stay private. Members book outings from the Syndicate page.</p>'
+          + '<p style="font-size:10px;color:var(--sy-muted,var(--muted));margin:0 0 10px 0;">Booking rules — approval, caps, guests, invites — live on the Syndicate page under <b>Syndicate settings</b>.</p>';
+        if (shr.data.length) {
+          shr.data.forEach(function(row) {
+            var modeLbl = row.booking_mode === 'seat' ? 'Book by seat' : 'Book whole ground';
+            var modeNext = row.booking_mode === 'seat' ? 'whole' : 'seat';
+            bodyHtml += '<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding:10px 12px;background:var(--sy-card2,var(--sand));border:1.5px solid var(--sy-line,var(--line));border-radius:10px;margin-bottom:8px;">'
+              + '<div style="flex:1 1 auto;min-width:0;"><div style="font-size:12px;font-weight:700;color:var(--sy-ink,var(--bark));overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + esc(row.ground) + '</div>'
+              + '<button type="button" class="synd-msg-pin" style="margin-top:4px;" data-fl-action="synd-share-mode" data-share-id="' + esc(row.id) + '" data-mode-next="' + modeNext + '">' + modeLbl + ' \u00b7 change</button>'
+              + '</div>'
+              + '<button type="button" style="flex:none;padding:6px 10px;font-size:11px;border:1.5px solid var(--red);color:var(--red);border-radius:8px;background:transparent;font-weight:600;cursor:pointer;" data-fl-action="synd-unshare-ground" data-share-id="' + esc(row.id) + '" data-ground="' + esc(row.ground) + '">Stop sharing</button>'
+              + '</div>';
+          });
+        } else {
+          bodyHtml += '<p style="font-size:11px;color:var(--sy-muted,var(--muted));margin:0 0 8px 0;">No ground is shared with this syndicate yet.</p>';
+        }
+        var shareable = (savedGrounds || []).filter(function(g) { return !myShared[g]; });
+        var mappedSet = flMappedGroundSet(groundFeaturesNow());
+        var readyToShare = shareable.filter(function(g) { return mappedSet[g] === true; });
+        var notMapped = shareable.filter(function(g) { return mappedSet[g] !== true; });
+        if (shareable.length) {
+          bodyHtml += '<div style="font-size:10px;color:var(--sy-muted,var(--muted));font-weight:700;text-transform:uppercase;letter-spacing:0.6px;margin:10px 0 6px 0;">Share one of your grounds</div>';
+          readyToShare.forEach(function(g) {
+            bodyHtml += '<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding:8px 12px;border:1.5px dashed var(--line);border-radius:10px;margin-bottom:6px;">'
+              + '<div style="flex:1 1 auto;min-width:0;font-size:12px;font-weight:600;color:var(--sy-ink,var(--bark));overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + esc(g) + '</div>'
+              + '<button type="button" style="flex:none;width:auto;padding:7px 14px;font-size:11px;font-weight:600;background:var(--sy-card,white);border:1.5px solid var(--sy-line,var(--stone));border-radius:8px;color:var(--sy-ink,var(--bark));cursor:pointer;font-family:\'DM Sans\',sans-serif;" data-fl-action="synd-share-ground" data-ground="' + esc(g) + '">Share</button>'
+              + '</div>';
+          });
+          // Unmapped grounds are listed, not hidden — hiding reads as a bug
+          // ("where is Wigmore 2?"); the row says exactly what is missing.
+          notMapped.forEach(function(g) {
+            bodyHtml += '<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding:8px 12px;border:1.5px dashed var(--line);border-radius:10px;margin-bottom:6px;">'
+              + '<div style="flex:1 1 auto;min-width:0;"><div style="font-size:12px;font-weight:600;color:var(--sy-ink,var(--bark));overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + esc(g) + '</div>'
+              + '<div style="font-size:10px;color:var(--sy-muted,var(--muted));margin-top:2px;">Nothing mapped yet</div></div>'
+              + '<button type="button" class="synb-cta" style="flex:none;padding:6px 12px;font-size:11px;" data-fl-action="synd-ground-mapit" data-ground="' + esc(g) + '" data-syndicate-id="' + esc(s.id) + '" data-syn-name="' + esc(s.name) + '">Map it ›</button>'
+              + '</div>';
+          });
+        }
+        // 13.93 (owner: "should there not be an option to create a new
+        // ground?"): the bridge lives here — name it, draw or import, come
+        // back shared. No more three-surface round trip from memory.
+        bodyHtml += '<div style="font-size:10px;color:var(--sy-muted,var(--muted));font-weight:700;text-transform:uppercase;letter-spacing:0.6px;margin:12px 0 6px 0;">New ground</div>'
+          + flGroundBridgeFormHtml(s.id, s.name);
+        bodyHtml += '</div>';
+      }
+    } catch (_) { /* pre-migration or offline \u2014 section hides quietly */ }
 
     var br = await sb.rpc('syndicate_member_actuals_for_manager', { p_syndicate_id: s.id, p_season: synSeason });
     if (!br.error && br.data && br.data.length) {
@@ -21313,12 +24404,12 @@ async function openSyndicateManageSheet(sid) {
       var _feedCap = 40;
       var _feed = _feedAll.slice(0, _feedCap);
       bodyHtml += '<div style="margin-top:16px;"><div style="font-size:11px;font-weight:700;margin-bottom:6px;">Manager · culled by member</div>'
-        + '<p style="font-size:10px;color:var(--muted);margin:0 0 6px 0;">Each line is one cull, newest first · '
+        + '<p style="font-size:10px;color:var(--sy-muted,var(--muted));margin:0 0 6px 0;">Each line is one cull, newest first · '
         + (_feedAll.length > _feedCap
             ? ('showing the latest ' + _feedCap + ' of ' + _feedAll.length + ' this season')
             : (_feedAll.length + ' this season'))
         + '.</p>'
-        + '<div style="font-size:11px;font-family:DM Sans,sans-serif;color:var(--bark);line-height:1.45;">';
+        + '<div style="font-size:11px;font-family:DM Sans,sans-serif;color:var(--sy-ink,var(--bark));line-height:1.45;">';
       _feed.forEach(function(row) {
         var nm = row.user_id
           ? (memberNameById[row.user_id] || ('Member ' + (row.user_id || '').slice(0, 8)))
@@ -21332,14 +24423,14 @@ async function openSyndicateManageSheet(sid) {
           : '';
         var dateStr = row.cull_date ? fmtDateYear(row.cull_date) : '—'; // YR1: team feed spans seasons
         bodyHtml += '<span style="font-weight:600;">' + esc(nm) + '</span>'
-          + ' <span style="color:var(--muted);">·</span> ' + esc(row.species)
-          + ' <span style="color:var(--muted);">' + esc(sexLbl) + '</span>'
-          + ' <span style="color:var(--muted);">·</span> ' + esc(dateStr)
+          + ' <span style="color:var(--sy-muted,var(--muted));">·</span> ' + esc(row.species)
+          + ' <span style="color:var(--sy-muted,var(--muted));">' + esc(sexLbl) + '</span>'
+          + ' <span style="color:var(--sy-muted,var(--muted));">·</span> ' + esc(dateStr)
           + '<br>';
       });
       bodyHtml += '</div>';
       if (_feedAll.length > _feedCap) {
-        bodyHtml += '<p style="font-size:10px;color:var(--muted);margin:6px 0 0 0;">'
+        bodyHtml += '<p style="font-size:10px;color:var(--sy-muted,var(--muted));margin:6px 0 0 0;">'
           + (_feedAll.length - _feedCap) + ' older culls this season are not listed here \u2014 the full record is in Stats and the team export.</p>';
       }
       bodyHtml += '</div>';
@@ -21348,17 +24439,13 @@ async function openSyndicateManageSheet(sid) {
     bodyHtml += '<div style="margin-top:20px;"><button type="button" style="width:100%;padding:12px;background:none;border:1.5px solid var(--red);color:var(--red);border-radius:12px;font-weight:700;" data-fl-action="synd-delete">Delete syndicate</button></div>';
   }
 
-  bodyHtml += '<div style="margin-top:16px;"><button type="button" style="width:100%;padding:12px;border:1.5px solid #e0dcd6;border-radius:12px;background:var(--sand);font-weight:600;" data-fl-action="synd-leave">Leave syndicate</button></div>';
+  bodyHtml += '<div style="margin-top:16px;"><button type="button" style="width:100%;padding:12px;border:1.5px solid #e0dcd6;border-radius:12px;background:var(--sy-card2,var(--sand));font-weight:600;" data-fl-action="synd-leave">Leave syndicate</button></div>';
 
   var smb = document.getElementById('syn-modal-body');
   if (smb) {
     smb.innerHTML = bodyHtml;
     enhanceKeyboardClickables(smb);
   }
-
-  // Fire-and-forget — messages render after the rest of the sheet is visible
-  // so the user sees targets / members immediately, then the thread fills in.
-  void renderSyndicateMessagesSection(s, isMgr);
 
   if (s.allocation_mode === 'individual' && isMgr) {
     var sel = document.getElementById('syn-alloc-member');
@@ -21489,34 +24576,144 @@ async function syndSaveSeasonStart() {
   await renderSyndicateSection();
 }
 
-async function syndGenerateInvite() {
-  if (!sb || !syndicateEditingId) return;
+/** 13.92 (Option A): invites live on the page settings card. Generate
+ *  writes the fresh link + code into the card's out box and refreshes the
+ *  active list in place — no sheet rebuild, so the link cannot vanish. */
+async function syndGenerateInvite(el) {
+  if (!sb || !currentUser) return;
+  var sid = (el && el.getAttribute ? el.getAttribute('data-syndicate-id') : null) || syndicateEditingId || flSynPage.selectedId;
+  if (!sid) return;
   var tok = syndicateRandomToken();
+  var code = flInviteCodeGen();
   var exp = new Date(Date.now() + SYNDICATE_INVITE_DEFAULT_DAYS * 864e5).toISOString();
   // RLS: syndicate_invites_insert_manager (manager + created_by = auth.uid()). max_uses/expiry are client defaults; stricter server caps = optional RPC later.
   var r = await sb.from('syndicate_invites').insert({
-    syndicate_id: syndicateEditingId,
+    syndicate_id: sid,
     token: tok,
+    short_code: code,
     created_by: currentUser.id,
     expires_at: exp,
     max_uses: SYNDICATE_INVITE_DEFAULT_MAX_USES,
     used_count: 0
   });
+  // Pre-migration (no short_code column) — mint the old shape so nothing breaks.
+  if (r.error && /short_code/i.test(String(r.error.message || ''))) {
+    code = null;
+    r = await sb.from('syndicate_invites').insert({
+      syndicate_id: sid, token: tok, created_by: currentUser.id,
+      expires_at: exp, max_uses: SYNDICATE_INVITE_DEFAULT_MAX_USES, used_count: 0
+    });
+  }
   if (r.error) { showToast('⚠️ ' + friendlyErr(r.error, 'Could not create invite')); return; }
   var url = syndicateInviteUrl(tok);
-  // Order matters: openSyndicateManageSheet() rebuilds bodyHtml, which recreates
-  // an EMPTY #syn-invite-out (display:none). Writing the link first meant it
-  // survived exactly one DB round trip and then vanished, leaving the manager
-  // with a burnt invite row and no link. Refresh first, then render into the
-  // fresh box — and never await anything between the write and the user seeing it.
-  await openSyndicateManageSheet(syndicateEditingId);
   var out = document.getElementById('syn-invite-out');
   if (out) {
     out.style.display = 'block';
-    out.innerHTML = '<span style="color:var(--muted);">Link (' + SYNDICATE_INVITE_DEFAULT_DAYS + ' days, ' + SYNDICATE_INVITE_DEFAULT_MAX_USES + ' uses):</span><br>' + esc(url)
-      + '<br><button type="button" class="copy-targets-btn" style="margin-top:8px;" data-fl-action="synd-copy-invite" data-invite-url="' + esc(url) + '">Copy link</button>';
+    out.innerHTML = '<span style="color:var(--sy-muted,var(--muted));">Link (' + SYNDICATE_INVITE_DEFAULT_DAYS + ' days, ' + SYNDICATE_INVITE_DEFAULT_MAX_USES + ' uses):</span><br>' + esc(url)
+      + (code ? '<br><span style="color:var(--sy-muted,var(--muted));">Or say the code \u2014 they enter it under Join:</span> <b style="letter-spacing:1px;">' + esc(flInviteCodeFmt(code)) + '</b>' : '')
+      + '<br><button type="button" class="copy-targets-btn" style="margin-top:8px;" data-fl-action="synd-copy-invite" data-invite-url="' + esc(url) + '">Copy link</button>'
+      + (navigator.share ? '<button type="button" class="copy-targets-btn" style="margin-top:8px;margin-left:8px;" data-fl-action="synd-share-invite" data-invite-url="' + esc(url) + '">Share\u2026</button>' : '');
+    enhanceKeyboardClickables(out);
   }
-  showToast('✅ Invite link ready');
+  void syndSetInvitesFill(sid);
+  showToast('✅ Invite ready' + (code ? ' — code ' + flInviteCodeFmt(code) : ''));
+}
+
+/** 13.71: one-tap invite from the page — mint the link and hand it straight
+ *  to the share sheet (clipboard fallback). No sheet-diving. */
+async function syndInviteQuick(el) {
+  if (!sb || !currentUser) return;
+  var sid = el.getAttribute('data-syndicate-id');
+  if (!sid) return;
+  var row = (flSynPage.rows || []).find(function (r) { return String(r.syndicate.id) === String(sid); });
+  var name = row ? (row.syndicate.name || 'my syndicate') : 'my syndicate';
+  var tok = syndicateRandomToken();
+  var code = flInviteCodeGen();
+  var exp = new Date(Date.now() + SYNDICATE_INVITE_DEFAULT_DAYS * 864e5).toISOString();
+  var r = await sb.from('syndicate_invites').insert({
+    syndicate_id: sid, token: tok, short_code: code, created_by: currentUser.id,
+    expires_at: exp, max_uses: SYNDICATE_INVITE_DEFAULT_MAX_USES, used_count: 0
+  });
+  if (r.error && /short_code/i.test(String(r.error.message || ''))) {
+    code = null; // pre-migration — link-only invite
+    r = await sb.from('syndicate_invites').insert({
+      syndicate_id: sid, token: tok, created_by: currentUser.id,
+      expires_at: exp, max_uses: SYNDICATE_INVITE_DEFAULT_MAX_USES, used_count: 0
+    });
+  }
+  if (r.error) { showToast('\u26a0\ufe0f ' + friendlyErr(r.error, 'Could not create invite')); return; }
+  var url = syndicateInviteUrl(tok);
+  var msg = 'Join \u201c' + name + '\u201d on First Light \u2014 the shared ground map, seat bookings and the team thread. Tap to join:'
+    + (code ? ' (or enter code ' + flInviteCodeFmt(code) + ' under Syndicate \u203a Join)' : '');
+  if (navigator.share) {
+    try { await navigator.share({ title: 'Join ' + name, text: msg, url: url }); showToast('\u2705 Invite shared' + (code ? ' \u2014 code ' + flInviteCodeFmt(code) : '')); return; }
+    catch (e) { if (e && e.name === 'AbortError') return; /* fall through to copy */ }
+  }
+  if (navigator.clipboard) {
+    try { await navigator.clipboard.writeText(msg + ' ' + url); showToast('\ud83d\udccb Invite copied' + (code ? ' \u2014 code ' + flInviteCodeFmt(code) : '') + ' \u00b7 lasts ' + SYNDICATE_INVITE_DEFAULT_DAYS + ' days'); return; } catch (_) {}
+  }
+  showToast('\u26a0\ufe0f Could not share \u2014 use Syndicate settings \u203a Invites');
+}
+
+/** 13.77: redeem whatever is in the join field — link or code. Mirrors the
+ *  URL redeem's status handling, then lands the user somewhere true. */
+async function flJoinWithCode() {
+  var inp = document.getElementById('syn-join-inp');
+  var tok = flInviteInputParse(inp ? inp.value : '');
+  if (!tok) { showToast('\u26a0\ufe0f Enter the invite link or the code from your manager'); return; }
+  if (!sb || !currentUser) { showToast('\u26a0\ufe0f Sign in first'); return; }
+  try {
+    var r = await sb.rpc('redeem_syndicate_invite', { p_token: tok });
+    if (r.error) throw r.error;
+    var joinSt = (r.data && (r.data.status || (r.data[0] && r.data[0].status))) || 'active';
+    closeSynModal();
+    if (joinSt === 'invited') {
+      showToast('\u23f3 Request sent \u2014 the syndicate manager will approve you');
+      var rows0 = await loadMySyndicateRows();
+      if (!rows0.length) { go('v-syndicate'); void renderSynPagePending(); }
+      else void openSyndicatePage(rows0);
+    } else if (joinSt === 'already') {
+      showToast('\u2713 You\u2019re already a member');
+      void openSyndicatePage();
+    } else {
+      showToast('\u2705 Joined syndicate');
+      statsNeedsFullRebuild = true;
+      try { await refreshSharedGrounds(); } catch (_) { /* map fills on next refresh */ }
+      await renderSyndicateSection();
+      void openSyndicatePage();
+    }
+  } catch (e) {
+    var rawMsg = '';
+    try { rawMsg = String((e && (e.message || e.msg)) || ''); } catch (_) {}
+    showToast('\u26a0\ufe0f ' + (/^This invite/.test(rawMsg) ? rawMsg
+      : friendlyErr(e, 'That code didn\u2019t work \u2014 check it and try again')));
+  }
+}
+
+/** 13.72: approve or decline a join request (RPC enforces manager). */
+async function syndJoinDecide(el) {
+  if (!sb) return;
+  var sid = el.getAttribute('data-syndicate-id');
+  var uid = el.getAttribute('data-user-id');
+  var approve = el.getAttribute('data-approve') === '1';
+  if (!sid || !uid) return;
+  if (!approve && !(await flConfirm({
+    title: 'Decline this request?',
+    body: 'They stay outside the syndicate and see nothing. The invite link keeps its remaining uses.',
+    action: 'Decline', tone: 'warn'
+  }))) return;
+  try {
+    var r = await sb.rpc('decide_join', { p_syndicate_id: sid, p_user_id: uid, p_approve: approve });
+    if (r.error) throw r.error;
+    showToast(approve ? '\u2705 Member approved' : '\u2713 Request declined');
+  } catch (e) {
+    showToast('\u26a0\ufe0f ' + friendlyErr(e, String((e && e.message || '')).indexOf('decide_join') !== -1
+      ? 'Run scripts/migrate-invite-approval.sql first' : 'Could not decide'));
+    return;
+  }
+  var row = (flSynPage.rows || []).find(function (x) { return String(x.syndicate.id) === String(sid); });
+  if (row) void renderSynPageMembers(row);
+  void refreshSyndicateUnreadFromRows(flSynPage.rows);
 }
 
 function syndCopyInvite(el) {
@@ -21525,17 +24722,30 @@ function syndCopyInvite(el) {
   navigator.clipboard.writeText(u).then(function() { showToast('📋 Copied'); }).catch(function() { showToast('⚠️ Copy failed'); });
 }
 
+function syndShareInvite(el) {
+  var u = el.getAttribute('data-invite-url');
+  if (!u) return;
+  if (navigator.share) {
+    navigator.share({ title: 'Join my syndicate', text: 'Join my syndicate on First Light \u2014 tap to join:', url: u }).catch(function () {});
+  } else if (navigator.clipboard) {
+    navigator.clipboard.writeText(u).then(function () { showToast('\ud83d\udccb Copied'); });
+  }
+}
+
 function syndCopyExistingInvite(el) {
   var u = el.getAttribute('data-invite-url');
   if (!u || !navigator.clipboard) { showToast('⚠️ Copy manually'); return; }
   navigator.clipboard.writeText(u).then(function() { showToast('📋 Invite copied'); }).catch(function() { showToast('⚠️ Copy failed'); });
 }
 
-async function syndRevokeInvite(inviteId) {
-  if (!sb || !syndicateEditingId || !inviteId) return;
+async function syndRevokeInvite(el) {
+  if (!sb) return;
+  var inviteId = el && el.getAttribute ? el.getAttribute('data-invite-id') : null;
+  var sid = (el && el.getAttribute ? el.getAttribute('data-syndicate-id') : null) || syndicateEditingId || flSynPage.selectedId;
+  if (!inviteId || !sid) return;
   if (!(await flConfirm({
-    title: 'Revoke invite link?',
-    body: 'The link will stop working immediately. People who already joined the syndicate are unaffected.',
+    title: 'Revoke invite?',
+    body: 'The code and link stop working immediately. People who already joined the syndicate are unaffected.',
     action: 'Revoke invite',
     tone: 'warn'
   }))) return;
@@ -21543,13 +24753,16 @@ async function syndRevokeInvite(inviteId) {
   var r = await sb.from('syndicate_invites')
     .delete()
     .eq('id', inviteId)
-    .eq('syndicate_id', syndicateEditingId);
+    .eq('syndicate_id', sid);
   if (r.error) {
     showToast('⚠️ ' + friendlyErr(r.error, 'Could not revoke invite'));
     return;
   }
   showToast('✅ Invite revoked');
-  await openSyndicateManageSheet(syndicateEditingId);
+  // The out box may be advertising the very link that just died.
+  var out = document.getElementById('syn-invite-out');
+  if (out) { out.style.display = 'none'; out.innerHTML = ''; }
+  void syndSetInvitesFill(sid);
 }
 
 async function syndLeaveOrClose() {
@@ -21576,22 +24789,40 @@ async function syndLeaveOrClose() {
   await renderSyndicateSection();
 }
 
-async function syndPromoteMember(userId) {
-  if (!sb || !syndicateEditingId || !userId) return;
+/** 13.92: the sheet lost its member list, but roles still feed its
+ *  allocations picker — refresh the sheet only when it is actually open. */
+async function flSynSheetRefreshIfOpen(sid) {
+  var ov = document.getElementById('syn-ov');
+  if (ov && ov.classList.contains('open') && String(syndicateEditingId || '') === String(sid)) {
+    await openSyndicateManageSheet(sid);
+  }
+}
+
+/** Repaint the page member strip for one syndicate (if it is the one shown). */
+function flSynPeopleRepaint(sid) {
+  var row = (flSynPage.rows || []).find(function (r) { return String(r.syndicate.id) === String(sid); });
+  if (row) void renderSynPageMembers(row);
+}
+
+async function syndPromoteMember(el) {
+  if (!sb || !currentUser) return;
+  var userId = el && el.getAttribute ? el.getAttribute('data-member-user-id') : null;
+  var sid = (el && el.getAttribute ? el.getAttribute('data-syndicate-id') : null) || syndicateEditingId;
+  if (!sid || !userId) return;
   if (userId === currentUser.id) {
     showToast('⚠️ You are already manager');
     return;
   }
   if (!(await flConfirm({
     title: 'Promote to manager?',
-    body: 'They will be able to invite members, edit syndicate targets, manage allocations, and delete the syndicate. You can demote them later from the member list.',
+    body: 'They will be able to invite members, edit syndicate targets, manage allocations, and delete the syndicate. You can demote them later from People.',
     action: 'Promote to manager',
     tone: 'warn'
   }))) return;
   // RLS: syndicate_members_update_manager
   var r = await sb.from('syndicate_members')
     .update({ role: 'manager' })
-    .eq('syndicate_id', syndicateEditingId)
+    .eq('syndicate_id', sid)
     .eq('user_id', userId)
     .eq('status', 'active');
   if (r.error) {
@@ -21600,18 +24831,22 @@ async function syndPromoteMember(userId) {
   }
   showToast('✅ Member promoted to manager');
   statsNeedsFullRebuild = true;
+  flSynPeopleRepaint(sid);
   await renderSyndicateSection();
-  await openSyndicateManageSheet(syndicateEditingId);
+  await flSynSheetRefreshIfOpen(sid);
 }
 
-async function syndDemoteMember(userId) {
-  if (!sb || !syndicateEditingId || !userId) return;
+async function syndDemoteMember(el) {
+  if (!sb || !currentUser) return;
+  var userId = el && el.getAttribute ? el.getAttribute('data-member-user-id') : null;
+  var sid = (el && el.getAttribute ? el.getAttribute('data-syndicate-id') : null) || syndicateEditingId;
+  if (!sid || !userId) return;
   if (userId === currentUser.id) {
     showToast('⚠️ Ask another manager to demote you from this list.');
     return;
   }
   var mgrCheck = await sb.from('syndicate_members').select('user_id')
-    .eq('syndicate_id', syndicateEditingId).eq('status', 'active').eq('role', 'manager');
+    .eq('syndicate_id', sid).eq('status', 'active').eq('role', 'manager');
   if (mgrCheck.error || !mgrCheck.data || mgrCheck.data.length < 2) {
     showToast('⚠️ Keep at least one manager — promote another manager before demoting.');
     return;
@@ -21625,7 +24860,7 @@ async function syndDemoteMember(userId) {
   // RLS: syndicate_members_update_manager
   var r = await sb.from('syndicate_members')
     .update({ role: 'member' })
-    .eq('syndicate_id', syndicateEditingId)
+    .eq('syndicate_id', sid)
     .eq('user_id', userId)
     .eq('status', 'active')
     .eq('role', 'manager');
@@ -21635,8 +24870,9 @@ async function syndDemoteMember(userId) {
   }
   showToast('✅ Manager demoted to member');
   statsNeedsFullRebuild = true;
+  flSynPeopleRepaint(sid);
   await renderSyndicateSection();
-  await openSyndicateManageSheet(syndicateEditingId);
+  await flSynSheetRefreshIfOpen(sid);
 }
 
 async function syndDelete() {
@@ -21656,10 +24892,13 @@ async function syndDelete() {
   await renderSyndicateSection();
 }
 
-async function syndRemoveMember(userId) {
-  if (!sb || !syndicateEditingId || !userId) return;
+async function syndRemoveMember(el) {
+  if (!sb || !currentUser) return;
+  var userId = el && el.getAttribute ? el.getAttribute('data-member-user-id') : null;
+  var sid = (el && el.getAttribute ? el.getAttribute('data-syndicate-id') : null) || syndicateEditingId;
+  if (!sid || !userId) return;
   if (userId === currentUser.id) {
-    showToast('⚠️ Use “Leave syndicate” at the bottom to remove yourself');
+    showToast('⚠️ Use “Leave syndicate” in Manage to remove yourself');
     return;
   }
   if (!(await flConfirm({
@@ -21669,15 +24908,16 @@ async function syndRemoveMember(userId) {
     tone: 'warn'
   }))) return;
   // RLS: syndicate_members_update_manager (manager removes another member)
-  var r = await sb.from('syndicate_members').update({ status: 'left' }).eq('syndicate_id', syndicateEditingId).eq('user_id', userId);
+  var r = await sb.from('syndicate_members').update({ status: 'left' }).eq('syndicate_id', sid).eq('user_id', userId);
   if (r.error) {
     showToast('⚠️ ' + friendlyErr(r.error, 'Could not remove member'));
     return;
   }
   showToast('✅ Member removed');
   statsNeedsFullRebuild = true;
+  flSynPeopleRepaint(sid);
   await renderSyndicateSection();
-  await openSyndicateManageSheet(syndicateEditingId);
+  await flSynSheetRefreshIfOpen(sid);
 }
 
 // ── Syndicate messages — single rolling thread per syndicate ────────────────
@@ -21696,6 +24936,9 @@ var SYNDICATE_MESSAGE_FETCH_LIMIT = 30;
  *  enforcement at the DB level would cost a count subquery on every UPDATE
  *  for a UX nicety that isn't a security boundary. */
 var SYNDICATE_MESSAGE_PIN_MAX = 3;
+/** Per-syndicate "Show older" window — grows by FETCH_LIMIT per press,
+ *  session-scoped (a fresh open starts light again). */
+var syndicateMsgShowLimit = {};
 /** Last-rendered manager flag for the open manage sheet — used by post / delete handlers. */
 var syndicateManageSheetIsManager = false;
 /** Last-fetched messages for the open sheet, keyed by id. Lets the delete
@@ -21753,14 +24996,70 @@ function syndicateLondonParts(d) {
   }
 }
 
+/** "John Smith" → "JS", "Sohaib" → "S". Display-only. */
+function flInitialsOf(name) {
+  var s = String(name == null ? '' : name).trim();
+  if (!s) return '?';
+  var parts = s.split(/\s+/).filter(Boolean);
+  var a = parts[0].charAt(0);
+  var b = parts.length > 1 ? parts[parts.length - 1].charAt(0) : '';
+  var out = (a + b).toUpperCase();
+  return out || '?';
+}
+
+/** Deterministic 0..359 hue from a display name — same member, same colour,
+ *  on every device, with nothing stored. */
+function flAvatarHue(name) {
+  var s = String(name == null ? '' : name);
+  var h = 0;
+  for (var i = 0; i < s.length; i++) h = ((h << 5) - h + s.charCodeAt(i)) | 0;
+  return ((h % 360) + 360) % 360;
+}
+
+/** Day-separator label from London wall-clock parts (syndicateLondonParts
+ *  shape). Year only shown when it differs from now — "3 Aug", "28 Dec 2025". */
+function syndMsgDayLabel(msgParts, nowParts, yestParts) {
+  if (!msgParts || !nowParts) return '';
+  if (msgParts.y === nowParts.y && msgParts.m === nowParts.m && msgParts.d === nowParts.d) return 'Today';
+  if (yestParts && msgParts.y === yestParts.y && msgParts.m === yestParts.m && msgParts.d === yestParts.d) return 'Yesterday';
+  var M = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  var lbl = msgParts.d + ' ' + (M[msgParts.m - 1] || '');
+  if (msgParts.y !== nowParts.y) lbl += ' ' + msgParts.y;
+  return lbl;
+}
+
+/** Where the "new since your last visit" boundary sits in a newest-first
+ *  feed: the count of leading rows newer than prevSeenMs. Returns 0 (no
+ *  divider) when: never seen before (everything would be "new"), nothing
+ *  new, the new block is only your own posts (you don't need telling about
+ *  yourself), or the whole visible feed is new (no boundary in view). */
+function syndMsgNewSplit(feedRows, prevSeenMs, myUserId) {
+  if (!prevSeenMs || !Array.isArray(feedRows) || !feedRows.length) return 0;
+  var split = 0, foreign = false;
+  for (var i = 0; i < feedRows.length; i++) {
+    var t = Date.parse(feedRows[i].created_at || '');
+    if (!Number.isFinite(t) || t <= prevSeenMs) break;
+    split = i + 1;
+    if (String(feedRows[i].user_id) !== String(myUserId)) foreign = true;
+  }
+  return (foreign && split < feedRows.length) ? split : 0;
+}
+
 /** Render the messages section into `#syn-msg-section` inside the manage sheet.
  *  Idempotent — safe to call after a post / delete to refresh in place. */
-async function renderSyndicateMessagesSection(syndicate, isMgr) {
+async function renderSyndicateMessagesSection(syndicate, isMgr, containerId) {
   if (!sb || !currentUser || !syndicate) return;
-  var section = document.getElementById('syn-msg-section');
+  var section = document.getElementById(containerId || 'syn-msg-section');
   if (!section) return;
+  // Dual-surface (2026-08-10, owner: "should the messages and announcements
+  // not appear on this page?"): the manage sheet AND the syndicate page host
+  // the same thread. Context rides on the host element so every action knows
+  // which syndicate and which container it belongs to.
+  section.classList.add('syn-msg-host');
+  section.setAttribute('data-syn-msg-sid', syndicate.id);
+  section.setAttribute('data-syn-msg-mgr', isMgr ? '1' : '0');
 
-  syndicateManageSheetIsManager = !!isMgr;
+  if ((containerId || 'syn-msg-section') === 'syn-msg-section') syndicateManageSheetIsManager = !!isMgr;
 
   // Fetch the newest N messages (deleted included so the timeline reads
   // coherently). Index idx_syndicate_messages_lookup makes this O(log n).
@@ -21771,26 +25070,36 @@ async function renderSyndicateMessagesSection(syndicate, isMgr) {
   // unpinned messages sit below the pinned block. Combined with the
   // created_at tiebreaker, the order is exactly what the user sees on
   // chat apps: stickies on top, recent feed below.
+  var fetchLimit = syndicateMsgShowLimit[String(syndicate.id)] || SYNDICATE_MESSAGE_FETCH_LIMIT;
   var r = await sb.from('syndicate_messages')
     .select('id, user_id, author_name, author_role, body, created_at, deleted_at, pinned_at')
     .eq('syndicate_id', syndicate.id)
     .order('pinned_at', { ascending: false, nullsFirst: false })
     .order('created_at', { ascending: false })
-    .limit(SYNDICATE_MESSAGE_FETCH_LIMIT);
+    .limit(fetchLimit);
 
   var rows = (r && !r.error && r.data) ? r.data : [];
   syndicateMessageCache = {};
   rows.forEach(function(m) { syndicateMessageCache[m.id] = m; });
 
   var now = diaryNow();
+  // Read BEFORE the seen-stamp below overwrites it — this is what "New" means.
+  var prevSeenMs = getSyndicateMessageSeenAt(syndicate.id);
   var html = '';
-  // Composer (top — see openSyndicateManageSheet plan).
-  html += '<div class="synd-msg-compose">'
-    + '<textarea id="syn-msg-input" maxlength="' + SYNDICATE_MESSAGE_BODY_MAX + '" '
-    + 'placeholder="Type a message (max ' + SYNDICATE_MESSAGE_BODY_MAX + ' chars)…" '
-    + 'rows="3" class="synd-msg-input"></textarea>'
+  // 13.59: managers-only mode — members read; the composer never renders.
+  var msgLocked = syndicate.msg_policy === 'managers' && !isMgr;
+  // Composer (top, compact — 13.44): one quiet line that grows on focus.
+  // The action row (counter + Post) only appears once you step in, so the
+  // reading surface leads and the writing surface waits its turn.
+  if (msgLocked) {
+    html += '<div style="font-size:10.5px;color:var(--sy-muted,var(--muted));margin-bottom:8px;">Announcements only \u2014 managers post here.</div>';
+  }
+  if (!msgLocked) html += '<div class="synd-msg-compose synd-msg-compose--compact">'
+    + '<textarea maxlength="' + SYNDICATE_MESSAGE_BODY_MAX + '" '
+    + 'placeholder="Write a message…" '
+    + 'rows="1" class="synd-msg-input"></textarea>'
     + '<div class="synd-msg-compose-row">'
-    + '<span id="syn-msg-charcount" class="synd-msg-charcount">' + SYNDICATE_MESSAGE_BODY_MAX + ' left</span>'
+    + '<span class="synd-msg-charcount">' + SYNDICATE_MESSAGE_BODY_MAX + ' left</span>'
     + '<button type="button" class="synd-msg-post-btn" data-fl-action="synd-post-message">Post</button>'
     + '</div>'
     + '</div>';
@@ -21798,30 +25107,35 @@ async function renderSyndicateMessagesSection(syndicate, isMgr) {
   if (r && r.error) {
     html += '<div class="synd-msg-error">⚠️ ' + esc(r.error.message || 'Could not load messages') + '</div>';
     section.innerHTML = html;
+    bindSyndicateMessageComposer(section);
     return;
   }
 
   if (!rows.length) {
     html += '<div class="synd-msg-empty">No messages yet — be the first to post.</div>';
     section.innerHTML = html;
-    bindSyndicateMessageComposer();
+    bindSyndicateMessageComposer(section);
     return;
   }
 
-  // Internal scroll container so the section is bounded — managers can still
-  // reach targets / members / invites below without scrolling past every chat.
-  // Count currently-pinned visible messages so the Pin button can hide
-  // itself when the cap is reached (3 max). Excludes deleted messages —
-  // the trigger auto-unpins those server-side, but we still defend in
-  // depth here.
-  var pinnedCount = rows.reduce(function(acc, m) {
-    return acc + (m.pinned_at && !m.deleted_at ? 1 : 0);
-  }, 0);
+  // Split: pinned announcements live under one gold header; everything else
+  // (deleted tombstones included) reads chronologically, newest first. The
+  // explicit sort defends against a deleted-but-still-pinned row (server
+  // auto-unpins on delete, but if one slipped through it would otherwise
+  // land out of order in the feed).
+  var pinned = rows.filter(function(m) { return m.pinned_at && !m.deleted_at; });
+  var feed = rows.filter(function(m) { return !(m.pinned_at && !m.deleted_at); });
+  feed.sort(function(a, b) {
+    return (Date.parse(b.created_at || '') || 0) - (Date.parse(a.created_at || '') || 0);
+  });
+  var pinnedCount = pinned.length;
 
-  html += '<div class="synd-msg-list-scroll"><div class="synd-msg-list">';
-  rows.forEach(function(m) {
+  // One message card, shared by both blocks — announcement and feed rows
+  // can never drift apart visually.
+  function msgHtml(m) {
     var isDel = !!m.deleted_at;
     var isPinned = !!m.pinned_at && !isDel;
+    var isMine = !isDel && m.user_id === currentUser.id;
     var canDelete = !isDel && (m.user_id === currentUser.id || isMgr);
     var canPin = isMgr && !isDel;
     var canPinNew = canPin && !isPinned && pinnedCount < SYNDICATE_MESSAGE_PIN_MAX;
@@ -21829,60 +25143,103 @@ async function renderSyndicateMessagesSection(syndicate, isMgr) {
     var roleBadge = (!isDel && m.author_role === 'manager')
       ? '<span class="synd-msg-mgr-badge" title="Manager">Manager</span>'
       : '';
-    var pinPill = isPinned
-      ? '<span class="synd-msg-pin-pill" title="Pinned by manager" aria-label="Pinned message"><span class="fl-ic fl-pin"></span> Pinned</span>'
-      : '';
     var when = '';
     var ts = m.created_at ? Date.parse(m.created_at) : NaN;
     if (Number.isFinite(ts)) {
-      when = formatRelativeTime(new Date(ts), now, syndicateLondonParts) || '';
+      var ageMs = now.getTime() - ts;
+      if ((ageMs >= 0 && ageMs < 3600000) || isPinned) {
+        // Fresh messages read relatively; announcements float out of the
+        // day flow, so they keep their full label too.
+        when = formatRelativeTime(new Date(ts), now, syndicateLondonParts) || '';
+      } else {
+        // Day separators carry the date — the row only needs the time.
+        var lp = syndicateLondonParts(new Date(ts));
+        when = lp ? String(lp.h).padStart(2, '0') + ':' + String(lp.mi).padStart(2, '0') : '';
+      }
     }
-    var nameDisp = (!isDel && m.user_id === currentUser.id)
-      ? esc(m.author_name || 'You') + ' <span class="synd-msg-you">(you)</span>'
-      : esc(m.author_name || 'Former member');
+    var authorName = m.author_name || (isMine ? 'You' : 'Former member');
+    var nameDisp = isMine
+      ? esc(authorName) + ' <span class="synd-msg-you">(you)</span>'
+      : esc(authorName);
+    var avCls = 'synd-msg-avatar'
+      + (isDel ? ' synd-msg-avatar--deleted'
+                : (m.author_role === 'manager' ? ' synd-msg-avatar--mgr' : ''));
+    var hue = flAvatarHue(authorName);
+    var avStyle = (isDel || m.author_role === 'manager') ? ''
+      : ' style="background:hsl(' + hue + ',42%,84%);color:hsl(' + hue + ',48%,30%)"';
 
-    html += '<div class="synd-msg' + (isDel ? ' synd-msg--deleted' : '')
+    var out = '<div class="synd-msg' + (isDel ? ' synd-msg--deleted' : '')
       + (m.author_role === 'manager' && !isDel ? ' synd-msg--mgr' : '')
       + (isPinned ? ' synd-msg--pinned' : '')
+      + (isMine ? ' synd-msg--mine' : '')
       + '">';
-    html += '<div class="synd-msg-hdr">';
-    html += '<div class="synd-msg-author">' + nameDisp + roleBadge + pinPill + '</div>';
-    html += '<div class="synd-msg-meta">' + esc(when);
+    out += '<span class="' + avCls + '"' + avStyle + ' aria-hidden="true">'
+      + esc(flInitialsOf(authorName)) + '</span>';
+    out += '<div class="synd-msg-main">';
+    out += '<div class="synd-msg-hdr">';
+    out += '<div class="synd-msg-author">' + nameDisp + roleBadge + '</div>';
+    out += '<div class="synd-msg-meta">' + esc(when);
     if (canPinNew) {
-      html += ' · <button type="button" class="synd-msg-pin" data-fl-action="synd-pin-message" '
+      out += ' · <button type="button" class="synd-msg-pin" data-fl-action="synd-pin-message" '
         + 'data-message-id="' + esc(m.id) + '">Pin</button>';
     } else if (canUnpin) {
-      html += ' · <button type="button" class="synd-msg-pin" data-fl-action="synd-unpin-message" '
+      out += ' · <button type="button" class="synd-msg-pin" data-fl-action="synd-unpin-message" '
         + 'data-message-id="' + esc(m.id) + '">Unpin</button>';
     }
     if (canDelete) {
-      html += ' · <button type="button" class="synd-msg-del" data-fl-action="synd-delete-message" '
+      out += ' · <button type="button" class="synd-msg-del" data-fl-action="synd-delete-message" '
         + 'data-message-id="' + esc(m.id) + '">Delete</button>';
     }
-    html += '</div>';
-    html += '</div>';
+    out += '</div>';
+    out += '</div>';
     if (isDel) {
-      html += '<div class="synd-msg-body synd-msg-body--deleted">[message removed]</div>';
+      out += '<div class="synd-msg-body synd-msg-body--deleted">[message removed]</div>';
     } else {
       // Body is plain text; esc() handles HTML, then we convert newlines to <br>.
-      html += '<div class="synd-msg-body">' + esc(m.body || '').replace(/\n/g, '<br>') + '</div>';
+      out += '<div class="synd-msg-body">' + esc(m.body || '').replace(/\n/g, '<br>') + '</div>';
     }
+    out += '</div></div>';
+    return out;
+  }
+
+  html += '<div class="synd-msg-list-scroll">';
+  if (pinned.length) {
+    html += '<div class="synd-msg-annc">'
+      + '<div class="synd-msg-annc-hdr"><span class="fl-ic fl-pin" aria-hidden="true"></span> Announcements</div>';
+    pinned.forEach(function(m) { html += msgHtml(m); });
     html += '</div>';
+  }
+  var newSplit = syndMsgNewSplit(feed, prevSeenMs, currentUser.id);
+  var nowParts = syndicateLondonParts(now);
+  var yestParts = syndicateLondonParts(new Date(now.getTime() - 86400000));
+  var lastDay = '';
+  html += '<div class="synd-msg-list">';
+  feed.forEach(function(m, i) {
+    if (newSplit && i === newSplit) {
+      html += '<div class="synd-msg-day synd-msg-day--new">↑ new since your last visit</div>';
+    }
+    var ts = Date.parse(m.created_at || '');
+    var dl = Number.isFinite(ts)
+      ? syndMsgDayLabel(syndicateLondonParts(new Date(ts)), nowParts, yestParts) : '';
+    if (dl && dl !== lastDay) {
+      html += '<div class="synd-msg-day">' + esc(dl) + '</div>';
+      lastDay = dl;
+    }
+    html += msgHtml(m);
   });
   html += '</div></div>';
   if (isMgr && pinnedCount >= SYNDICATE_MESSAGE_PIN_MAX) {
     html += '<div class="synd-msg-pin-hint">Pin limit reached (' + SYNDICATE_MESSAGE_PIN_MAX
       + ' max). Unpin one to add another.</div>';
   }
-  // Hint when the fetch hit the cap — there may be older messages we didn't
-  // load. Shown only at exactly the limit; if the syndicate has fewer, hide it.
-  if (rows.length >= SYNDICATE_MESSAGE_FETCH_LIMIT) {
-    html += '<div class="synd-msg-older-hint">Showing latest ' + SYNDICATE_MESSAGE_FETCH_LIMIT
-      + ' messages. Older history is not loaded.</div>';
+  // At the cap there may be older history — offer it instead of a dead end.
+  if (rows.length >= fetchLimit) {
+    html += '<button type="button" class="synd-msg-older-btn" data-fl-action="synd-msgs-older">'
+      + 'Show older messages</button>';
   }
 
   section.innerHTML = html;
-  bindSyndicateMessageComposer();
+  bindSyndicateMessageComposer(section);
   enhanceKeyboardClickables(section);
 
   // Mark all visible messages as seen. +1ms buffer is critical: Postgres
@@ -21899,29 +25256,91 @@ async function renderSyndicateMessagesSection(syndicate, isMgr) {
   }, null);
   if (newestMs != null) {
     setSyndicateMessageSeenAt(syndicate.id, new Date(newestMs + 1).toISOString());
+    syndicateMarkUnreadCleared(syndicate.id);
   }
 }
 
-/** Wire the textarea's char-count update. Called after every (re)render. */
-function bindSyndicateMessageComposer() {
-  var input = document.getElementById('syn-msg-input');
-  var counter = document.getElementById('syn-msg-charcount');
+/** Wire the composer: char count (appears near the limit), compact→open
+ *  growth on focus, and Enter-to-send on fine pointers (phone keyboards
+ *  keep Enter as newline). Called after every (re)render. */
+function bindSyndicateMessageComposer(section) {
+  var input = section ? section.querySelector('.synd-msg-input') : null;
+  var counter = section ? section.querySelector('.synd-msg-charcount') : null;
+  var compose = section ? section.querySelector('.synd-msg-compose') : null;
   if (!input || !counter) return;
   function update() {
     var n = (input.value || '').length;
     var left = SYNDICATE_MESSAGE_BODY_MAX - n;
     counter.textContent = left + ' left';
+    counter.classList.toggle('synd-msg-charcount--show', left < 100);
     counter.classList.toggle('synd-msg-charcount--warn', left < 50);
     counter.classList.toggle('synd-msg-charcount--over', left < 0);
   }
   input.addEventListener('input', update);
+  input.addEventListener('focus', function() {
+    if (compose) compose.classList.add('synd-msg-compose--open');
+  });
+  input.addEventListener('blur', function() {
+    // Collapse only when nothing is in flight. Blur fires before a Post
+    // click lands, but an empty box has nothing to post — safe to fold.
+    if (compose && !(input.value || '').trim()) compose.classList.remove('synd-msg-compose--open');
+  });
+  input.addEventListener('keydown', function(e) {
+    if (e.key !== 'Enter' || e.shiftKey) return;
+    var coarse = false;
+    try { coarse = window.matchMedia('(pointer: coarse)').matches; } catch (_) { /* old engines */ }
+    if (coarse) return;
+    e.preventDefault();
+    if (!(input.value || '').trim()) return;
+    var btn = section.querySelector('.synd-msg-post-btn');
+    if (btn) btn.click();
+  });
   update();
 }
 
-async function postSyndicateMessage() {
-  if (!sb || !currentUser || !syndicateEditingId) return;
-  var input = document.getElementById('syn-msg-input');
-  var btn = document.querySelector('[data-fl-action="synd-post-message"]');
+/** Which thread does a clicked control belong to? Host attrs first, sheet
+ *  module state as the fallback (older callers, belt-and-braces). */
+function synMsgCtxFrom(el) {
+  var host = (el && el.closest) ? el.closest('.syn-msg-host') : null;
+  if (host) {
+    return {
+      sid: host.getAttribute('data-syn-msg-sid'),
+      isMgr: host.getAttribute('data-syn-msg-mgr') === '1',
+      containerId: host.id,
+      host: host
+    };
+  }
+  return {
+    sid: syndicateEditingId,
+    isMgr: syndicateManageSheetIsManager,
+    containerId: 'syn-msg-section',
+    host: document.getElementById('syn-msg-section')
+  };
+}
+
+async function synMsgRerender(ctx) {
+  var sr = await sb.from('syndicates').select('*').eq('id', ctx.sid).single();
+  if (!sr.error && sr.data) {
+    await renderSyndicateMessagesSection(sr.data, ctx.isMgr, ctx.containerId);
+  }
+}
+
+/** Grow this syndicate's fetch window by one page and re-render in place. */
+async function syndMsgsOlder(elBtn) {
+  var ctx = synMsgCtxFrom(elBtn);
+  if (!ctx.sid) return;
+  var k = String(ctx.sid);
+  syndicateMsgShowLimit[k] = (syndicateMsgShowLimit[k] || SYNDICATE_MESSAGE_FETCH_LIMIT)
+    + SYNDICATE_MESSAGE_FETCH_LIMIT;
+  if (elBtn) { elBtn.disabled = true; elBtn.textContent = 'Loading…'; }
+  await synMsgRerender(ctx);
+}
+
+async function postSyndicateMessage(elBtn) {
+  var ctx = synMsgCtxFrom(elBtn);
+  if (!sb || !currentUser || !ctx.sid) return;
+  var input = ctx.host ? ctx.host.querySelector('.synd-msg-input') : null;
+  var btn = elBtn || null;
   if (!input) return;
   var body = (input.value || '').trim();
   if (!body) {
@@ -21942,10 +25361,10 @@ async function postSyndicateMessage() {
   // RLS clause pins author_role to actual role, so a member faking 'manager'
   // gets rejected by Postgres rather than silently inserted.
   var authorName = syndicateDisplayNameFromUser(currentUser);
-  var authorRole = syndicateManageSheetIsManager ? 'manager' : 'member';
+  var authorRole = ctx.isMgr ? 'manager' : 'member';
   try {
     var r = await sb.from('syndicate_messages').insert({
-      syndicate_id: syndicateEditingId,
+      syndicate_id: ctx.sid,
       user_id: currentUser.id,
       author_name: authorName,
       author_role: authorRole,
@@ -21953,10 +25372,7 @@ async function postSyndicateMessage() {
     });
     if (r.error) throw r.error;
     input.value = '';
-    var sr = await sb.from('syndicates').select('*').eq('id', syndicateEditingId).single();
-    if (!sr.error && sr.data) {
-      await renderSyndicateMessagesSection(sr.data, syndicateManageSheetIsManager);
-    }
+    await synMsgRerender(ctx);
     showToast('✅ Message posted');
   } catch (e) {
     showToast('⚠️ ' + friendlyErr(e, 'Could not post'));
@@ -21965,8 +25381,9 @@ async function postSyndicateMessage() {
   }
 }
 
-async function softDeleteSyndicateMessage(messageId) {
-  if (!sb || !currentUser || !syndicateEditingId || !messageId) return;
+async function softDeleteSyndicateMessage(elBtn, messageId) {
+  var ctx = synMsgCtxFrom(elBtn);
+  if (!sb || !currentUser || !ctx.sid || !messageId) return;
   var cached = syndicateMessageCache[messageId];
   var isOwn = cached && cached.user_id === currentUser.id;
   // Confirm only when deleting someone else's (manager moderating). Self-delete
@@ -21990,15 +25407,13 @@ async function softDeleteSyndicateMessage(messageId) {
     return;
   }
   showToast('🗑 Message removed');
-  var sr = await sb.from('syndicates').select('*').eq('id', syndicateEditingId).single();
-  if (!sr.error && sr.data) {
-    await renderSyndicateMessagesSection(sr.data, syndicateManageSheetIsManager);
-  }
+  await synMsgRerender(ctx);
 }
 
-async function pinSyndicateMessage(messageId) {
-  if (!sb || !currentUser || !syndicateEditingId || !messageId) return;
-  if (!syndicateManageSheetIsManager) {
+async function pinSyndicateMessage(elBtn, messageId) {
+  var ctx = synMsgCtxFrom(elBtn);
+  if (!sb || !currentUser || !ctx.sid || !messageId) return;
+  if (!ctx.isMgr) {
     showToast('⚠️ Only managers can pin messages');
     return;
   }
@@ -22027,15 +25442,13 @@ async function pinSyndicateMessage(messageId) {
     return;
   }
   showToast('Message pinned');
-  var sr = await sb.from('syndicates').select('*').eq('id', syndicateEditingId).single();
-  if (!sr.error && sr.data) {
-    await renderSyndicateMessagesSection(sr.data, syndicateManageSheetIsManager);
-  }
+  await synMsgRerender(ctx);
 }
 
-async function unpinSyndicateMessage(messageId) {
-  if (!sb || !currentUser || !syndicateEditingId || !messageId) return;
-  if (!syndicateManageSheetIsManager) {
+async function unpinSyndicateMessage(elBtn, messageId) {
+  var ctx = synMsgCtxFrom(elBtn);
+  if (!sb || !currentUser || !ctx.sid || !messageId) return;
+  if (!ctx.isMgr) {
     showToast('⚠️ Only managers can unpin messages');
     return;
   }
@@ -22050,10 +25463,7 @@ async function unpinSyndicateMessage(messageId) {
     return;
   }
   showToast('Message unpinned');
-  var sr = await sb.from('syndicates').select('*').eq('id', syndicateEditingId).single();
-  if (!sr.error && sr.data) {
-    await renderSyndicateMessagesSection(sr.data, syndicateManageSheetIsManager);
-  }
+  await synMsgRerender(ctx);
 }
 
 /** Per-syndicate: how many unread messages from other members are newer than
@@ -22078,6 +25488,237 @@ async function syndicateUnreadMessageCount(syndicateId) {
     .limit(50);
   if (r.error) return 0;
   return Array.isArray(r.data) ? r.data.length : 0;
+}
+
+// ── Home outing strip (13.46) — your next booked outing, on the diary ──────
+// The booking meets the conditions engine where you actually look each
+// morning: date + window + ground/seat, the seat's activity score for that
+// window when it sits inside the 7-day forecast, and a wind warning when
+// the window is fightable. Below it, the closing of the loop: a past
+// confirmed outing with nothing in the diary asks to be logged.
+var flHomeOuting = { bookings: null, fetchedAt: 0, warmTried: false };
+
+function outingNudgeDismissedIds() {
+  if (!currentUser) return [];
+  try {
+    var a = JSON.parse(localStorage.getItem('fl_outing_nudge_dismissed:' + currentUser.id) || '[]');
+    return Array.isArray(a) ? a : [];
+  } catch (_) { return []; }
+}
+
+function outingNudgeDismiss(bookingId) {
+  if (!currentUser || !bookingId) return;
+  try {
+    var a = outingNudgeDismissedIds();
+    if (a.indexOf(String(bookingId)) === -1) a.push(String(bookingId));
+    while (a.length > 50) a.shift();
+    localStorage.setItem('fl_outing_nudge_dismissed:' + currentUser.id, JSON.stringify(a));
+  } catch (_) { /* private mode */ }
+}
+
+function fmtOutingDate(iso) {
+  try {
+    return new Date(iso + 'T12:00:00').toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' });
+  } catch (_) { return iso; }
+}
+
+async function fetchMyOutingBookings() {
+  if (!sb || !currentUser) return [];
+  var nowMs = Date.now();
+  if (flHomeOuting.bookings && nowMs - flHomeOuting.fetchedAt < 120000) return flHomeOuting.bookings;
+  var from = new Date(diaryNow()); from.setHours(0, 0, 0, 0); from.setDate(from.getDate() - 7);
+  var fromIso = from.getFullYear() + '-' + String(from.getMonth() + 1).padStart(2, '0') + '-' + String(from.getDate()).padStart(2, '0');
+  try {
+    var r = await sb.from('ground_bookings')
+      .select('id, syndicate_id, owner_user_id, ground, stand_id, booked_by, date, slot, status, with_guest')
+      .eq('booked_by', currentUser.id)
+      .gte('date', fromIso)
+      .in('status', ['pending', 'confirmed'])
+      .order('date', { ascending: true });
+    if (r.error) return flHomeOuting.bookings || []; // table absent / offline — strip stays quiet
+    flHomeOuting.bookings = r.data || [];
+    flHomeOuting.fetchedAt = nowMs;
+    return flHomeOuting.bookings;
+  } catch (_) { return flHomeOuting.bookings || []; }
+}
+
+/** The booked seat's display name via the booking-form option builder. */
+function outingSeatName(b) {
+  if (!b || !b.stand_id) return null;
+  try {
+    var opts = synbSeatOptions(b.owner_user_id, b.ground, currentUser && currentUser.id,
+      flEffectiveStands(), sharedDisplayStands());
+    var hit = opts.find(function (o) { return String(o.id) === String(b.stand_id); });
+    return hit ? hit.name : null;
+  } catch (_) { return null; }
+}
+
+async function renderHomeOutingStrip() {
+  var wrap = document.getElementById('home-outing-wrap');
+  if (!wrap || !sb || !currentUser) return;
+  var bookings = await fetchMyOutingBookings();
+  var t0 = new Date(diaryNow()); t0.setHours(0, 0, 0, 0);
+  var todayIso = t0.getFullYear() + '-' + String(t0.getMonth() + 1).padStart(2, '0') + '-' + String(t0.getDate()).padStart(2, '0');
+  var next = nextOutingOf(bookings, currentUser.id, todayIso);
+  var nudge = outingNudgeCandidate(bookings, allEntries, currentUser.id, todayIso, outingNudgeDismissedIds());
+  var html = '';
+
+  if (next) {
+    var seat = outingSeatName(next);
+    var slotLbl = next.slot === 'allday' ? 'all day' : next.slot;
+    var right = '';
+    if (next.status === 'pending') {
+      right = '<span class="hout-pend">awaiting approval</span>';
+    } else {
+      var di = synbDayIndexOf(next.date, todayIso);
+      if (di != null) {
+        var win = next.slot === 'dusk' ? 'dusk' : 'dawn';
+        var w = next.stand_id
+          ? synbSeatWindow(next.stand_id, di, win)
+          : synbGroundWindow(next.owner_user_id, next.ground, di, win);
+        if (w) {
+          right = '<span class="hout-win' + (w.windBad ? ' hout-win--bad' : '') + '">'
+            + w.score + '%' + (w.windBad ? ' · ⚠ wind' : '') + '</span>';
+        } else if (!flStandsState.forecasts && !flHomeOuting.warmTried && navigator.onLine !== false) {
+          // Warm the 7-day forecasts once, then repaint with a real score.
+          flHomeOuting.warmTried = true;
+          void refreshStandsView().then(function () { void renderHomeOutingStrip(); });
+        }
+      }
+    }
+    html += '<button type="button" class="home-outing-strip" data-fl-action="home-outing-open" '
+      + 'data-syndicate-id="' + esc(next.syndicate_id) + '" '
+      + 'aria-label="Your next outing — open the syndicate page">'
+      + '<span class="hout-ico" aria-hidden="true"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg></span>'
+      + '<span class="hout-main"><span class="hout-t">' + esc(fmtOutingDate(next.date)) + ' · ' + slotLbl + '</span>'
+      + '<span class="hout-s">' + esc(next.ground) + (seat ? ' — ' + esc(seat) : '')
+      + (next.with_guest ? ' · +guest' : '') + '</span></span>'
+      + right
+      + '<span class="hout-arr" aria-hidden="true"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 5 7 7-7 7"/></svg></span>'
+      + '</button>';
+  }
+
+  if (nudge) {
+    html += '<div class="home-outing-nudge">'
+      + '<span class="hout-nudge-t">' + esc(fmtOutingDate(nudge.date)) + ' '
+      + (nudge.slot === 'allday' ? 'all day' : nudge.slot) + ' at ' + esc(nudge.ground)
+      + ' — how did it go?</span>'
+      + '<span class="hout-nudge-btns">'
+      + '<button type="button" class="hout-nudge-log" data-fl-action="home-outing-log" '
+      + 'data-date="' + esc(nudge.date) + '" data-ground="' + esc(nudge.ground) + '">Log it</button>'
+      + '<button type="button" class="hout-nudge-dismiss" data-fl-action="home-outing-dismiss" '
+      + 'data-booking-id="' + esc(nudge.id) + '">Dismiss</button>'
+      + '</span></div>';
+  }
+
+  wrap.style.display = html ? '' : 'none';
+  wrap.innerHTML = html;
+  if (html) enhanceKeyboardClickables(wrap);
+}
+
+/** Nudge → New entry, pre-filled with the outing's date and ground. */
+async function homeOutingLog(dateIso, ground) {
+  await openNewEntry();
+  var fd = document.getElementById('f-date');
+  if (fd && dateIso) fd.value = dateIso;
+  var lbl = document.getElementById('form-date-label');
+  if (lbl && dateIso) {
+    try {
+      lbl.textContent = new Date(dateIso + 'T12:00:00').toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'long', year: 'numeric' });
+    } catch (_) { /* label stays on today — the field is what saves */ }
+  }
+  var fg = document.getElementById('f-ground');
+  if (fg && ground) {
+    fg.value = ground;
+    if (fg.value !== ground) fg.value = ''; // name not in the dropdown — stalker picks
+  }
+}
+
+// ── Unread dots (13.45) — header icon + syndicate-page chips ───────────────
+// One shared map so every surface agrees. Filled at startup (piggybacking
+// the ground-filter sync, which already loads the rows), zeroed per
+// syndicate the moment its thread is rendered (= marked seen).
+var flSynUnread = { bySid: {}, total: 0 };
+
+function paintSyndicateUnreadDot() {
+  // 13.95: the dot lives on the Syndicate TAB — visible from every screen.
+  // Gold = messages or approvals waiting; the green you-are-here dot wins
+  // while the tab is active (CSS order settles it).
+  var dot = document.getElementById('n-synd-dot');
+  if (!dot) return;
+  var n = flSynUnread.total || 0;
+  var p = flSynUnread.pendTotal || 0;
+  dot.classList.toggle('alert', (n + p) > 0);
+  var btn = document.getElementById('n-synd');
+  if (btn) {
+    var bits = [];
+    if (n) bits.push(n + ' new message' + (n === 1 ? '' : 's'));
+    if (p) bits.push(p + ' booking' + (p === 1 ? '' : 's') + ' awaiting approval');
+    btn.title = bits.length ? 'Syndicate — ' + bits.join(' · ') : 'Syndicate';
+  }
+}
+
+/** Repaint the page chips in place (dots only change — cheap, no fetch). */
+/** Unread + pending merged per syndicate — one dot, both meanings. */
+function flSynDotCounts() {
+  var out = {};
+  var a = flSynUnread.bySid || {}, b = flSynUnread.pendBySid || {};
+  Object.keys(a).forEach(function (k) { out[k] = (out[k] || 0) + a[k]; });
+  Object.keys(b).forEach(function (k) { out[k] = (out[k] || 0) + b[k]; });
+  return out;
+}
+
+function syndPageRepaintChips() {
+  var chips = document.getElementById('synd-page-chips');
+  if (!chips || !flSynPage.rows || !flSynPage.rows.length) return;
+  chips.innerHTML = syndPageChipsHtml(flSynPage.rows, flSynPage.selectedId, flSynDotCounts());
+  enhanceKeyboardClickables(chips);
+}
+
+async function refreshSyndicateUnreadFromRows(rows) {
+  if (!sb || !currentUser) return;
+  if (!rows) { try { rows = await loadMySyndicateRows(); } catch (_) { rows = []; } }
+  var bySid = {}, total = 0;
+  var pendBySid = {}, pendTotal = 0;
+  for (var i = 0; i < (rows || []).length; i++) {
+    var sid = rows[i].syndicate && rows[i].syndicate.id;
+    if (!sid) continue;
+    var n = 0;
+    try { n = await syndicateUnreadMessageCount(sid); } catch (_) { /* offline — dot stays honest at 0 */ }
+    bySid[String(sid)] = n;
+    total += n;
+    // 13.70: managers also carry the approvals queue on the badge.
+    // 13.72: join requests count too — a stranger at the gate is the one
+    // thing a manager must never miss.
+    if (rows[i].role === 'manager') {
+      try {
+        var pr = await sb.from('ground_bookings').select('id')
+          .eq('syndicate_id', sid).eq('status', 'pending').limit(20);
+        var pn = (pr && !pr.error && pr.data) ? pr.data.length : 0;
+        var jr = await sb.from('syndicate_members').select('user_id')
+          .eq('syndicate_id', sid).eq('status', 'invited').limit(20);
+        pn += (jr && !jr.error && jr.data) ? jr.data.length : 0;
+        if (pn) { pendBySid[String(sid)] = pn; pendTotal += pn; }
+      } catch (_) {}
+    }
+  }
+  flSynUnread.bySid = bySid;
+  flSynUnread.total = total;
+  flSynUnread.pendBySid = pendBySid;
+  flSynUnread.pendTotal = pendTotal;
+  paintSyndicateUnreadDot();
+  syndPageRepaintChips();
+}
+
+/** The thread was just rendered (= seen): zero its dot everywhere, no fetch. */
+function syndicateMarkUnreadCleared(syndicateId) {
+  var k = String(syndicateId);
+  var had = flSynUnread.bySid[k] || 0;
+  if (!had) return;
+  flSynUnread.bySid[k] = 0;
+  flSynUnread.total = Math.max(0, (flSynUnread.total || 0) - had);
+  paintSyndicateUnreadDot();
+  syndPageRepaintChips();
 }
 
 /**
@@ -22110,6 +25751,8 @@ async function syncSyndicateGroundFiltersForCurrentUser() {
   try {
     var list = await loadMySyndicateRows();
     await syncSyndicateGroundFiltersFromRows(list);
+    void refreshSyndicateUnreadFromRows(list);
+    void renderHomeOutingStrip();
   } catch (e) {
     console.warn('syncSyndicateGroundFiltersForCurrentUser:', e);
   }
@@ -22119,17 +25762,59 @@ async function tryRedeemSyndicateInviteFromUrl() {
   if (!sb || !currentUser) return;
   var sp = new URLSearchParams(window.location.search);
   var tok = sp.get('syndicate_invite');
+  // 13.71: no token in the URL? Check the pre-auth stash — the magic-link
+  // round trip strips query params, the stash doesn't forget. 7-day shelf
+  // life mirrors the invite's own default expiry.
+  if (!tok) {
+    try {
+      var st = JSON.parse(localStorage.getItem('fl_pending_invite') || 'null');
+      if (st && st.tok && Date.now() - (st.ts || 0) < 7 * 864e5) tok = st.tok;
+    } catch (_) {}
+  }
   if (!tok) return;
   try {
     var r = await sb.rpc('redeem_syndicate_invite', { p_token: tok });
     if (r.error) throw r.error;
-    showToast('✅ Joined syndicate');
+    try { localStorage.removeItem('fl_pending_invite'); } catch (_) {}
+    var joinSt = (r.data && (r.data.status || (r.data[0] && r.data[0].status))) || 'active';
+    if (joinSt === 'invited') {
+      showToast('\u23f3 Request sent \u2014 the syndicate manager will approve you');
+    } else if (joinSt === 'already') {
+      showToast('\u2713 You\u2019re already a member');
+    } else {
+      showToast('\u2705 Joined syndicate');
+    }
     history.replaceState(null, '', window.location.pathname + window.location.hash);
     statsNeedsFullRebuild = true;
     if (document.getElementById('v-stats') && document.getElementById('v-stats').classList.contains('active')) buildStats();
     await renderSyndicateSection();
+    // Phase 1 (SYNDICATE-GROUNDS-PLAN §1b, cold-start): a new member should
+    // land in an app that already shows their syndicate's ground. Fetch the
+    // shares now and say what is waiting on the map. Quietly nothing
+    // pre-migration or when the syndicate shares no ground yet.
+    try {
+      await refreshSharedGrounds();
+      var _shNew = sharedSwitcherRows(sharedGroundsNow().shares, currentUser.id, savedGrounds);
+      if (_shNew.length) {
+        var _shNames = _shNew.slice(0, 2).map(function(x) { return '\u201c' + x.ground + '\u201d'; }).join(', ')
+          + (_shNew.length > 2 ? ' +' + (_shNew.length - 2) + ' more' : '');
+        showToast('\ud83d\uddfa\ufe0f ' + _shNames + ' \u2014 shared with you. Open Grounds on the map to see it.');
+      }
+    } catch (_) { /* nothing shared yet */ }
   } catch (e) {
-    showToast('⚠️ Invite: ' + friendlyErr(e, 'invalid'));
+    // 13.75 (owner's stranger's journey hit a bare "Invite: invalid"): the
+    // RPC's RAISE messages ARE the friendly ones — show them instead of
+    // laundering every reason through friendlyErr into "invalid". And only
+    // burn the pre-auth stash on a definitive no from the database: a network
+    // blip or a stale schema cache must not eat the token before a retry.
+    var rawMsg = '';
+    try { rawMsg = String((e && (e.message || e.msg)) || ''); } catch (_) {}
+    var definite = /^This invite/.test(rawMsg);
+    if (definite) {
+      try { localStorage.removeItem('fl_pending_invite'); } catch (_) {}
+    }
+    showToast('\u26a0\ufe0f ' + (definite ? rawMsg
+      : friendlyErr(e, 'Could not check that invite \u2014 open the link again in a moment')));
     history.replaceState(null, '', window.location.pathname + window.location.hash);
   }
 }
@@ -22256,6 +25941,10 @@ async function deleteGroundCascade(name) {
       .delete().eq('user_id', currentUser.id).eq('ground', name);
     await sb.from('grounds').delete().eq('user_id', currentUser.id).eq('name', name);
     await sb.from('ground_targets').delete().eq('user_id', currentUser.id).eq('ground', name);
+    // Phase 1: the DB's ON DELETE CASCADE already dropped this ground's share
+    // rows with the grounds row; explicit belt-and-braces for any edge state.
+    try { await deleteMySharesForGround(sb, currentUser.id, name); } catch (_) {}
+    void refreshSharedGrounds();
 
     savedGrounds = savedGrounds.filter(function(g){ return g !== name; });
     delete groundTargets[name];
@@ -22298,7 +25987,19 @@ async function renameGround(oldName, newName) {
   if (newName.length > 120) { showToast('⚠️ Ground name too long (120 characters max)'); return { ok: false }; }
   if (newName === oldName) return { ok: true };
   if (savedGrounds.indexOf(newName) !== -1) { showToast('⚠️ “' + newName + '” already exists'); return { ok: false }; }
-  if (!navigator.onLine) { showToast('⚠️ Still offline — renaming needs signal'); return { ok: false }; }
+  if (!navigator.onLine) { showToast('\u26a0\ufe0f Still offline \u2014 renaming needs signal'); return { ok: false }; }
+  // Phase 1 (SYNDICATE-GROUNDS-PLAN §5): a shared ground cannot be renamed —
+  // the share row is name-keyed, and the rename path deletes the old grounds
+  // row, which would cascade the share away and silently unshare. Authoritative
+  // check (not the cache): renaming already requires signal.
+  try {
+    var _shChk = await sb.from('syndicate_shared_grounds')
+      .select('id').eq('owner_user_id', currentUser.id).eq('ground', oldName).limit(1);
+    if (!_shChk.error && _shChk.data && _shChk.data.length) {
+      showToast('\u26a0\ufe0f \u201c' + oldName + '\u201d is shared with a syndicate \u2014 stop sharing before renaming');
+      return { ok: false };
+    }
+  } catch (_) { /* table absent (pre-migration) — nothing can be shared yet */ }
   try {
     await sb.from('grounds').upsert({ user_id: currentUser.id, name: newName }, { onConflict: 'user_id,name' });
     await sb.from('ground_features').update({ ground: newName }).eq('user_id', currentUser.id).eq('ground', oldName);

@@ -5,7 +5,7 @@
 // the cache strings (`v7.34`) because they were three separate literals.
 // Bumping triggers the `activate` step to sweep old caches and reload clients
 // via the `controllerchange` path in diary.js.
-const SW_VERSION = '13.24';
+const SW_VERSION = '13.99';
 const STATIC_CACHE  = 'first-light-static-v'  + SW_VERSION;
 const RUNTIME_CACHE = 'first-light-runtime-v' + SW_VERSION;
 
@@ -63,6 +63,7 @@ const PRECACHE_URLS = [
   // Grounds boundaries (GROUNDS-PLAN.md G2) — statically imported by diary.js,
   // so the import-abort rule applies: a miss here bricks first offline launch.
   './modules/grounds.mjs',
+  './modules/shared-grounds.mjs',
   // Pure lib statically imported by diary.js (isBlankDayEntry, blankDaySummaryText,
   // formatRelativeTime). A failed ES-module import aborts the whole diary module
   // graph, so this MUST be precached alongside the diary modules above — a miss
@@ -421,6 +422,33 @@ self.addEventListener('fetch', event => {
       }
     })()
   );
+});
+
+// ── Web Push (13.85) ────────────────────────────────────────────────────────
+// The push-fanout edge function sends {title, body, tag, url}. Show it even
+// when parsing fails — iOS revokes subscriptions that swallow pushes silently.
+self.addEventListener('push', (event) => {
+  let n = {};
+  try { n = event.data ? event.data.json() : {}; } catch (_) { n = {}; }
+  event.waitUntil(self.registration.showNotification(n.title || 'First Light', {
+    body: n.body || '',
+    tag: n.tag || 'fl',
+    icon: './icon-192.png',
+    badge: './icon-192.png',
+    data: { url: n.url || './diary.html' },
+  }));
+});
+
+self.addEventListener('notificationclick', (event) => {
+  event.notification.close();
+  const url = (event.notification.data && event.notification.data.url) || './diary.html';
+  event.waitUntil((async () => {
+    const wins = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
+    for (const c of wins) {
+      if ('focus' in c) { try { await c.focus(); return; } catch (_) { /* fall through */ } }
+    }
+    try { await self.clients.openWindow(url); } catch (_) { /* no window API */ }
+  })());
 });
 
 // Version query (2026-07-27): lets the page ask the SW that is actually

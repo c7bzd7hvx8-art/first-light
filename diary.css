@@ -65,7 +65,12 @@ option:checked{background-color:#e8f2dc;color:#15370a;}
 .nl{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;color:rgba(255,255,255,0.6);font-family:'DM Mono',monospace;}
 .nb.on .nl{color:var(--leaf);}
 .nd{width:4px;height:4px;border-radius:50%;background:var(--leaf);opacity:0;}
-.nb.on .nd{opacity:1;}
+/* 13.95 — the Syndicate tab's waiting dot: gold, lit from any screen when
+   messages or approvals wait; the green you-are-here dot wins while active. */
+.nd.alert{opacity:1;background:var(--gold);}
+.nb.on .nd{opacity:1;background:var(--leaf);}
+/* Five tabs on an SE-class phone: trim the labels only there. */
+@media (max-width:360px){.nl{font-size:9px;letter-spacing:0.3px;}}
 
 /* ── Dark header shared ── */
 .dark-hdr{background:linear-gradient(160deg,#0f1e0a,#0a1506);padding:54px 18px 20px;flex-shrink:0;position:relative;}
@@ -1597,10 +1602,11 @@ body.in-select-mode .entries{padding-bottom:92px;}
 .synd-msg-mgr-badge{display:inline-block;margin-left:6px;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;color:#7a5a10;background:rgba(216,176,84,0.18);border:1px solid rgba(216,176,84,0.4);padding:1px 6px;border-radius:6px;font-family:'DM Mono',monospace;vertical-align:1px;}
 .synd-msg-you{color:var(--muted);font-weight:500;}
 .synd-msg-meta{font-size:10px;color:var(--muted);font-family:'DM Mono',monospace;flex-shrink:0;text-align:right;}
-.synd-msg-del{background:none;border:none;color:var(--red);font-size:10px;font-weight:600;cursor:pointer;padding:0;font-family:'DM Mono',monospace;text-decoration:underline;text-underline-offset:2px;}
+.synd-msg-del{background:transparent;border:1px solid rgba(192,70,60,0.55);color:var(--red);font-size:10px;font-weight:700;cursor:pointer;padding:3px 9px;border-radius:7px;font-family:'DM Mono',monospace;text-decoration:none;}
 .synd-msg-del:hover{color:#7a1414;}
-.synd-msg-pin{background:none;border:none;color:var(--moss);font-size:10px;font-weight:600;cursor:pointer;padding:0;font-family:'DM Mono',monospace;text-decoration:underline;text-underline-offset:2px;}
-.synd-msg-pin:hover{color:#456020;}
+.synd-msg-pin{background:transparent;border:1px solid var(--sy-line,var(--line));color:var(--sy-muted,var(--muted));font-size:10px;font-weight:700;cursor:pointer;padding:3px 9px;border-radius:7px;font-family:'DM Mono',monospace;text-decoration:none;}
+.synd-msg-pin:hover{color:var(--sy-ink,var(--bark));border-color:var(--sy-muted,var(--muted));}
+.synd-msg-del:hover{background:rgba(192,70,60,0.12);}
 /* Pinned message — distinct gold-tinted bar so it reads as "sticky / important"
    even at a glance. Sits above .synd-msg--mgr in specificity since pinned
    messages may also be authored by a manager. */
@@ -1609,6 +1615,195 @@ body.in-select-mode .entries{padding-bottom:92px;}
 .synd-msg-pin-hint{font-size:10px;color:var(--muted);text-align:center;padding:6px 0 0;font-style:italic;}
 .synd-msg-body{font-size:13px;color:var(--bark);line-height:1.5;word-wrap:break-word;overflow-wrap:break-word;white-space:normal;}
 .synd-msg-body--deleted{color:var(--muted);font-style:italic;}
+/* 13.44 — compact composer: one quiet line until you step into it. */
+.synd-msg-compose--compact{padding:6px;}
+.synd-msg-compose--compact .synd-msg-input{min-height:38px;resize:none;transition:min-height 0.15s ease;}
+.synd-msg-compose--compact.synd-msg-compose--open .synd-msg-input{min-height:74px;resize:vertical;}
+.synd-msg-compose--compact .synd-msg-compose-row{display:none;margin-top:2px;}
+.synd-msg-compose--compact.synd-msg-compose--open .synd-msg-compose-row{display:flex;}
+.synd-msg-compose--compact .synd-msg-charcount{visibility:hidden;}
+.synd-msg-compose--compact .synd-msg-charcount--show,
+.synd-msg-compose--compact .synd-msg-charcount--warn,
+.synd-msg-compose--compact .synd-msg-charcount--over{visibility:visible;}
+/* 13.44 — avatars: initials, colour hashed from the name (gold = manager). */
+.synd-msg{display:flex;gap:9px;align-items:flex-start;}
+.synd-msg-avatar{width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;flex-shrink:0;margin-top:1px;font-family:'DM Sans',sans-serif;background:#e6e2dc;color:#6d6459;user-select:none;}
+.synd-msg-avatar--mgr{background:linear-gradient(135deg,#d8b054,#c8a44b);color:#2d2417;}
+.synd-msg-avatar--deleted{background:#eceae6;color:#b0a99f;}
+.synd-msg-main{flex:1 1 auto;min-width:0;}
+.synd-msg--mine:not(.synd-msg--pinned):not(.synd-msg--mgr){background:#f7f5ee;border-color:#dcd6c8;}
+/* 13.44 — day separators + the "new since your last visit" boundary. */
+.synd-msg-day{display:flex;align-items:center;gap:8px;font-size:9.5px;color:var(--muted);font-family:'DM Mono',monospace;text-transform:uppercase;letter-spacing:0.6px;margin:3px 0 1px;}
+.synd-msg-day::before,.synd-msg-day::after{content:'';flex:1 1 auto;height:1px;background:var(--line);}
+.synd-msg-day--new{color:#a07818;font-weight:700;}
+.synd-msg-day--new::before,.synd-msg-day--new::after{background:rgba(216,176,84,0.55);}
+/* 13.44 — announcements block: one gold header instead of a pill per row. */
+.synd-msg-annc{display:flex;flex-direction:column;gap:8px;margin-bottom:10px;padding-bottom:10px;border-bottom:1px dashed rgba(216,176,84,0.55);}
+.synd-msg-annc-hdr{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.6px;color:#7a5a10;font-family:'DM Mono',monospace;display:flex;align-items:center;gap:5px;}
+/* 13.45 — unread dots (header icon + page chips) and the Show-older button. */
+.spm-dot{display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--gold);margin-left:6px;vertical-align:1px;box-shadow:0 0 0 1.5px rgba(255,255,255,0.9);}
+.synd-msg-older-btn{display:block;width:100%;margin-top:8px;padding:8px;border-radius:8px;border:1px dashed var(--line);background:transparent;color:var(--muted);font-size:10.5px;font-weight:600;cursor:pointer;font-family:'DM Mono',monospace;text-transform:uppercase;letter-spacing:0.5px;}
+.synd-msg-older-btn:hover{background:rgba(0,0,0,0.03);color:var(--bark);}
+.synd-msg-older-btn:disabled{opacity:0.6;cursor:wait;}
+/* 13.46 — home outing strip (sight-strip's sibling) + the log-it nudge. */
+.home-outing-strip{display:flex;align-items:center;gap:9px;width:100%;margin-top:8px;padding:9px 12px;border-radius:10px;border:1px solid rgba(216,176,84,0.35);background:rgba(216,176,84,0.10);color:#f0e6cf;cursor:pointer;text-align:left;font-family:'DM Sans',sans-serif;-webkit-tap-highlight-color:transparent;}
+.home-outing-strip:active{transform:scale(0.99);}
+.hout-ico{color:rgba(216,176,84,0.9);display:flex;flex-shrink:0;}
+.hout-main{flex:1 1 auto;min-width:0;display:flex;flex-direction:column;gap:1px;}
+.hout-t{font-size:12px;font-weight:700;color:#f0e6cf;}
+.hout-s{font-size:10.5px;color:rgba(240,230,207,0.65);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.hout-win{font-size:11px;font-weight:700;color:#9fdf7a;font-family:'DM Mono',monospace;flex-shrink:0;}
+.hout-win--bad{color:#f0cc74;}
+.hout-pend{font-size:9.5px;font-weight:700;text-transform:uppercase;letter-spacing:0.4px;color:#0e1508;background:rgba(216,176,84,0.85);padding:3px 7px;border-radius:6px;flex-shrink:0;font-family:'DM Mono',monospace;}
+.hout-arr{color:rgba(240,230,207,0.5);display:flex;flex-shrink:0;}
+.home-outing-nudge{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:8px;padding:9px 12px;border-radius:10px;border:1px dashed rgba(216,176,84,0.45);background:rgba(216,176,84,0.06);}
+.hout-nudge-t{flex:1 1 auto;min-width:0;font-size:11px;color:rgba(240,230,207,0.85);line-height:1.4;}
+.hout-nudge-btns{display:flex;gap:6px;flex-shrink:0;}
+.hout-nudge-log{padding:6px 12px;border-radius:8px;border:none;background:linear-gradient(135deg,var(--moss),var(--deep));color:white;font-weight:700;font-size:11px;cursor:pointer;font-family:'DM Sans',sans-serif;}
+.hout-nudge-dismiss{padding:6px 10px;border-radius:8px;border:1px solid rgba(255,255,255,0.2);background:transparent;color:rgba(240,230,207,0.6);font-weight:600;font-size:11px;cursor:pointer;font-family:'DM Sans',sans-serif;}
+/* 13.55 — booking form's week-at-a-glance availability grid. */
+.synb-grid{display:grid;grid-template-columns:40px repeat(7,1fr);gap:4px;margin-bottom:10px;align-items:stretch;}
+.synb-grid-hd{font-size:9px;font-weight:700;color:var(--muted);text-align:center;font-family:'DM Mono',monospace;text-transform:uppercase;align-self:end;padding-bottom:1px;}
+.synb-grid-hd--today{color:#8a6a12;}
+.synb-grid-lbl{font-size:9px;font-weight:700;color:var(--muted);font-family:'DM Mono',monospace;text-transform:uppercase;letter-spacing:0.4px;align-self:center;}
+.synb-gc{position:relative;min-height:30px;border:1.5px solid var(--line);border-radius:8px;background:white;color:#456020;font-size:11.5px;font-weight:700;cursor:pointer;font-family:'DM Mono',monospace;display:flex;align-items:center;justify-content:center;padding:0;-webkit-tap-highlight-color:transparent;}
+.synb-gc--low{background:#fdf6e3;border-color:#e0cb78;color:#8a6a12;}
+.synb-gc--full{background:#f1efe9;border-color:#e0dcd6;color:#b0a99f;cursor:not-allowed;}
+.synb-gc--spent{background:#f1efe9;border-color:#e0dcd6;color:#c8c2b8;cursor:not-allowed;}
+.synb-gc--mine{border-color:#c8a44b;box-shadow:inset 0 0 0 1px rgba(216,176,84,0.5);}
+.synb-gc--on{outline:2px solid var(--moss);outline-offset:1px;}
+.synb-gc-dot{position:absolute;top:3px;right:3px;width:6px;height:6px;border-radius:50%;background:var(--gold);}
+.synb-gc--closedmgr{background:#fdf1e3;border-color:#e0b078;}
+.synb-gc-closed{position:absolute;top:0px;left:3px;font-size:9px;color:#c07830;line-height:1.4;}
+/* 13.96 — Plan the week: Stands' planner language on booking cells. */
+.synb-pc{flex-direction:column;gap:0;line-height:1.05;padding:2px 0;}
+.synb-pc b{font-size:11px;font-weight:800;}
+.synb-pc i{font-style:normal;font-size:7.5px;text-transform:uppercase;letter-spacing:0.4px;opacity:0.75;}
+.synb-pc--good{background:#eef7e6;border-color:#9cc57e;color:#2f5a1a;}
+.synb-pc--mid{background:#fdf6e3;border-color:#e0cb78;color:#8a6a12;}
+.synb-pc--lowb{background:#f7efe8;border-color:#e0b078;color:#a05a20;}
+.synb-pc--pick{box-shadow:0 0 0 2px rgba(122,223,122,0.55);}
+/* 13.96 — the hero's commitment line + the Stands booked-hero calendar glyph. */
+.syn-hero-you{margin-top:10px;padding-top:9px;border-top:1px solid rgba(255,255,255,0.08);font-size:11px;color:rgba(240,230,207,0.75);display:flex;align-items:center;gap:8px;flex-wrap:wrap;}
+.syn-hero-you b{color:#f7f0dd;font-weight:700;}
+.syn-hero-pend{font-size:9.5px;color:#f0cc74;border:1px solid rgba(216,176,84,0.4);border-radius:6px;padding:1px 6px;}
+.stnd-th-cal{font-size:28px;line-height:62px;width:62px;text-align:center;}
+/* 13.57 — syndicate member strip under the chips. */
+#synd-page-members{display:flex;align-items:center;gap:10px;flex-wrap:wrap;}
+.synm-avs{display:flex;align-items:center;}
+.synm-av{width:26px;height:26px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;font-family:'DM Sans',sans-serif;background:#e6e2dc;color:#6d6459;border:2px solid #16220e;margin-left:-7px;}
+.synm-av:first-child{margin-left:0;}
+.synm-av--mgr{background:linear-gradient(135deg,#d8b054,#c8a44b);color:#2d2417;}
+.synm-av--more{background:rgba(255,255,255,0.14);color:rgba(240,230,207,0.8);font-size:9px;}
+.synm-meta{font-size:10.5px;color:rgba(240,230,207,0.7);font-family:'DM Mono',monospace;}
+/* 13.61 — settings card: grouped list rows + segmented controls. */
+.synset-group{font-size:9.5px;font-weight:700;text-transform:uppercase;letter-spacing:0.7px;color:#8a6a12;font-family:'DM Mono',monospace;margin:16px 0 2px;padding-bottom:5px;border-bottom:1px solid rgba(216,176,84,0.35);}
+.synset-row{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;padding:9px 0;border-bottom:1px solid rgba(0,0,0,0.05);}
+.synset-row:last-child{border-bottom:none;}
+.synset-lbl{font-size:12px;font-weight:700;color:var(--bark);min-width:0;flex:1 1 150px;}
+.synset-desc{display:block;font-size:10px;font-weight:400;color:var(--muted);margin-top:1px;line-height:1.4;}
+.synset-seg{display:inline-flex;border:1.5px solid var(--line);border-radius:9px;overflow:hidden;background:white;flex:none;}
+.synset-sb{padding:6px 12px;font-size:11px;font-weight:600;border:none;border-left:1.5px solid var(--line);background:white;color:var(--muted);cursor:pointer;font-family:'DM Sans',sans-serif;white-space:nowrap;-webkit-tap-highlight-color:transparent;}
+.synset-sb:first-child{border-left:none;}
+.synset-sb.on{background:linear-gradient(135deg,#d8b054,#d4b45a);color:#2d2417;font-weight:700;}
+.synset-sb:not(.on):hover{background:#f7f4ec;color:var(--bark);}
+.synset-closedbar{display:flex;gap:6px;flex-wrap:wrap;margin-top:10px;align-items:stretch;}
+.synset-closedbar input[type="date"]{flex:none;padding:8px 10px;border:1.5px solid var(--line);border-radius:9px;font-family:'DM Sans',sans-serif;font-size:11.5px;color:var(--bark);background:white;box-sizing:border-box;}
+.synset-closedbar input[type="text"]{flex:1 1 130px;min-width:110px;padding:8px 10px;border:1.5px solid var(--line);border-radius:9px;font-family:'DM Sans',sans-serif;font-size:11.5px;color:var(--bark);background:white;box-sizing:border-box;}
+.synset-closedbar button{flex:none;padding:8px 14px;border-radius:9px;border:none;background:linear-gradient(135deg,var(--moss),var(--deep));color:white;font-weight:700;font-size:11px;cursor:pointer;font-family:'DM Sans',sans-serif;}
+.synset-closedto{align-self:center;font-size:10px;color:var(--muted);font-family:'DM Mono',monospace;}
+/* 13.67 — the Stands language (owner: "should be closer to stands page").
+   Dark page, low-contrast translucent panels with fine gold-tinted borders,
+   light ink, gold accents. The --sy-* tokens flip every shared renderer's
+   inline styles to dark HERE ONLY; the manage sheet keeps cream (fallbacks). */
+#v-syndicate .wrap{
+  --sy-ink:#f0e6cf; --sy-muted:rgba(240,230,207,0.6);
+  --sy-card:rgba(255,255,255,0.055); --sy-card2:rgba(255,255,255,0.03);
+  --sy-line:rgba(255,255,255,0.15); --sy-rule:rgba(255,255,255,0.22);
+}
+#v-syndicate #synd-page-settings,
+#v-syndicate #synd-page-notes-wrap,
+#v-syndicate #synd-page-msgs-wrap,
+#v-syndicate #synd-page-card,
+#v-syndicate #synd-page-bookings > div{
+  background:rgba(255,255,255,0.035) !important;
+  border:1px solid rgba(216,176,84,0.16) !important;
+  border-radius:16px !important;
+  box-shadow:none !important;
+  margin:12px 0 0 0 !important;
+  padding:14px !important;
+}
+#v-syndicate #synd-page-map-wrap{margin:12px 0 0 0;}
+#v-syndicate #synd-page-map{border-radius:14px;}
+#v-syndicate #synd-page-map-note{margin:8px 0 2px 0;}
+#v-syndicate #synd-page-map-empty{background:rgba(255,255,255,0.03) !important;border:1.5px dashed rgba(255,255,255,0.18) !important;color:rgba(240,230,207,0.6) !important;}
+#v-syndicate #synd-page-map-wrap.fullscreen{margin:0 !important;}
+#v-syndicate #synd-page-map-wrap.fullscreen #synd-page-map{border-radius:0;}
+/* messages, dark surface */
+#v-syndicate .synd-msg{background:rgba(255,255,255,0.05);border-color:rgba(255,255,255,0.1);}
+#v-syndicate .synd-msg--mgr{background:rgba(216,176,84,0.08);border-color:rgba(216,176,84,0.3);}
+#v-syndicate .synd-msg--pinned{background:rgba(216,176,84,0.1);border-color:rgba(216,176,84,0.42);}
+#v-syndicate .synd-msg--mine:not(.synd-msg--pinned):not(.synd-msg--mgr){background:rgba(255,255,255,0.07);border-color:rgba(255,255,255,0.14);}
+#v-syndicate .synd-msg-author{color:#f0e6cf;}
+#v-syndicate .synd-msg-you{color:rgba(240,230,207,0.5);}
+#v-syndicate .synd-msg-body{color:rgba(240,230,207,0.92);}
+#v-syndicate .synd-msg-body--deleted{color:rgba(240,230,207,0.45);}
+#v-syndicate .synd-msg-meta{color:rgba(240,230,207,0.55);}
+#v-syndicate .synd-msg-day{color:rgba(240,230,207,0.5);}
+#v-syndicate .synd-msg-day::before,#v-syndicate .synd-msg-day::after{background:rgba(255,255,255,0.12);}
+#v-syndicate .synd-msg-day--new{color:#e2bd60;}
+#v-syndicate .synd-msg-compose--compact{background:transparent;border-color:rgba(255,255,255,0.16);}
+#v-syndicate .synd-msg-input{background:transparent;color:#f0e6cf;border-color:rgba(255,255,255,0.18);}
+#v-syndicate .synd-msg-input::placeholder{color:rgba(240,230,207,0.4);}
+#v-syndicate .synd-msg-list-scroll{background:rgba(0,0,0,0.14);border-color:rgba(255,255,255,0.08);}
+#v-syndicate .synd-msg-empty,#v-syndicate .synd-msg-loading{color:rgba(240,230,207,0.55);}
+#v-syndicate .synd-msg-annc{border-bottom-color:rgba(216,176,84,0.4);}
+/* 13.86: pins are quiet pills now — the sy tokens colour them per skin. */
+#v-syndicate .synd-msg-charcount{color:rgba(240,230,207,0.5);}
+#v-syndicate .synd-msg-older-hint,#v-syndicate .synd-msg-pin-hint{color:rgba(240,230,207,0.5);}
+#v-syndicate .synd-msg-older-btn{border-color:rgba(255,255,255,0.18);color:rgba(240,230,207,0.6);}
+/* settings, dark surface */
+#v-syndicate .synset-lbl{color:#f0e6cf;}
+#v-syndicate .synset-desc{color:rgba(240,230,207,0.55);}
+#v-syndicate .synset-row{border-bottom-color:rgba(255,255,255,0.07);}
+#v-syndicate .synset-group{color:#d8b054;border-bottom-color:rgba(216,176,84,0.3);}
+#v-syndicate .synset-seg{background:transparent;border-color:rgba(255,255,255,0.18);}
+#v-syndicate .synset-sb{background:transparent;color:rgba(240,230,207,0.6);border-left-color:rgba(255,255,255,0.18);}
+#v-syndicate .synset-sb:not(.on):hover{background:rgba(255,255,255,0.06);color:#f0e6cf;}
+/* 13.91 — the ID-scoped dark override above outguns .synset-sb.on (ID beats
+   classes), which erased the active segment's gold on the page: a settings
+   card that couldn't say what was set. Restore the fill at ID specificity. */
+#v-syndicate .synset-sb.on{background:linear-gradient(135deg,#d8b054,#d4b45a);color:#2d2417;font-weight:700;border-left-color:transparent;}
+#v-syndicate .synset-sb.on + .synset-sb{border-left-color:transparent;}
+#v-syndicate .synset-closedbar input{background:rgba(255,255,255,0.06);color:#f0e6cf;border-color:rgba(255,255,255,0.3);}
+#v-syndicate .synset-closedbar input::placeholder{color:rgba(240,230,207,0.4);}
+#v-syndicate .synset-closedto{color:rgba(240,230,207,0.5);}
+/* availability grid, dark surface */
+#v-syndicate .synb-grid-hd,#v-syndicate .synb-grid-lbl{color:rgba(240,230,207,0.5);}
+#v-syndicate .synb-grid-hd--today{color:#e2bd60;}
+#v-syndicate .synb-gc{background:rgba(255,255,255,0.05);border-color:rgba(255,255,255,0.15);color:#9fdf7a;}
+#v-syndicate .synb-gc--low{background:rgba(216,176,84,0.12);border-color:rgba(216,176,84,0.4);color:#e2bd60;}
+#v-syndicate .synb-gc--full,#v-syndicate .synb-gc--spent{background:rgba(255,255,255,0.02);border-color:rgba(255,255,255,0.07);color:rgba(240,230,207,0.3);}
+#v-syndicate .synb-gc--closedmgr{background:rgba(224,176,120,0.12);border-color:rgba(224,176,120,0.45);}
+#v-syndicate .synb-gc--on{outline-color:#d8b054;}
+/* progress card, dark surface */
+#v-syndicate .synd-block{border-bottom-color:rgba(255,255,255,0.08);}
+#v-syndicate .synd-block-title{color:#f0e6cf;}
+#v-syndicate .synd-block-meta{color:rgba(240,230,207,0.55);}
+#v-syndicate .plan-bar-wrap{background:rgba(255,255,255,0.12);}
+#v-syndicate .plan-bar-wrap--none{border-color:rgba(255,255,255,0.2);}
+/* 13.68 — the three finishing tunes: gold mono section labels (Stands'
+   micro-label voice), quiet Cancels that only turn red under the thumb,
+   and the Stands gold pill for the section CTA. */
+#v-syndicate .syn-sec-t{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.8px;color:#d8b054;font-family:'DM Mono',monospace;}
+#v-syndicate .syn-sec-s{font-size:10.5px;font-weight:400;text-transform:none;letter-spacing:0;color:rgba(240,230,207,0.55);font-family:'DM Sans',sans-serif;line-height:1.45;}
+.synb-cta{flex:none;margin:0;padding:8px 15px;border-radius:999px;border:1px solid rgba(216,176,84,0.55);background:rgba(216,176,84,0.12);color:#e2bd60;font-weight:700;font-size:12px;cursor:pointer;font-family:'DM Sans',sans-serif;-webkit-tap-highlight-color:transparent;}
+.synb-cta:active{transform:scale(0.97);}
+.synb-cxl{flex:none;padding:6px 11px;font-size:11px;font-weight:600;border:1.5px solid var(--sy-line,var(--line));border-radius:8px;background:transparent;color:var(--sy-muted,var(--muted));cursor:pointer;font-family:'DM Sans',sans-serif;-webkit-tap-highlight-color:transparent;}
+.synb-cxl:hover,.synb-cxl:active{border-color:var(--red);color:var(--red);}
+/* 13.69 — the hero: big gold score, light title, Stands' voice. */
+.syn-hero-score{flex:none;width:52px;height:52px;border-radius:50%;border:2.5px solid #d8b054;display:flex;align-items:center;justify-content:center;font-size:19px;font-weight:700;color:#e2bd60;font-family:'DM Mono',monospace;}
+.syn-hero-title{font-size:15px;font-weight:700;color:#f7f0dd;}
 .plan-hdr{display:flex;align-items:center;justify-content:space-between;padding:16px 18px 12px;border-bottom:1px solid var(--stone);}
 .plan-hdr-l{display:flex;align-items:center;gap:8px;}
 .plan-hdr-r{display:flex;align-items:center;gap:8px;}
@@ -3891,3 +4086,76 @@ body::after{content:'';position:fixed;top:0;left:0;right:0;height:env(safe-area-
 .grx-pdf-pick-lbl { font-size: 12px; font-weight: 700; color: var(--muted, #7a7057); margin: 2px 0 1px; }
 .grx-pdf-pick-btn { width: 100%; text-align: left; }
 .grx-io-btn--pdf { width: 100%; }
+
+/* ── Syndicate page map: full-screen parity with #stands-map-wrap (2026-08-10,
+   owner: "the maps should look exactly same as how these look on stands") ── */
+#synd-page-map-wrap.fullscreen{display:flex !important;flex-direction:column;position:fixed;inset:0;z-index:4000;margin:0;background:#0a1406;padding:calc(10px + env(safe-area-inset-top,0px)) 12px calc(8px + env(safe-area-inset-bottom,0px)) !important;}
+#synd-page-map-wrap.fullscreen > div:first-child{flex:1;display:flex;flex-direction:column;min-height:0;}
+#synd-page-map-wrap.fullscreen #synd-page-map{height:100% !important;min-height:0;flex:1;}
+#synd-page-map-wrap.fullscreen .stnd-map-fs .fs-open{display:none;}
+#synd-page-map-wrap.fullscreen .stnd-map-fs .fs-close{display:block;}
+#synd-page-map-wrap.fullscreen #synd-page-map-note{flex-shrink:0;color:rgba(255,255,255,0.6);}
+
+/* ── Syndicate page chips (2026-08-10, owner screenshot: unselected chips
+   invisible). The planner's .stnd-plan-tog/.spm-b are dark-surface classes
+   (transparent bg, white text); the syndicate page is light parchment, so
+   re-colour them here. #id specificity beats the dark rules' cascade. ── */
+#v-syndicate .stnd-plan-tog{display:flex;flex-wrap:wrap;gap:6px;border:none;background:transparent;border-radius:0;overflow:visible;margin:0;}
+
+/* 13.78 — the page's empty state was styled for the cream Stats card; on the
+   dark syndicate panels the title all but vanished. Same adaptive tokens as
+   the rest of the page. */
+#v-syndicate .wrap .plan-empty-t{color:var(--sy-ink,var(--bark));}
+#v-syndicate .wrap .plan-empty-s{color:var(--sy-muted,var(--muted));}
+
+/* 13.80 — the targets card's species rows were styled for the cream Stats
+   card; on the dark syndicate panels var(--bark) reads as near-black maroon.
+   Same adaptive tokens as the rest of the page; the Stats card is untouched. */
+#v-syndicate .wrap .plan-sp-name{color:var(--sy-ink,var(--bark));}
+#v-syndicate .wrap .plan-sp-total{color:var(--sy-muted,var(--muted));}
+#v-syndicate .wrap .plan-sex-lbl{color:var(--sy-muted,var(--muted));}
+#v-syndicate .wrap .plan-count{color:var(--sy-ink,var(--bark));}
+#v-syndicate .wrap .plan-total-lbl{color:var(--sy-muted,var(--muted));}
+#v-syndicate .wrap .plan-total-count{color:var(--sy-ink,var(--bark));}
+#v-syndicate .wrap .plan-total-none{color:var(--sy-muted,var(--muted));}
+#v-syndicate .wrap .plan-divider{background:var(--sy-line,var(--stone));}
+#v-syndicate .wrap .plan-total-row{border-top-color:var(--sy-line,var(--stone));}
+
+/* 13.80 — the guest toggle was a bare .spm-b with no wrapper rule, so it fell
+   back to raw browser button chrome (a white chip on the dark panel). */
+.synb-guest{padding:7px 13px;font-size:11px;font-weight:700;border:1.5px solid var(--sy-line,var(--line));border-radius:9px;background:transparent;color:var(--sy-muted,var(--muted));cursor:pointer;font-family:'DM Sans',sans-serif;}
+.synb-guest.on{background:linear-gradient(135deg,#d8b054,#d4b45a);border-color:transparent;color:var(--forest);}
+
+/* 13.81 — the gold identity strip (Stands' YOUR GROUNDS, syndicate edition)
+   and the seat-pin forecast popover. */
+.synd-idstrip{display:flex;align-items:center;gap:12px;padding:12px 14px;border:1px solid rgba(216,176,84,0.3);border-radius:16px;background:rgba(216,176,84,0.07);}
+#synb-pin-pop{position:absolute;left:10px;right:10px;bottom:10px;z-index:1100;background:rgba(18,30,18,0.94);border:1px solid rgba(216,176,84,0.35);border-radius:12px;padding:10px 12px;color:#f2ecdd;box-shadow:0 6px 24px rgba(0,0,0,0.45);backdrop-filter:blur(3px);}
+/* 13.94 — the popover's week is the stand-detail ribbon (same chips), laid
+   in a scrollable row; the bespoke score matrix is retired. */
+.synb-pd-row{display:flex;gap:5px;margin-top:9px;overflow-x:auto;padding-bottom:2px;scrollbar-width:none;}
+.synb-pd-row::-webkit-scrollbar{display:none;}
+.synb-pd{min-width:38px;padding:6px 4px 5px;}
+.synb-pd-off{opacity:0.5;}
+.synb-pd-note{font-size:9.5px;color:rgba(242,236,221,0.5);margin-top:7px;font-family:'DM Mono',monospace;}
+.synb-pp-x{border:none;background:transparent;color:rgba(242,236,221,0.65);font-size:18px;line-height:1;cursor:pointer;padding:2px 4px;}
+.synb-pp-warm{font-size:11px;color:rgba(242,236,221,0.6);margin-top:8px;}
+
+/* 13.86 — THE MASTHEAD: one identity block where five bands used to stack.
+   Naked on the page ground (no box) so the hero and map carry the panels. */
+.synd-mast{margin:2px 0 14px 0;}
+.synd-mast-top{display:flex;align-items:center;gap:10px;}
+.synd-mast-name{flex:1 1 auto;min-width:0;font-family:'Playfair Display',serif;font-size:21px;font-weight:700;color:var(--sy-ink,var(--bark));overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.synd-mast-meta{display:flex;align-items:center;gap:10px;margin-top:8px;font-size:10.5px;font-weight:600;color:var(--sy-muted,var(--muted));font-family:'DM Mono',monospace;letter-spacing:0.3px;}
+.synd-bell{flex:none;padding:5px 11px;font-size:10.5px;font-weight:700;border:1px solid var(--sy-line,var(--line));border-radius:999px;background:transparent;color:var(--sy-muted,var(--muted));cursor:pointer;font-family:'DM Sans',sans-serif;}
+.synd-bell.on{background:linear-gradient(135deg,#d8b054,#d4b45a);border-color:transparent;color:var(--forest);}
+
+/* 13.87 — under the masthead the targets card must not repeat the syndicate's
+   name; the page's own "Season targets" label leads it instead. Page-scoped:
+   the Stats-tab card keeps its title. */
+#synd-page-card .synd-block-title{display:none;}
+
+/* 13.89 (live audit) — the ground-chip row is a full-width wrapping row, not
+   a shrink-wrapped column; the hero's sub-line wraps as whole facts. */
+.synd-gchips{display:flex !important;flex-wrap:wrap;width:auto;gap:6px;}
+.syn-hero-sub{display:flex;flex-wrap:wrap;gap:3px 10px;margin-top:3px;font-size:10.5px;font-weight:600;color:var(--sy-muted,var(--muted));}
+.syn-hero-sub span{white-space:nowrap;}
