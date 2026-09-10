@@ -96,7 +96,7 @@ const FL_APP_VERSION = '7.402';
 // Payload build tag - proves which diary.js actually reached the device (the
 // SW version alone cannot: sw.js is always fetched fresh while the precache
 // could be CDN-stale until the cache:'reload' fix). Bump with SW_VERSION.
-const FL_JS_BUILD = '14.03';
+const FL_JS_BUILD = '14.06';
 import {
   wxCodeLabel,
   windDirLabel,
@@ -5802,6 +5802,89 @@ function applyPhotoExif() {
 
 var lastGpsLat = null, lastGpsLng = null;
 
+// ── Field-grade GPS (14.04 — owner: "it showed the gps location wrong. It
+// was correct on huntstand/google maps") ─────────────────────────────────
+// One engine for every capture that puts a coordinate IN A RECORD. The old
+// calls used getCurrentPosition with high accuracy OFF (the default), so the
+// browser was free to answer with a wifi/cell-tower position — on a hill
+// with no wifi that is routinely hundreds of metres out, while apps that
+// force true GPS look right. And even a high-accuracy first fix is often
+// coarse while the receiver warms. So: watchPosition, enableHighAccuracy,
+// maximumAge 0, keep the BEST fix seen, stop early once accuracy is good
+// enough, and at the deadline return the best we got rather than failing.
+// Rejects only with no usable fix at all (code 1 = permission denied
+// rejects immediately). The stand sheet's G13 lesson (6 dp, fresh fix)
+// applies to every consumer of this engine.
+// Paint the you-are-here beacon (blue dot + accuracy ring) on a Leaflet
+// map, replacing the previous layer. Returns the new layer group. One
+// painter for the grounds, stands and syndicate maps — 14.05: the grounds
+// map's locate had NO beacon at all (it only recentred), and the other two
+// drew theirs from a single first fix.
+function flPaintMeBeacon(map, prevLayer, fix) {
+  if (prevLayer) { try { map.removeLayer(prevLayer); } catch (_) {} }
+  var acc = fix.accuracy;
+  // 14.06 three bands: <1000 m → dot + ring; KNOWN-garbage (a cell-tower
+  // ±1000 m+, the kilometre-away beacon the owner saw) → paint NOTHING —
+  // the old "no county-sized rings" guard skipped only the RING and left a
+  // confident bare dot at the mast; unknown accuracy (99999 sentinel) →
+  // bare dot, quality honestly unknown.
+  if (acc != null && acc >= 1000 && acc < 99999) return null;
+  var grp = null;
+  try {
+    grp = L.layerGroup();
+    if (acc != null && acc > 0 && acc < 1000) {
+      L.circle([fix.lat, fix.lng], { radius: acc, color: '#5aa9e6', weight: 1, opacity: 0.65,
+        fillColor: '#5aa9e6', fillOpacity: 0.12, interactive: false }).addTo(grp);
+    }
+    L.circleMarker([fix.lat, fix.lng], { radius: 6, color: '#ffffff', weight: 2,
+      fillColor: '#2f80c9', fillOpacity: 1, interactive: false }).addTo(grp);
+    grp.addTo(map);
+  } catch (_) { grp = null; }
+  return grp;
+}
+
+function flAccShow(a) { return a >= 1000 ? ((a / 1000).toFixed(1) + ' km') : (Math.round(a) + ' m'); }
+
+function flGetFix(opts) {
+  var goodEnoughM = (opts && opts.goodEnoughM) || 20;
+  var timeoutMs = (opts && opts.timeoutMs) || 15000;
+  var onUpdate = opts && opts.onUpdate;
+  // 14.06 (owner: "it was more like a kilometre away"): a cell-tower fix
+  // reports ±1000 m+ — if that is ALL the deadline ever saw, refusing is
+  // more honest than answering with the mast's position. Unknown accuracy
+  // (the 99999 sentinel) is never refused on this ground.
+  var rejectWorseThanM = (opts && opts.rejectWorseThanM) || 0;
+  return new Promise(function (resolve, reject) {
+    if (!navigator.geolocation) { reject(new Error('GPS not available')); return; }
+    var best = null, done = false, watchId = null, timer = null;
+    function finish(err) {
+      if (done) return;
+      done = true;
+      if (watchId != null) { try { navigator.geolocation.clearWatch(watchId); } catch (_) {} }
+      if (timer != null) clearTimeout(timer);
+      if (best && rejectWorseThanM && best.accuracy > rejectWorseThanM && best.accuracy < 99999) {
+        var tooRough = new Error('GPS fix too rough');
+        tooRough.accuracy = best.accuracy;
+        reject(tooRough);
+      } else if (best) { resolve(best); } else { reject(err || new Error('GPS timeout')); }
+    }
+    timer = setTimeout(function () { finish(new Error('GPS timeout')); }, timeoutMs);
+    watchId = navigator.geolocation.watchPosition(function (pos) {
+      var acc = (pos.coords.accuracy != null && pos.coords.accuracy > 0) ? pos.coords.accuracy : 99999;
+      if (!best || acc < best.accuracy) {
+        best = { lat: pos.coords.latitude, lng: pos.coords.longitude, accuracy: acc };
+        if (onUpdate) { try { onUpdate(best); } catch (_) {} }
+      }
+      if (acc <= goodEnoughM) finish();
+    }, function (err) {
+      // Permission denied with nothing banked yet → fail now. Transient
+      // POSITION_UNAVAILABLE / TIMEOUT while the receiver warms → let the
+      // deadline decide; a late good fix still wins.
+      if (err && err.code === 1 && !best) finish(err);
+    }, { enableHighAccuracy: true, maximumAge: 0, timeout: timeoutMs });
+  });
+}
+
 
 /** Read the value of one of the outing-time `<input type="time">` fields.
  *  Returns null when the input is empty / missing — keeps DB writes clean
@@ -5921,26 +6004,46 @@ function nominatimFetch(url, ms) {
 }
 
 function getGPS() {
+  // 14.04: this pin used to take the browser's FIRST answer with high
+  // accuracy off and no timeout — the exact "wrong on First Light, right on
+  // Google Maps" report. Field-grade engine now: warm the receiver, take the
+  // best fix, 6 dp (the app's G13 standard), and say how good the fix is.
   if (!navigator.geolocation) { showToast('GPS not available'); return; }
-  showToast('📍 Getting location…');
-  navigator.geolocation.getCurrentPosition(function(pos) {
-    var lat = pos.coords.latitude.toFixed(4);
-    var lng = pos.coords.longitude.toFixed(4);
-    lastGpsLat = parseFloat(lat); lastGpsLng = parseFloat(lng);
-    formPinLat = parseFloat(lat); formPinLng = parseFloat(lng);
-    maybeAutoSelectGroundFromPin(parseFloat(lat), parseFloat(lng)); // G3
-    nominatimFetch('https://nominatim.openstreetmap.org/reverse?lat=' + lat + '&lon=' + lng + '&format=jsonv2&addressdetails=1&zoom=15')
+  showToast('📍 Getting GPS fix…');
+  flGetFix({
+    goodEnoughM: 20,
+    timeoutMs: 15000,
+    rejectWorseThanM: 150,
+    onUpdate: function (fix) {
+      if (fix.accuracy > 20 && fix.accuracy < 99999) showToast('📍 Getting GPS fix… ±' + flAccShow(fix.accuracy) + '');
+    }
+  }).then(function(fix) {
+    var lat = round6(fix.lat), lng = round6(fix.lng);
+    lastGpsLat = lat; lastGpsLng = lng;
+    formPinLat = lat; formPinLng = lng;
+    maybeAutoSelectGroundFromPin(lat, lng); // G3
+    var latStr = lat.toFixed(5), lngStr = lng.toFixed(5);
+    var accNote = fix.accuracy >= 99999 ? ''
+      : fix.accuracy > 50 ? ' — rough fix (±' + Math.round(fix.accuracy) + ' m), tap again under open sky'
+      : ' (±' + Math.round(fix.accuracy) + ' m)';
+    nominatimFetch('https://nominatim.openstreetmap.org/reverse?lat=' + latStr + '&lon=' + lngStr + '&format=jsonv2&addressdetails=1&zoom=15')
       .then(function(r){ return r.json(); })
       .then(function(d) {
-        var name = diaryReverseGeocodeLabel(d, lat, lng);
+        var name = diaryReverseGeocodeLabel(d, latStr, lngStr);
         document.getElementById('f-location').value = name;
-        showPinnedStrip(name, parseFloat(lat), parseFloat(lng));
-        showToast('📍 ' + name);
+        showPinnedStrip(name, lat, lng);
+        showToast('📍 ' + name + accNote);
       }).catch(function() {
-        document.getElementById('f-location').value = lat + ', ' + lng;
-        showPinnedStrip(lat + ', ' + lng, parseFloat(lat), parseFloat(lng));
+        document.getElementById('f-location').value = latStr + ', ' + lngStr;
+        showPinnedStrip(latStr + ', ' + lngStr, lat, lng);
+        showToast('📍 Pinned' + accNote);
       });
-  }, function() { showToast('Could not get location'); });
+  }).catch(function(err) {
+    showToast(err && err.code === 1
+      ? '⚠️ Location permission denied — allow location for this app and try again'
+      : err && err.accuracy ? '⚠️ Only a rough network fix (±' + flAccShow(err.accuracy) + ') — not pinned. Try again under open sky'
+      : '⚠️ Could not get a GPS fix');
+  });
 }
 
 function diaryFormSaveButtonLabel() {
@@ -10018,24 +10121,30 @@ async function openQuickEntry() {
   // that resolves after the sheet was closed or reopened can't overwrite state.
   var _qsSeq = ++flQuickEntryOpenSeq;
   if (navigator.geolocation) {
-    navigator.geolocation.getCurrentPosition(function(pos) {
+    // 14.04 (same owner report as getGPS): this silent capture ran with high
+    // accuracy OFF and accepted a position up to 60 s old — with no wifi in a
+    // field, that is a cell-tower fix hundreds of metres out, saved silently
+    // into the record. Field-grade engine, fresh fix, 6 dp.
+    flGetFix({ goodEnoughM: 25, timeoutMs: 12000, rejectWorseThanM: 150 }).then(function(fix) {
       if (_qsSeq !== flQuickEntryOpenSeq) return;
-      flQuickEntry.lat = pos.coords.latitude.toFixed(4);
-      flQuickEntry.lng = pos.coords.longitude.toFixed(4);
+      flQuickEntry.lat = fix.lat.toFixed(6);
+      flQuickEntry.lng = fix.lng.toFixed(6);
       nominatimFetch('https://nominatim.openstreetmap.org/reverse?lat=' + flQuickEntry.lat + '&lon=' + flQuickEntry.lng + '&format=jsonv2&addressdetails=1&zoom=15')
         .then(function(r){ return r.json(); })
         .then(function(d) {
+          if (_qsSeq !== flQuickEntryOpenSeq) return;
           flQuickEntry.location = diaryReverseGeocodeLabel(d, flQuickEntry.lat, flQuickEntry.lng);
           document.getElementById('qs-meta').textContent = dateStr + ' · ' + timeStr + ' · ' + flQuickEntry.location;
         }).catch(function() {
+          if (_qsSeq !== flQuickEntryOpenSeq) return;
           flQuickEntry.location = flQuickEntry.lat + ', ' + flQuickEntry.lng;
           document.getElementById('qs-meta').textContent = dateStr + ' · ' + timeStr + ' · ' + flQuickEntry.location;
         });
-    }, function() {
+    }).catch(function() {
       if (_qsSeq !== flQuickEntryOpenSeq) return;
       flQuickEntry.location = '';
       document.getElementById('qs-meta').textContent = dateStr + ' · ' + timeStr;
-    }, { timeout: 6000, maximumAge: 60000 });
+    });
   } else {
     document.getElementById('qs-meta').textContent = dateStr + ' · ' + timeStr;
   }
@@ -15332,15 +15441,34 @@ async function groundsImportFile(file) {
   void flGroundBridgeAfterSave(grounds); // 13.93: single-ground import → offer the share
 }
 
+var gmapMeLayer = null;
 function gmapLocate() {
+  // 14.05 (owner: "on the grounds will it show the correct gps beacon now?"):
+  // this locate only RECENTRED — no dot, no ring — and from the first fix.
+  // Now it rides the field-grade engine and paints the same beacon as the
+  // stands map, tightening live as the receiver settles.
   if (!navigator.geolocation) { showToast('GPS not available'); return; }
-  showToast('📍 Getting location…');
-  navigator.geolocation.getCurrentPosition(function(pos) {
+  showToast('📍 Getting GPS fix…');
+  var centred = false;
+  flGetFix({
+    goodEnoughM: 15,
+    timeoutMs: 12000,
+    rejectWorseThanM: 1000,
+    onUpdate: function (fix) {
+      if (!gmap) return;
+      if (fix.accuracy >= 1000 && fix.accuracy < 99999) return; // tower fix: never centre on it
+      if (!centred) { centred = true; gmap.setView([fix.lat, fix.lng], Math.max(gmap.getZoom(), 16)); }
+      gmapMeLayer = flPaintMeBeacon(gmap, gmapMeLayer, fix);
+    }
+  }).then(function(fix) {
     if (!gmap) return;
-    gmap.setView([pos.coords.latitude, pos.coords.longitude], Math.max(gmap.getZoom(), 16));
-  }, function() {
-    showToast('⚠️ GPS unavailable — check location permissions');
-  }, { enableHighAccuracy: true, timeout: 10000 });
+    gmapMeLayer = flPaintMeBeacon(gmap, gmapMeLayer, fix);
+    if (fix.accuracy > 50 && fix.accuracy < 99999) showToast('📍 Fix ±' + Math.round(fix.accuracy) + ' m — the ring shows the spread');
+  }).catch(function(err) {
+    showToast(err && err.code === 1 ? '⚠️ GPS unavailable — check location permissions'
+      : err && err.accuracy ? '⚠️ Only a rough network fix (±' + flAccShow(err.accuracy) + ') — no beacon drawn. Step into open sky and try again'
+      : '⚠️ Could not get a GPS fix');
+  });
 }
 
 // ── G6: the Ground canvas — floating action bar on the stands map ──
@@ -15783,34 +15911,33 @@ async function gmbDelConfirm(name) {
 
 /** G6: Locate on the stands map itself (same contract as gmapLocate). */
 function standsMapLocate() {
+  // ST-10 kept: the beacon + accuracy ring (a 40 m circle under canopy is a
+  // different answer from a 4 m one) — now painted from the field-grade
+  // engine's improving fixes rather than a single first answer (14.05).
   if (!navigator.geolocation) { showToast('GPS not available'); return; }
-  showToast('📍 Getting location…');
-  navigator.geolocation.getCurrentPosition(function(pos) {
+  showToast('📍 Getting GPS fix…');
+  var centred = false;
+  flGetFix({
+    goodEnoughM: 15,
+    timeoutMs: 12000,
+    rejectWorseThanM: 1000,
+    onUpdate: function (fix) {
+      if (!standsMap) return;
+      if (fix.accuracy >= 1000 && fix.accuracy < 99999) return; // tower fix: never centre on it
+      if (!centred) { centred = true; standsMap.setView([fix.lat, fix.lng], Math.max(standsMap.getZoom(), 15)); }
+      standsMeLayer = flPaintMeBeacon(standsMap, standsMeLayer, fix);
+    }
+  }).then(function(fix) {
     if (!standsMap) return;
-    var mLat = pos.coords.latitude, mLng = pos.coords.longitude;
-    standsMap.setView([mLat, mLng], Math.max(standsMap.getZoom(), 15));
-    // ST-10: recentring with nothing drawn put the user on a blank field, no
-    // pins, no mark - indistinguishable from a map that had simply drifted.
-    // Draw the fix, and let the accuracy ring say how much to trust it: a
-    // 40 m circle under a tree canopy is a different answer from a 4 m one.
-    if (standsMeLayer) { try { standsMap.removeLayer(standsMeLayer); } catch (_) {} standsMeLayer = null; }
-    try {
-      var grp = L.layerGroup();
-      var acc = pos.coords.accuracy;
-      if (acc != null && acc > 0 && acc < 1000) {
-        L.circle([mLat, mLng], { radius: acc, color: '#5aa9e6', weight: 1, opacity: 0.65,
-          fillColor: '#5aa9e6', fillOpacity: 0.12, interactive: false }).addTo(grp);
-      }
-      L.circleMarker([mLat, mLng], { radius: 6, color: '#ffffff', weight: 2,
-        fillColor: '#2f80c9', fillOpacity: 1, interactive: false }).addTo(grp);
-      grp.addTo(standsMap);
-      standsMeLayer = grp;
-    } catch (_) {}
+    standsMeLayer = flPaintMeBeacon(standsMap, standsMeLayer, fix);
+    if (fix.accuracy > 50 && fix.accuracy < 99999) showToast('📍 Fix ±' + Math.round(fix.accuracy) + ' m — the ring shows the spread');
     // ST-3: and say straight away how many seats we have just left behind.
     syncStandStepMarkers();
-  }, function() {
-    showToast('⚠️ GPS unavailable — check location permissions');
-  }, { enableHighAccuracy: true, timeout: 10000 });
+  }).catch(function(err) {
+    showToast(err && err.code === 1 ? '⚠️ GPS unavailable — check location permissions'
+      : err && err.accuracy ? '⚠️ Only a rough network fix (±' + flAccShow(err.accuracy) + ') — no beacon drawn. Step into open sky and try again'
+      : '⚠️ Could not get a GPS fix');
+  });
 }
 
 /** G6: show the "Draw your ground boundary →" invite until one exists.
@@ -19956,16 +20083,22 @@ function standSheetPickPin() {
 }
 
 function standSheetUseGps() {
+  // G13 (owner: "GPS location moves slightly out on save"): 6 dp so nothing
+  // is dropped, and a FRESH fix. 14.05 adds the last piece — this writes a
+  // RECORD, so it warms the receiver and takes the best fix like every other
+  // record-writing capture, and states its accuracy.
   if (!navigator.geolocation) { showToast('⚠️ GPS not available on this device'); return; }
   showToast('📡 Getting GPS fix…');
-  navigator.geolocation.getCurrentPosition(function(pos) {
-    // G13 (owner: "GPS location moves slightly out on save"): the saved value
-    // was ALWAYS exactly what GPS gave — verified round-trip — but two things
-    // made it look off: (1) 5dp truncation lost ~1 m; use 6dp (~0.11 m, the
-    // app's boundary-geometry standard) so nothing is dropped. (2) a 30 s
-    // cached fix could be stale if you'd walked on; force a FRESH fix.
-    flStandsState.sheet.lat = round6(pos.coords.latitude);
-    flStandsState.sheet.lng = round6(pos.coords.longitude);
+  flGetFix({
+    goodEnoughM: 15,
+    timeoutMs: 15000,
+    rejectWorseThanM: 150,
+    onUpdate: function (fix) {
+      if (fix.accuracy > 15 && fix.accuracy < 99999) showToast('📡 Getting GPS fix… ±' + flAccShow(fix.accuracy) + '');
+    }
+  }).then(function(fix) {
+    flStandsState.sheet.lat = round6(fix.lat);
+    flStandsState.sheet.lng = round6(fix.lng);
     flStandsState.sheet.locName = flStandsState.sheet.lat + ', ' + flStandsState.sheet.lng;
     flStandsState.sheet.locAuto = false;      // AK: a real fix, not a placeholder
     flStandsState.sheet.locSeededFrom = null; // AK: and no longer a guess
@@ -19973,9 +20106,12 @@ function standSheetUseGps() {
     renderStandSheetLocMap(); // G12: reflect the GPS fix in the preview
     maybeAutoSelectStandGroundFromPin(flStandsState.sheet.lat, flStandsState.sheet.lng); // finding F
     refreshStandGroundPinWarning(); // AK: after finding F, so it judges the final pair
-  }, function() {
-    showToast('⚠️ Could not get a GPS fix');
-  }, { enableHighAccuracy: true, timeout: 12000, maximumAge: 0 });
+    showToast(fix.accuracy >= 99999 ? '📡 Fixed' : '📡 Fixed ±' + Math.round(fix.accuracy) + ' m');
+  }).catch(function(err) {
+    showToast(err && err.code === 1 ? '⚠️ Location permission denied — allow location and try again'
+      : err && err.accuracy ? '⚠️ Only a rough network fix (±' + flAccShow(err.accuracy) + ') — not saved. Try again under open sky'
+      : '⚠️ Could not get a GPS fix');
+  });
 }
 
 /** ST-6 (WCAG 3.3.1): every failed save was a bare toast. On a sheet long
@@ -21334,27 +21470,31 @@ function flToggleSynMapFull(fromPop) {
 
 /** Locate — standsMapLocate's contract against the syn-page map. */
 function synPageLocate() {
+  // 14.05: standsMapLocate's contract, from the field-grade engine.
   if (!navigator.geolocation) { showToast('GPS not available'); return; }
-  showToast('\ud83d\udccd Getting location\u2026');
-  navigator.geolocation.getCurrentPosition(function(pos) {
+  showToast('\ud83d\udccd Getting GPS fix\u2026');
+  var centred = false;
+  flGetFix({
+    goodEnoughM: 15,
+    timeoutMs: 12000,
+    rejectWorseThanM: 1000,
+    onUpdate: function (fix) {
+      var map = flSynPage.map;
+      if (!map) return;
+      if (fix.accuracy >= 1000 && fix.accuracy < 99999) return; // tower fix: never centre on it
+      if (!centred) { centred = true; map.setView([fix.lat, fix.lng], Math.max(map.getZoom(), 15)); }
+      flSynPage.meLayer = flPaintMeBeacon(map, flSynPage.meLayer, fix);
+    }
+  }).then(function(fix) {
     var map = flSynPage.map;
     if (!map) return;
-    var mLat = pos.coords.latitude, mLng = pos.coords.longitude;
-    map.setView([mLat, mLng], Math.max(map.getZoom(), 15));
-    if (flSynPage.meLayer) { try { map.removeLayer(flSynPage.meLayer); } catch (_) {} flSynPage.meLayer = null; }
-    try {
-      var grp = L.layerGroup();
-      var acc = pos.coords.accuracy;
-      if (acc != null && acc > 0 && acc < 1000) {
-        L.circle([mLat, mLng], { radius: acc, color: '#5aa9e6', weight: 1, opacity: 0.65,
-          fillColor: '#5aa9e6', fillOpacity: 0.12, interactive: false }).addTo(grp);
-      }
-      L.circleMarker([mLat, mLng], { radius: 6, color: '#ffffff', weight: 2,
-        fillColor: '#2f80c9', fillOpacity: 1, interactive: false }).addTo(grp);
-      grp.addTo(map);
-      flSynPage.meLayer = grp;
-    } catch (_) {}
-  }, function() { showToast('\u26a0\ufe0f Could not get a GPS fix'); }, { enableHighAccuracy: true, timeout: 12000, maximumAge: 30000 });
+    flSynPage.meLayer = flPaintMeBeacon(map, flSynPage.meLayer, fix);
+    if (fix.accuracy > 50 && fix.accuracy < 99999) showToast('\ud83d\udccd Fix \u00b1' + Math.round(fix.accuracy) + ' m \u2014 the ring shows the spread');
+  }).catch(function(err) {
+    showToast(err && err.code === 1 ? '\u26a0\ufe0f GPS unavailable \u2014 check location permissions'
+      : err && err.accuracy ? '\u26a0\ufe0f Only a rough network fix (\u00b1' + flAccShow(err.accuracy) + ') \u2014 no beacon drawn. Step into open sky and try again'
+      : '\u26a0\ufe0f Could not get a GPS fix');
+  });
 }
 
 /**
