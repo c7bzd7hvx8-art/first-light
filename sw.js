@@ -5,7 +5,7 @@
 // the cache strings (`v7.34`) because they were three separate literals.
 // Bumping triggers the `activate` step to sweep old caches and reload clients
 // via the `controllerchange` path in diary.js.
-const SW_VERSION = '14.06';
+const SW_VERSION = '14.17';
 const STATIC_CACHE  = 'first-light-static-v'  + SW_VERSION;
 const RUNTIME_CACHE = 'first-light-runtime-v' + SW_VERSION;
 
@@ -97,10 +97,10 @@ const PRECACHE_URLS = [
   './diary-guide.html',
   // Per-species deer illustrations for the calculator's anatomy panel.
   // Add additional species SVGs here as they land in species/aimthedeer/.
-  // Muntjac and CWD SVGs exist on disk but are intentionally NOT precached
-  // (and not referenced from lib/fl-anatomy.js SPECIES_IMAGE) because both
-  // species are excluded from SPECIES_BODY — the anatomy dropdown never
-  // offers them. See PROJECT-LOG.md 2026-06-03 for the rationale.
+  // Muntjac and CWD have no anatomy SVGs (14.11 audit: the old comment
+  // claimed files that never shipped). Both species are excluded from
+  // SPECIES_BODY — the anatomy dropdown never offers them — so only the
+  // four below exist and are precached. See PROJECT-LOG.md 2026-06-03.
   './species/aimthedeer/reddeer.svg',
   './species/aimthedeer/roedeer.svg',
   './species/aimthedeer/fallow.svg',
@@ -191,7 +191,14 @@ function isDeerSchoolAsset(url) {
 
 async function staleWhileRevalidate(request, cacheName, event) {
   const cache = await caches.open(cacheName);
-  const cached = await cache.match(request);
+  // 14.11 (audit P1-3): install precaches the CDN libraries into
+  // STATIC_CACHE, but runtime CDN traffic revalidates through the
+  // version-named RUNTIME_CACHE — which is EMPTY right after install or
+  // any SW bump, so the first offline boot 503'd supabase-js/jsPDF/
+  // markercluster while they sat precached one cache over. Fall back
+  // across ALL caches (exactly as networkFirst already does); the
+  // background refresh still writes to this handler's own cache.
+  const cached = (await cache.match(request)) || (await caches.match(request));
   // Refresh runs regardless; failures are swallowed (offline is normal here).
   const revalidate = (async () => {
     let networkResponse;

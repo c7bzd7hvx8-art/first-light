@@ -4790,7 +4790,7 @@ function showAcceptanceGate(onAccepted) {
   modal.style.display = 'flex';
   modal.innerHTML = `
     <div class="bx-modal-card bx-acceptance-card">
-      <div class="bx-acceptance-title">Before you use this calculator <span class="bx-acceptance-version">v1.0 beta</span></div>
+      <div class="bx-acceptance-title">Before you use this calculator</div>
       <div class="bx-acceptance-body">
         <p><strong>First Light is a planning aid for trained deer stalkers.</strong>
         Outputs are guidance only — they are not a substitute for chronographing

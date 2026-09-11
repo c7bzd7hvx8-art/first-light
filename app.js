@@ -2009,10 +2009,12 @@ ui.showLocationPrompt = function(msg) {
   }
 
   var lbl = document.getElementById('banner-label');
-  if (lbl) { lbl.textContent = 'Location Required'; lbl.className = 'status-label status-illegal'; }
+  // 14.14 (visual pass P3-V8): the pill IS the location trigger — say so,
+  // instead of shouting "Location Required" over four dead tiles.
+  if (lbl) { lbl.textContent = 'Set your location \u203a'; lbl.className = 'status-label status-illegal'; }
   setBannerStatusPillLocationTrigger(true);
   var sub = document.getElementById('banner-sublabel');
-  if (sub) sub.textContent = 'Tap location or badge';
+  if (sub) sub.textContent = 'Legal light and sun times appear once it\u2019s set';
 
   _lastCountdownText = '';
   _lastCountdownClass = '';

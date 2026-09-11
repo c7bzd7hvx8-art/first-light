@@ -237,10 +237,10 @@ body::after{content:'';position:fixed;top:0;left:0;right:0;height:env(safe-area-
 
 <main class="content" id="pg-main">
 
-  <div class="updated">Last updated: 25 July 2026</div>
+  <div class="updated">Last updated: 11 September 2026</div>
 
   <div class="summary-box">
-    <p><strong>The short version:</strong> First Light's core features do not require or collect personal data. Your location is used only on your device to calculate legal shooting times. If you use the optional <strong>Cull Diary</strong>, your records are stored securely in Supabase under your account and protected by access controls. Only you can access your personal diary data, except entries you deliberately share with a syndicate. We use privacy-focused <strong>page-view statistics</strong> (GoatCounter) only to see aggregate traffic across the First Light site and app — not for advertising or profiling. We do not serve ads or sell data.</p>
+    <p><strong>The short version:</strong> First Light's core features do not require or collect personal data. Your location is used only on your device to calculate legal shooting times. If you use the optional <strong>Cull Diary</strong>, your records are stored securely in Supabase under your account and protected by access controls. Only you can access your personal diary data, except what you deliberately share with a syndicate — shared entries, plus the shared-ground maps, seats, bookings and field notes described below. We use privacy-focused <strong>page-view statistics</strong> (GoatCounter) only to see aggregate traffic across the First Light site and app — not for advertising or profiling. We do not serve ads or sell data.</p>
   </div>
 
   <div class="section">
@@ -259,7 +259,11 @@ body::after{content:'';position:fixed;top:0;left:0;right:0;height:env(safe-area-
       <li>Email address and password for authentication</li>
       <li>Cull records you enter (species, date, location, weights, photos, notes)</li>
       <li>Live-deer <strong>sightings</strong> you log (species, approximate numbers seen, behaviour, and an optional location and photo) — private to your account, never shared to a syndicate</li>
-      <li>Saved <strong>stands</strong> / high seats you create for the wind forecast (a name, a map location, and wind notes) — private to your account</li>
+      <li>Saved <strong>stands</strong> / high seats you create for the wind forecast (a name, a map location, look directions, and bad-wind sectors) — private to your account <strong>unless you are in a syndicate with a shared ground</strong>: members of that syndicate can then see each seat's name, ground, map location, look directions and bad-wind sectors on the shared map and booking planner, so the group can plan and book around them. A stand's private notes are never shared.</li>
+      <li><strong>Shared ground maps</strong>: if you share a mapped ground with a syndicate, its boundary, no-shoot zones, lines and markers become visible to that syndicate's members. Your culls and diary entries on that ground do not.</li>
+      <li><strong>Bookings</strong> you make on a shared ground (the seat or ground, date, dawn/dusk window, guest flag, and any note you add), stored with your display name and visible to that syndicate's members; you can export your own bookings as a calendar file</li>
+      <li><strong>Ground field notes</strong> you mark as <em>Shared</em>, visible to members on that ground's sheet; notes left Private stay yours alone</li>
+      <li><strong>Push notifications</strong> (optional): if you turn the notification bell on, your browser creates a push subscription — an endpoint address plus delivery keys for this device — which is stored in Supabase so booking requests, approvals and announcements can reach you. Turning the bell off, or deleting your account, deletes that subscription. Delivery is relayed by your browser vendor's push service — see <em>Third-party services</em>.</li>
       <li>Basic <strong>error diagnostics</strong>: if something goes wrong, a technical report (the page address, your browser type, and the error message and stack trace) is sent to our Supabase database so we can fix bugs; while you are signed in it includes your account ID. It contains no diary content, and any sign-in tokens are stripped from the address before it is sent.</li>
       <li>Diary data is stored securely in Supabase and accessible by you; entries you intentionally share to a syndicate are also accessible to relevant syndicate members</li>
       <li>Syndicate chat messages you post (up to 500 characters), stored with your display name and role at the time of posting; messages are visible to that syndicate's members and managers</li>
@@ -293,7 +297,12 @@ body::after{content:'';position:fixed;top:0;left:0;right:0;height:env(safe-area-
 
     <div class="third-party">
       <div class="third-party-name">jsDelivr &amp; cdnjs (CDNs)</div>
-      <div class="third-party-desc">Third-party JavaScript libraries (Supabase client, jsPDF, Leaflet clustering) are loaded from the jsDelivr and cdnjs content delivery networks. These CDNs see the request IP address but receive no app data. <a href="https://www.jsdelivr.com/privacy-policy-jsdelivr-net" style="color:rgba(200,168,75,0.6);">jsdelivr.com/privacy</a> · <a href="https://cdnjs.com/" style="color:rgba(200,168,75,0.6);">cdnjs.com</a></div>
+      <div class="third-party-desc">Third-party JavaScript libraries (the Supabase client and jsPDF) are loaded from the jsDelivr and cdnjs content delivery networks. These CDNs see the request IP address but receive no app data. <a href="https://www.jsdelivr.com/privacy-policy-jsdelivr-net" style="color:rgba(200,168,75,0.6);">jsdelivr.com/privacy</a> · <a href="https://cdnjs.com/" style="color:rgba(200,168,75,0.6);">cdnjs.com</a></div>
+    </div>
+
+    <div class="third-party">
+      <div class="third-party-name">unpkg (CDN)</div>
+      <div class="third-party-desc">The Leaflet marker-clustering library (one script and two stylesheets) is loaded from the unpkg content delivery network. Like the CDNs above, it sees the request IP address but receives no app data. <a href="https://unpkg.com" style="color:rgba(200,168,75,0.6);">unpkg.com</a></div>
     </div>
 
     <p style="margin-top:18px;"><strong>Used by the core app (Species, Legal Times, Calendar, Field Guide, Ballistics Calculator):</strong></p>
@@ -347,6 +356,11 @@ body::after{content:'';position:fixed;top:0;left:0;right:0;height:env(safe-area-
       <div class="third-party-desc">The Field Guide shows small logo images for <strong>UK Deer Track &amp; Recovery (UKDTR)</strong>, the <strong>British Deer Society (BDS)</strong>, and <strong>BASC</strong> on informational cards, with links to each organisation's own website. Those image files are served from <code style="color:rgba(255,255,255,0.5);">firstlightdeer.co.uk</code>. If you follow a link to an organisation's site, that organisation's privacy policy applies there.</div>
     </div>
 
+    <div class="third-party">
+      <div class="third-party-name">Browser push services (Google, Mozilla, Apple)</div>
+      <div class="third-party-desc">Only if you turn notifications on in the diary. Web push is delivered by the push service built into your browser — Google's for Chrome and Android browsers, Mozilla's for Firefox, Apple's for Safari. That service handles your device's push endpoint and an encrypted payload; the notification content is prepared by our Supabase function and encrypted to your device. Turning the bell off deletes the subscription from our database.</div>
+    </div>
+
     <p style="margin-top:14px;font-size:13px;color:rgba(255,255,255,0.55);">The names and logos of UKDTR, BDS, and BASC are trademarks of their respective owners. They are shown only to identify those organisations and point you to official resources; display does not imply that First Light is endorsed by them.</p>
   </div>
 
@@ -382,13 +396,20 @@ body::after{content:'';position:fixed;top:0;left:0;right:0;height:env(safe-area-
       <li><code>fl-score-log-v1</code> — a local log of what the wind forecast predicted against what you actually recorded, used only to show you how well the forecast has been doing</li>
       <li><code>fl_offline_queue</code> with its <code>-corrupt</code> and <code>-deadletter</code> companions, and <code>fl_offline_synced_recent</code> — entries you created with no signal, waiting to upload, plus a short record of what has just synced so nothing uploads twice</li>
       <li><code>fl_synd_msg_seen:…</code> — the timestamp of the last syndicate message you read, per syndicate, so the unread badge is right</li>
+      <li><code>fl-shared-grounds-cache-v1</code> — the shared-ground maps and members' seats your syndicates have shared with you, cached so the shared map works offline</li>
+      <li><code>fl-stand-outbox-v1</code> and its <code>-deadletter</code> companion — stand edits made with no signal, waiting to upload</li>
+      <li><code>fl_bookings_cache:…</code>, <code>fl_ground_bridge:…</code>, <code>fl_syn_last:…</code>, <code>fl_synset_open</code>, <code>fl_syn_tell</code>, <code>fl_outing_nudge_dismissed:…</code> — cached booking rows for your syndicate's grounds, which syndicate and ground you last had open, whether the settings card was folded, your share-to-syndicate default, and booking nudges you have dismissed</li>
+      <li><code>fl_pending_invite</code> — a syndicate invite link you opened before signing in, held only until it is redeemed or you sign out</li>
+      <li><code>fl-home-ground-card-v1</code> — the home page's "your ground" card summary (ground name, seat count, best seat)</li>
+      <li><code>fl-gmap-draft-v1</code> — an unsaved ground-map drawing, so an interrupted drawing session can resume</li>
+      <li><code>fl-units</code> — your metres/yards and kilograms/pounds display choice</li>
       <li><code>fl_map_load_est_…</code> and its two warning flags — a running count of how many map tiles this browser has loaded this month, so we can tell whether the free map allowance is close to running out. It is a single number; it is not a record of where you looked.</li>
       <li>The <strong>Supabase authentication token</strong>, a key beginning <code>sb-</code>, which keeps you signed in between sessions. It never leaves your device except when talking to Supabase.</li>
     </ul>
 
     <p style="margin-top:14px;">If you use the <strong>Cull Diary</strong>, your cull records and photos themselves are stored in Supabase under your account, associated with your email address and protected by row-level security — only you can read your own entries. The diary also uses an on-device <strong>IndexedDB</strong> store to hold photos attached to entries you created while offline, so nothing is lost when signal is poor; once you reconnect, those entries and photos are uploaded to Supabase and removed from the device.</p>
 
-    <p>Signing out, or deleting your account, clears the diary's on-device data from this browser: the grounds and stands caches, the cached forecasts, the forecast-accuracy log, your species shortlist and last-used ground, the offline queue, and the offline photos in IndexedDB. Your general preferences and your ballistics profiles are deliberately left alone, so signing out does not cost you your rifle setup.</p>
+    <p>Signing out, or deleting your account, clears the diary's on-device data from this browser: the grounds and stands caches, the shared-ground cache, the cached forecasts, the forecast-accuracy log, your species shortlist and last-used ground, your saved home location, the offline queues — entries and stand edits alike, so <strong>sync before signing out</strong> or unsynced work is discarded — cached bookings and syndicate state, any un-redeemed invite, and the offline photos in IndexedDB. Your general preferences and your ballistics profiles are deliberately left alone, so signing out does not cost you your rifle setup.</p>
     <p>No data is stored on any First Light server at any point — First Light does not operate a server of its own.</p>
   </div>
 
@@ -399,24 +420,31 @@ body::after{content:'';position:fixed;top:0;left:0;right:0;height:env(safe-area-
     <p><strong>Cull Diary:</strong> your account and diary data are retained for as long as your account exists. You can:</p>
     <ul>
       <li>Delete an individual cull entry at any time — it is removed immediately from Supabase (including any attached photos).</li>
-      <li>Delete your entire account at any time, using the <em>Delete my account &amp; all data</em> button in the diary. This triggers a server-side procedure that immediately removes all of your cull entries, sightings, stands, their photos, syndicate memberships, and the Supabase auth account itself. No personal "soft-delete" or recovery copy of your identifiable data is kept. The one exception is <strong>syndicate tallies</strong>: culls you attributed to a syndicate are retained in <strong>anonymised</strong> form (species, sex and date only, with no link back to you) so the group's season totals stay accurate after you leave or delete your account.</li>
+      <li>Delete your entire account at any time, using the <em>Delete my account &amp; all data</em> button in the diary. This triggers a server-side procedure that immediately removes all of your cull entries, sightings, stands, their photos, your mapped grounds and their features, your bookings, any push subscriptions, syndicate memberships, and the Supabase auth account itself. No personal "soft-delete" or recovery copy of your identifiable data is kept. The one exception is <strong>syndicate tallies</strong>: culls you attributed to a syndicate are retained in <strong>anonymised</strong> form (species, sex and date only, with no link back to you) so the group's season totals stay accurate after you leave or delete your account.</li>
     </ul>
     <p>Backups held by Supabase as part of its normal database operations may retain deleted records for a short period before being overwritten; see Supabase's own retention terms.</p>
+    <p><strong>Error diagnostics</strong> are currently kept without a fixed time limit. They contain no diary content and no location, and when you delete your account each stored report keeps only its technical content — the link to your account is removed.</p>
   </div>
 
   <div class="section">
     <h2>Your rights under UK GDPR</h2>
     <hr class="divider">
     <p>First Light is operated from the United Kingdom and subject to the UK GDPR and the Data Protection Act 2018. The core app collects no personal data, so most of these rights apply only to the Cull Diary.</p>
-    <p>If you use the Cull Diary, your account email and diary entries are processed on the lawful basis of <strong>consent</strong> — you choose to create an account and enter data. You may withdraw consent at any time by deleting your account. You have the right to:</p>
+    <p>If you use the Cull Diary, your account email and diary entries are processed on the lawful basis of <strong>consent</strong> — you choose to create an account and enter data. You may withdraw consent at any time by deleting your account. Notifications are separately opt-in (the bell control in the diary) and can be withdrawn at any time the same way — turning the bell off deletes the subscription. You have the right to:</p>
     <ul>
       <li><strong>Access</strong> your data — it is already visible to you in the app; on request we can confirm what is held.</li>
       <li><strong>Rectify</strong> incorrect data — edit any entry directly, or contact us.</li>
       <li><strong>Erase</strong> your data — delete individual entries or your entire account in-app (see <em>Data retention</em> above).</li>
-      <li><strong>Portability</strong> — export your diary from the Stats tab as <strong>CSV</strong>, <strong>PDF</strong>, <strong>Season Summary</strong>, and <strong>Larder Book</strong> (season and permission/ground scoped where the export asks for it). Photos referenced on entries remain in secure cloud storage.</li>
+      <li><strong>Portability</strong> — export your diary from the Stats tab as <strong>CSV</strong>, <strong>PDF</strong>, <strong>Season Summary</strong>, and <strong>Larder Book</strong>; your sightings log as <strong>CSV</strong> or <strong>PDF</strong>; any mapped ground as <strong>GeoJSON</strong> or <strong>GPX</strong>; and your bookings as a <strong>calendar (.ics)</strong> file (season and permission/ground scoped where the export asks for it). Photos referenced on entries remain in secure cloud storage.</li>
       <li><strong>Restrict or object</strong> to further processing — stop using the diary, or delete your account.</li>
       <li><strong>Complain</strong> to the UK Information Commissioner's Office (ICO) if you believe your data has been mishandled: <a href="https://ico.org.uk/make-a-complaint/" style="color:rgba(200,168,75,0.6);">ico.org.uk/make-a-complaint</a>.</li>
     </ul>
+  </div>
+
+  <div class="section">
+    <h2>International transfers</h2>
+    <hr class="divider">
+    <p>First Light is operated from the UK, but some of the providers above are global networks: the content delivery networks, the map-tile providers and — if you enable notifications — your browser vendor's push service may process the limited data described above on servers outside the UK. Where that happens, the transfer is covered by each provider's own UK GDPR-compliant terms (UK adequacy regulations or standard contractual clauses, as their policies set out). Your diary database itself is held by Supabase in the project's hosting region and is not moved as part of normal operation.</p>
   </div>
 
   <div class="section">

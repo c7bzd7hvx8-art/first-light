@@ -16,7 +16,7 @@
 
 var SIGHTING_COLS =
   'id, seen_at, species, n_male, n_female, n_young, n_unknown, ' +
-  'behaviour, ground, stand_id, lat, lng, notes, photo_url, created_at';
+  'behaviour, ground, stand_id, marker_ref, lat, lng, notes, photo_url, created_at';
 
 /** All of a user's sightings, newest first (matches the sightings_user_seen_idx). */
 export async function fetchSightings(sb, userId) {
@@ -46,6 +46,9 @@ export async function saveSighting(sb, userId, s) {
     behaviour: s.behaviour || null,
     ground:    (s.ground && s.ground.trim()) ? s.ground.trim() : null,
     stand_id:  s.stand_id || null,
+    // 14.07: camera/feed-site link (ground_features.id). Requires
+    // migrate-camera-sightings.sql to have run — run it BEFORE publishing.
+    marker_ref: s.marker_ref || null,
     lat:       (s.lat != null) ? s.lat : null,
     lng:       (s.lng != null) ? s.lng : null,
     notes:     (s.notes && s.notes.trim()) ? s.notes.trim() : null,

@@ -725,7 +725,7 @@
     <!-- SG2: delete moved off every list card into the edit surface — shown
          only when editing an existing sighting (id wired by openEditSighting). -->
     <button class="sight-del-btn" id="sight-delete-btn" type="button" data-fl-action="delete-sighting" style="display:none;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6M14 11v6"/></svg>Delete this sighting</button>
-    <div class="save-note">Syncs to Supabase. Works offline.</div>
+    <div class="save-note">Syncs to your account. Works offline.</div>
   </div>
 </div>
 
@@ -835,10 +835,10 @@
       <button type="button" class="sh-settarget" id="sh-settarget" data-fl-action="open-targets" style="display:none;">＋ Set a season target — track your pace</button>
     </div>
     <div class="season-strip">
-      <div class="ss-i"><div class="ss-v" id="st-outing-total">0</div><div class="ss-l">Outings</div></div>
+      <div class="ss-i"><div class="ss-v" id="st-outing-total">0</div><div class="ss-l" id="st-outing-total-l">Outings</div></div>
       <div class="ss-i"><div class="ss-v" id="st-species">0</div><div class="ss-l">Species</div></div>
       <div class="ss-i"><div class="ss-v" id="st-dist">–</div><div class="ss-l" id="st-dist-l">Avg dist</div></div>
-      <div class="ss-i"><div class="ss-v" id="st-outing-blank">0</div><div class="ss-l">Blank days</div></div>
+      <div class="ss-i"><div class="ss-v" id="st-outing-blank">0</div><div class="ss-l" id="st-outing-blank-l">Blank days</div></div>
     </div>
     <!-- Stats wayfinding (live-review rec): one long scroll needs a map of
          itself. Chips jump to a section — and open it first if collapsed, so a
@@ -1476,7 +1476,7 @@
       </div>
     </div>
     <div id="swind-off-note" class="swind-off-note" style="display:none;">A scent cone is the ground your scent blows across from a seat — deer inside it can wind you. Turn cones on to see them.</div>
-    <div id="swind-legend"><span class="swp-lg good">clear</span><span class="swp-lg marginal">marginal</span><span class="swp-lg wrong">deer can wind you</span><span class="swp-lg calm">calm — scent pools</span><span class="swind-lg-note">the cone shows where your scent blows · tap the day label to jump back to Now</span></div>
+    <div id="swind-legend"><span class="swp-lg good">clear</span><span class="swp-lg marginal">marginal</span><span class="swp-lg wrong">deer can wind you</span><span class="swp-lg calm">calm — scent pools</span><span class="swind-lg-note">the cone shows where your scent blows · tap the day label to jump back to Now</span><span class="swind-lg-note">drawn routes tint with the wind too — tap one for which way to walk in</span></div>
   </div>
   <div id="stands-list"></div>
   <div id="stands-empty" style="display:none;padding:26px 18px;text-align:center;">
@@ -1538,10 +1538,17 @@
       <button class="fc" type="button" data-fl-action="filter-sightings" data-species="Sika">Sika</button>
       <button class="fc" type="button" data-fl-action="filter-sightings" data-species="Muntjac">Muntjac</button>
       <button class="fc" type="button" data-fl-action="filter-sightings" data-species="CWD">CWD</button>
+      <!-- 14.14 (visual pass P3-V7): season/source/view/sort fold away — four
+           control rows before the first sighting was a wall. -->
+      <button class="fc" type="button" id="sight-filters-tog" data-fl-action="toggle-sight-filters" aria-expanded="false" aria-controls="sight-secondary">Filters</button>
     </div>
-    <div class="list-secondary-filters" style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+    <div class="list-secondary-filters" id="sight-secondary" style="display:none;align-items:center;gap:10px;flex-wrap:wrap;">
       <select class="season-sel sight-season-sel" id="sight-season-sel" aria-label="Season">
         <option value="__all__">All seasons</option>
+      </select>
+      <!-- 14.08: "Seen from" lens — populated from sources that hold sightings; hidden when none do. -->
+      <select class="season-sel sight-source-sel" id="sight-source-sel" aria-label="Seen from" style="display:none;">
+        <option value="all">All sources</option>
       </select>
       <div class="layer-tog sight-view-tog" id="sight-view-tog" role="group" aria-label="List or trends">
         <button class="lt-b on" id="sv-list" type="button" data-fl-action="set-sight-view" data-sv="list">List</button>
@@ -1559,7 +1566,7 @@
          matches the filter; heat circles are metre-true (lib sightingHeatRadiusM). -->
     <div id="sight-map-wrap" style="display:none;padding:12px 14px 4px;">
       <div style="position:relative;border-radius:14px;overflow:hidden;border:1px solid rgba(255,255,255,0.14);box-shadow:0 2px 10px rgba(0,0,0,0.25);">
-        <div id="sight-map-div" style="height:30vh;min-height:190px;width:100%;background:#0c1d08;"></div>
+        <div id="sight-map-div" style="height:30vh;min-height:190px;width:100%;background:#e9e7e0;"></div>
         <div class="layer-tog" style="top:10px;right:10px;">
           <button class="lt-b on" id="sgl-map" type="button">Map</button>
           <div class="lt-div"></div>

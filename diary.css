@@ -46,6 +46,13 @@ html{
   background:var(--deep);
 }
 body{background:var(--deep);font-family:'DM Sans',sans-serif;color:var(--bark);max-width:480px;margin:0 auto;min-height:100vh;padding-top:env(safe-area-inset-top,0px);}
+/* 14.14 (visual pass P3-V12): on anything wider than the column, give the
+   stage a quiet forest gradient and lift the column off it — the flat
+   dark void read as an unfinished page at desktop widths. */
+@media(min-width:600px){
+  html{background:radial-gradient(1100px 640px at 50% -8%, #17270f 0%, var(--deep) 52%, #08110a 100%) fixed;}
+  body{box-shadow:0 0 90px rgba(0,0,0,0.5), 0 0 0 1px rgba(216,176,84,0.05);}
+}
 .view{display:none;flex-direction:column;min-height:100vh;}
 .view.active{display:flex;}
 button{font-family:'DM Sans',sans-serif;}
@@ -244,7 +251,7 @@ option:checked{background-color:#e8f2dc;color:#15370a;}
 .list-title-ico-link{display:inline-flex;flex-shrink:0;border-radius:9px;-webkit-tap-highlight-color:transparent;}
 .list-title-ico-link:active .list-title-ico{transform:scale(0.94);}
 .list-title-ico{width:34px;height:34px;border-radius:9px;flex-shrink:0;box-shadow:0 0 0 1px rgba(216,176,84,0.4),0 4px 12px rgba(0,0,0,0.4);transition:transform 0.12s ease;display:block;}
-.season-sel--fit{flex:0 1 auto;padding-right:28px;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' fill='none' stroke='%23d8b054' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 10px center;}
+.season-sel--fit{flex:0 1 auto;min-width:0;/* 14.11 audit: without this the select's min-content width overflowed 320px phones by 21px */padding-right:28px;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' fill='none' stroke='%23d8b054' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 10px center;}
 .hstats{display:flex;gap:1px;background:rgba(255,255,255,0.07);border-radius:12px;overflow:hidden;border:1px solid rgba(255,255,255,0.08);flex-shrink:0;max-width:100%;}
 .hs{padding:9px 10px;text-align:center;min-width:0;}
 @media (max-width:380px){
@@ -417,11 +424,16 @@ body.in-select-mode .entries{padding-bottom:92px;}
    meta+foot two-row anatomy (and the gc-kg/gc-cal/gc-foot classes) retired
    for cull cards; .gc-meta survives for blank-day cards. */
 .gc-line{display:flex;align-items:center;justify-content:space-between;gap:8px;min-width:0;}
-.gc-line-txt{font-size:11px;color:#6a655c;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0;}
+.gc-line-txt{font-size:11px;color:#6a655c;display:flex;align-items:baseline;gap:4px;min-width:0;}
+/* 14.14 (visual pass P3-V6): the PLACE gives way — the weight kept its unit
+   and the tag its one line at every width; before, ellipsis ate "kg". */
+.gc-place{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0;}
+.gc-dot{flex:none;}
+.gc-line-kg{white-space:nowrap;flex:none;}
 .gc-line-kg{font-weight:700;color:var(--moss);}
 .gc-foot{display:flex;justify-content:space-between;align-items:center;}
 .gc-kg{font-size:13px;font-weight:700;color:var(--moss);}
-.gc-tag{font-size:10px;color:var(--gold-ink);font-family:'DM Mono',monospace;margin-left:6px;}
+.gc-tag{font-size:10px;color:var(--gold-ink);font-family:'DM Mono',monospace;margin-left:6px;white-space:nowrap;flex:none;}
 .gc-cal{font-size:10px;color:#c0b8aa;font-family:'DM Mono',monospace;}
 .no-photo-placeholder{background:#f5f2ee;display:flex;align-items:center;justify-content:center;font-size:28px;color:#d8d0c8;}
 
@@ -902,7 +914,9 @@ body.in-select-mode .entries{padding-bottom:92px;}
 #sight-map-wrap .lt-b.on{background:var(--forest);color:#fff;box-shadow:none;}
 #sight-map-wrap .lt-b.off{background:#f0ece6;color:var(--muted);}
 /* Stats wayfinding chips (live-review rec) — a long scroll needs a map of itself. */
-.stats-jump{display:flex;gap:8px;margin:2px 0 4px;flex-wrap:wrap;}
+/* 14.14 (visual pass P3-V4): the row carries its own gutter — nothing in
+   its ancestry pads, so the first chip sat clipped at x:0 on phones. */
+.stats-jump{display:flex;gap:8px;margin:2px 14px 4px;flex-wrap:wrap;}
 .sj-chip{padding:7px 14px;border-radius:18px;font-size:10.5px;font-weight:700;font-family:'DM Mono',monospace;letter-spacing:0.8px;text-transform:uppercase;background:#fff;border:1px solid rgba(61,43,31,0.16);color:var(--muted);cursor:pointer;transition:transform 0.1s ease;}
 .sj-chip:active{transform:scale(0.96);}
 /* Section 6: the one row of navigation on the longest screen in the app had no
@@ -912,6 +926,31 @@ body.in-select-mode .entries{padding-bottom:92px;}
 .sj-chip[aria-current="true"]{background:var(--forest);border-color:var(--forest);color:var(--amber);}
 /* Contain the whole stands map box — Leaflet panes (400+), controls (1000) AND the Map/Satellite toggle (a sibling of the map div, absolutely positioned) — in one stacking context so none of it bleeds over the stand sheet (.tsheet-ov z-index 300). Isolate the FRAME (the wrap's only child div) so the toggle is caught too, not just the map div. Can't just raise the sheet: its pin-drop overlay (.pinmap-overlay) is z-index 600 and must stay above it (cf. #syn-ov z-index 5000). */
 #stands-map-wrap > div{position:relative;z-index:0;}
+/* 14.08 — the tap-a-camera history card (14.10's route card shares the
+   frame). 14.14 (visual pass P2-V1): FIXED and nav-aware — absolute-in-wrap
+   put the card's tail under the tab bar at 390×844, slicing the route
+   footer and the cam card's action. --fl-nav-h is measured from #main-nav
+   by diary.js; z 190 stays below the nav's 200 (the 14.00 lesson) and above
+   the FABs' 150. Tall content scrolls inside the card. */
+#stands-map-wrap > .cam-intel-pop{position:fixed;left:12px;right:12px;bottom:calc(var(--fl-nav-h,76px) + env(safe-area-inset-bottom,0px) + 10px);z-index:190;background:linear-gradient(150deg,#1c2f1a,#12200e);border:1px solid rgba(216,176,84,0.35);border-radius:14px;padding:12px 14px;box-shadow:0 6px 24px rgba(0,0,0,0.45);max-width:420px;margin:0 auto;max-height:calc(100vh - var(--fl-nav-h,76px) - 140px);max-height:calc(100dvh - var(--fl-nav-h,76px) - env(safe-area-inset-bottom,0px) - 130px);overflow-y:auto;overscroll-behavior:contain;}
+.cip-hdr{display:flex;align-items:center;justify-content:space-between;gap:8px;}
+.cip-name{font-weight:700;color:#f0e4c0;font-size:14px;}
+.cip-x{background:none;border:none;color:rgba(255,255,255,0.55);font-size:15px;cursor:pointer;padding:4px 6px;min-height:32px;}
+.cip-sub{font-size:11px;color:rgba(255,255,255,0.55);margin:2px 0 8px;font-family:'DM Mono',monospace;}
+.cip-row{display:flex;justify-content:space-between;gap:10px;font-size:12.5px;padding:3px 0;}
+.cip-row span{color:rgba(255,255,255,0.5);}
+.cip-row b{color:#e6dcc0;font-weight:600;text-align:right;}
+.cip-none{font-size:12px;color:rgba(255,255,255,0.55);padding:4px 0 2px;}
+.cip-log{margin-top:9px;width:100%;background:rgba(216,176,84,0.14);border:1px solid rgba(216,176,84,0.4);color:#e2bd60;border-radius:9px;padding:9px 10px;font-size:12.5px;font-weight:600;cursor:pointer;min-height:40px;}
+/* 14.10: the route/wind approach card — verdict-tinted values + the walk
+   line, light enough to read on the card's dark green. */
+.cam-intel-pop b.rtw-good{color:#7cc95e;}
+.cam-intel-pop b.rtw-okay{color:#e6b84e;}
+.cam-intel-pop b.rtw-poor{color:#e2735c;}
+.cip-walk{margin:7px 0 2px;font-size:12.5px;font-weight:600;}
+.cip-walk.good{color:#7cc95e;}
+.cip-walk.okay{color:#e6b84e;}
+.cip-walk.poor{color:#e2735c;}
 #stands-map-div{position:relative;z-index:0;}
 .lt-div{width:1px;background:rgba(255,255,255,0.15);flex-shrink:0;}
 /* Section 6 (2026-07-26): this banner is read-only status text, but it was a
@@ -1824,6 +1863,13 @@ body.in-select-mode .entries{padding-bottom:92px;}
 .plan-empty{text-align:center;padding:20px 16px;}
 .plan-empty-icon{display:flex;justify-content:center;margin-bottom:8px;line-height:0;}
 .plan-empty-icon svg{width:32px;height:32px;display:block;}
+/* 14.14 (visual pass P3-V9): the empty syndicate screen sells the feature
+   instead of floating a lone card in a void — three quiet preview rows. */
+.syn-prev{margin-top:18px;display:grid;gap:10px;text-align:left;}
+.syn-prev-r{display:flex;gap:12px;align-items:flex-start;padding:11px 12px;border:1px solid rgba(255,255,255,0.09);border-radius:12px;background:rgba(255,255,255,0.03);}
+.syn-prev-r svg{width:20px;height:20px;flex:none;color:rgba(216,176,84,0.75);margin-top:1px;}
+.syn-prev-r b{display:block;font-size:12.5px;color:rgba(255,255,255,0.85);}
+.syn-prev-r span{font-size:11.5px;color:rgba(255,255,255,0.5);line-height:1.45;display:block;}
 .plan-empty-t{font-size:14px;font-weight:600;color:var(--bark);margin-bottom:4px;}
 .plan-empty-s{font-size:12px;color:var(--muted);line-height:1.5;margin-bottom:14px;}
 .plan-set-btn{display:inline-flex;align-items:center;gap:6px;padding:10px 20px;border-radius:12px;background:linear-gradient(135deg,var(--moss),var(--deep));color:white;font-size:13px;font-weight:700;cursor:pointer;border:none;font-family:'DM Sans',sans-serif;}
@@ -2855,6 +2901,8 @@ body.in-select-mode .entries{padding-bottom:92px;}
    this sheet stays reserved for "bad wind" so the two grids can never be
    misread as the same question. */
 .stnd-face-grid .stnd-wind-btn.on{background:#faf3df;border-color:#a8801f;color:#8a6210;}
+/* 14.09: an EXTRA look — same gold family, deliberately dimmer than the primary. */
+.stnd-face-grid .stnd-wind-btn.on2{background:#fbf7ea;border-color:#cbb26a;color:#8a6210;}
 .stnd-face-val{font-size:12px;font-weight:700;color:#8a6210;white-space:nowrap;}
 /* Stand photos (round 32). Sheet row (LIGHT sheet bg): square thumbs, ✕
    badges, dashed add tile. */
@@ -3501,7 +3549,7 @@ body.in-select-mode .entries{padding-bottom:92px;}
 .gmb-ng-save svg{width:16px;height:16px;}
 .gmb-del-card{border:1px solid rgba(200,90,90,0.4);background:rgba(150,60,60,0.16);border-radius:11px;padding:11px 12px;margin:3px 2px;}
 .gmb-del-q{font-size:13.5px;font-weight:700;color:#f4dede;}
-.gmb-del-why{font-size:11px;color:rgba(255,255,255,0.62);margin-top:3px;line-height:1.45;font-family:'DM Mono',monospace;}
+.gmb-del-why{font-size:11.5px;color:rgba(255,255,255,0.66);margin-top:3px;line-height:1.5;font-family:'DM Sans',sans-serif;}/* 14.11 audit P2-8: full sentences on a destructive confirm — TYPE RULE says sentences take DM Sans */
 .gmb-del-btns{display:flex;gap:8px;margin-top:10px;}
 .gmb-del-btns button{flex:1;padding:9px;border-radius:9px;font-size:12.5px;font-weight:700;font-family:'DM Sans',sans-serif;cursor:pointer;border:1px solid transparent;-webkit-tap-highlight-color:transparent;}
 .gmb-del-cancel{background:rgba(255,255,255,0.07);border-color:rgba(255,255,255,0.16);color:rgba(255,255,255,0.82);}

@@ -926,6 +926,10 @@ export function renderStatsTabBody(entries, opts) {
   // exactly how four dead writes outlived the redesign that removed their cells.
   _setText('st-outing-total', String(outingTotal));
   _setText('st-outing-blank', String(outingBlank));
+  // 14.14 (visual pass P3-V4): "1 Blank days" is not English — the labels
+  // follow their counts, the st-dist-l pattern.
+  _setText('st-outing-total-l', outingTotal === 1 ? 'Outing' : 'Outings');
+  _setText('st-outing-blank-l', outingBlank === 1 ? 'Blank day' : 'Blank days');
   _setText('st-dist', avgDist == null ? '–' : String(avgDist) + 'm');
   // A4: one shot is not an average. With a single ranged cull the KPI named
   // itself "Avg dist" and presented 180m as the season's typical shot. The
@@ -956,7 +960,11 @@ export function renderStatsTabBody(entries, opts) {
     if (weightCard) weightCard.style.display = 'none';
   } else {
     if (weightCard) weightCard.style.display = 'block';
-    var weightMeta = esc(maxE.species || '') + (maxE.date ? ' · ' + esc(String(maxE.date).slice(0, 7)) : '');
+    // 14.14 (visual pass P3-V4): "2026-08" is a database's month — the tile
+    // says "Aug 2026" like everything else in the app.
+    var _hm = String(maxE.date || '').slice(0, 7).split('-');
+    var _hmName = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][(+_hm[1] || 0) - 1] || '';
+    var weightMeta = esc(maxE.species || '') + (maxE.date ? ' · ' + esc(_hmName ? _hmName + ' ' + _hm[0] : String(maxE.date).slice(0, 7)) : '');
     _setHtml('weight-chart',
       '<div class="range-grid">'
         + '<div class="range-cell"><div class="range-band">Total kg</div><div class="range-cnt">' + Math.round(kg) + '</div><div class="range-pct">all recorded entries</div></div>'

@@ -43,7 +43,7 @@ export var STANDS_MAX = 150;
 // column, remember it for the session, and retry. Per-column on purpose: a
 // database that has facing but not yet photos must keep serving facing, not
 // fall all the way back to the round-29 shape.
-var OPTIONAL_COLS = ['facing', 'photos'];
+var OPTIONAL_COLS = ['facing', 'photos', 'facings']; // facings: migrate-stand-facings.sql (14.09)
 var _missingCols = {};
 
 /** Client-side photo cap per stand (UI-enforced; storage stays bounded). */
@@ -144,6 +144,17 @@ export function normalizeStandFields(stand) {
     // Both are memory aids only — no scoring path reads them.
     facing: (typeof stand.facing === 'number' && isFinite(stand.facing))
       ? ((Math.round(stand.facing) % 360) + 360) % 360
+      : null,
+    // Facings (14.09 — CG733 on the forum: one look direction is not how a
+    // seat covering three rides works): up to three EXTRA looks beyond the
+    // exact primary, as degrees. Sector-dedupe against the primary happens
+    // client-side (flFacingsNorm); this normalize only bounds and caps.
+    // Memory aid + wedges only — no scoring path reads them.
+    facings: (Array.isArray(stand.facings) && stand.facings.length)
+      ? stand.facings
+          .map(function(v) { return (typeof v === 'number' && isFinite(v)) ? ((Math.round(v) % 360) + 360) % 360 : null; })
+          .filter(function(v, i, a) { return v != null && a.indexOf(v) === i; })
+          .slice(0, 3)
       : null,
     photos: photos.length ? photos : null
   };

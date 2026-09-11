@@ -51,6 +51,15 @@ export const SVG_FL_IMAGE_GALLERY =
 export const SVG_FL_IMAGE_OFF =
   '<svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" stroke="currentColor" stroke-width="1.5" stroke-linecap="round">' +
   '<rect x="3" y="5" width="18" height="14" rx="2"/><line x1="5" y1="19" x2="19" y2="7"/></svg>';
+// 14.14 (visual pass P3-V6): the quiet stag — the diary's no-photo state is
+// normal, so its mark is a deer, not a struck-out image. Same stroke
+// language as the rest of the set.
+export const SVG_FL_DEER_QUIET =
+  '<svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">' +
+  '<path d="M12 11.2c-1.9 0-3.1 1.3-3.1 3.1 0 2.2 1.5 3.7 3.1 5.7 1.6-2 3.1-3.5 3.1-5.7 0-1.8-1.2-3.1-3.1-3.1z"/>' +
+  '<path d="M8.9 12.1 6.7 10.7M15.1 12.1l2.2-1.4"/>' +
+  '<path d="M9.6 10.1C8.7 8.5 8.9 6.6 7.5 5.2M9.2 7.9c-1 .2-2.1-.2-2.8-1.1M14.4 10.1c.9-1.6.7-3.5 2.1-4.9M14.8 7.9c1 .2 2.1-.2 2.8-1.1"/>' +
+  '<circle cx="12" cy="17.1" r="0.5" fill="currentColor" stroke="none"/></svg>';
 export const SVG_FL_PIN =
   '<svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">' +
   '<path d="M12 21s7-4.35 7-11a7 7 0 1 0-14 0c0 6.65 7 11 7 11z"/><circle cx="12" cy="10" r="2.2" fill="currentColor" stroke="none"/></svg>';

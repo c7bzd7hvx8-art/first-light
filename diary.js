@@ -92,11 +92,11 @@ import * as flMapExport from './lib/fl-mapexport.mjs';
 // after a deploy can be filtered down to the new build. Hand-maintained
 // (two strings, but cheap to update; see PROJECT-LOG on the error-logger
 // rollout).
-const FL_APP_VERSION = '7.402';
+const FL_APP_VERSION = '7.403';
 // Payload build tag - proves which diary.js actually reached the device (the
 // SW version alone cannot: sw.js is always fetched fresh while the precache
 // could be CDN-stale until the cache:'reload' fix). Bump with SW_VERSION.
-const FL_JS_BUILD = '14.06';
+const FL_JS_BUILD = '14.17';
 import {
   wxCodeLabel,
   windDirLabel,
@@ -168,7 +168,7 @@ import {
 import {
   SVG_PLAN_TARGET_ICON, SVG_CULL_MAP_EMPTY_PIN,
   SVG_FL_CLOUD, SVG_FL_CLIPBOARD, SVG_FL_CAMERA, SVG_FL_IMAGE_GALLERY,
-  SVG_FL_IMAGE_OFF, SVG_FL_PIN, SVG_FL_GPS, SVG_FL_PENCIL,
+  SVG_FL_IMAGE_OFF, SVG_FL_DEER_QUIET, SVG_FL_PIN, SVG_FL_GPS, SVG_FL_PENCIL,
   SVG_FL_FILE_PDF, SVG_FL_TRASH, SVG_FL_BOOK, SVG_FL_QUICK,
   SVG_FL_SIGNAL, SVG_FL_TOAST_WARN, SVG_FL_TOAST_OK, SVG_FL_TOAST_INFO,
   SVG_WX_TEMP, SVG_WX_WIND, SVG_WX_PRESSURE,
@@ -571,11 +571,40 @@ function diaryNoPhotoListHtml(spClass, isWide) {
   // read as a stray letter (e.g. "R" for Roe Deer) and duplicates Red vs Roe.
   // Wide no-photo: middle band only so the placeholder does not sit on the species strip.
   var wideC = isWide ? ' no-photo-placeholder--list-wide' : '';
+  // 14.14 (visual pass P3-V6): a quiet stag instead of a struck-out image —
+  // no photo is the NORMAL state for most stalkers, not a fault.
   return '<div class="no-photo-placeholder ' + spClass + ' no-photo-placeholder--list' + wideC + '">'
-    + '<span class="di-ic di-ic--list-noph" aria-hidden="true">' + SVG_FL_IMAGE_OFF + '</span>'
+    + '<span class="di-ic di-ic--list-noph" aria-hidden="true">' + SVG_FL_DEER_QUIET + '</span>'
     + '<div class="no-photo-list-cap">No photo</div>'
     + '</div>';
 }
+
+// 14.14 (visual pass P3-V7): season/source/view/sort live behind one chip —
+// four control rows before the first sighting was a wall. Session-scoped;
+// no storage key (docs-drift stays quiet).
+function flToggleSightFilters(btn) {
+  var box = document.getElementById('sight-secondary');
+  if (!box) return;
+  var open = box.style.display !== 'none';
+  box.style.display = open ? 'none' : 'flex';
+  var b = btn || document.getElementById('sight-filters-tog');
+  if (b) { b.classList.toggle('on', !open); b.setAttribute('aria-expanded', String(!open)); }
+}
+
+// 14.14 (visual pass P2-V1): the map cards position themselves above the
+// tab bar via --fl-nav-h — measured, not guessed, so font scaling and
+// safe-areas cannot put a card's tail under the nav again.
+function flSetNavH() {
+  try {
+    var n = document.getElementById('main-nav');
+    if (n && n.offsetHeight) document.documentElement.style.setProperty('--fl-nav-h', n.offsetHeight + 'px');
+  } catch (e) { /* the 76px CSS fallback holds */ }
+}
+try {
+  window.addEventListener('resize', flSetNavH);
+  requestAnimationFrame(flSetNavH);
+  setTimeout(flSetNavH, 900); // the nav unhides after sign-in settles
+} catch (e) { /* non-fatal */ }
 
 /** Sun + hills — same motif as blank-day form; list/detail use .blank-day-svg--on-dark in CSS */
 var SVG_BLANK_DAY_LANDSCAPE = '<svg class="blank-day-svg blank-day-svg--on-dark" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">'
@@ -592,7 +621,7 @@ function blankDayListHeroHtml() {
 
 function diaryHeroNoPhotoHtml() {
   return '<div class="detail-hero-noph" aria-hidden="true">'
-    + '<span class="di-ic di-ic--hero-noph">' + SVG_FL_IMAGE_OFF + '</span>'
+    + '<span class="di-ic di-ic--hero-noph">' + SVG_FL_DEER_QUIET + '</span>'
     + '<div class="detail-hero-noph-t">No photo</div></div>';
 }
 
@@ -1139,6 +1168,26 @@ var editingSightingId = null; // when set, the Sighting form edits this row (pol
 // sighting saved from that path carries its stand_id instead of relying on
 // GPS-radius matching. null = form opened normally; preserved on edits.
 var flFormStandId = null;
+// 14.07 (forum request, jonylandrover: "the camera that the sighting is from
+// can be selected... would save a lot of hassle dropping pins"): a sighting
+// can link to a ground MARKER instead — a trail cam, or the feed sites
+// cameras watch. Stored in sightings.marker_ref (ground_features.id,
+// migrate-camera-sightings.sql). Mutually exclusive with flFormStandId.
+var flFormMarkerRef = null;
+// The marker types a deer can be SEEN from. Gates and parking are not.
+var FL_SIGHT_MARKER_TYPES = ['trail_cam', 'feeder', 'lick'];
+/** Sighting-linkable markers from the grounds cache: cameras + feed sites,
+ *  with row id, name, type, ground and the parsed point. */
+function flSightLinkMarkers() {
+  var out = [];
+  (groundFeaturesNow() || []).forEach(function(f) {
+    if (!f || f.kind !== 'marker' || !f.id) return;
+    var mk = markerFromGeometry(f.geometry);
+    if (!mk || FL_SIGHT_MARKER_TYPES.indexOf(mk.type) === -1) return;
+    out.push({ id: String(f.id), name: f.name || '', type: mk.type, ground: f.ground || '', lat: mk.lat, lng: mk.lng });
+  });
+  return out;
+}
 // ── Pest bag quantity (PEST-QUANTITY-PLAN.md PQ2): a "how many?" count for the
 //    four high-volume pests only; every other species (deer / fox / boar) and
 //    blank days always = 1. entryQty() reads the DB column (default 1). ──
@@ -1465,6 +1514,7 @@ function initDiaryFlUi() {
       case 'pick-behaviour': pickBehaviour(el, el.getAttribute('data-b')); break;
       case 'open-new-sighting': openNewSighting(); break;
       case 'filter-sightings': filterSightings(el.getAttribute('data-species'), el); break;
+      case 'toggle-sight-filters': flToggleSightFilters(el); break;
       case 'toggle-sight-sort': toggleSightSort(); break;
       case 'set-sight-view': setSightView(el.getAttribute('data-sv')); break;
       case 'export-sightings-csv': exportSightingsCsv(); break;
@@ -1524,7 +1574,7 @@ function initDiaryFlUi() {
           if (flStandsState.windOn) localStorage.removeItem('fl-stands-cones-off');
           else localStorage.setItem('fl-stands-cones-off', '1');
         } catch (e) { /* private mode — session-only is fine */ }
-        syncWindBar(); renderStandsCones();
+        syncWindBar(); renderStandsCones(); flRouteWindRepaint();
         break;
       case 'stands-wind-day':
         // Step through sits (Now / Tonight / future windows) — clamp to the
@@ -1535,13 +1585,13 @@ function initDiaryFlUi() {
           (flStandsState.list && flStandsState.list[0] && flStandsState.list[0].lng));
         flStandsState.windStepIdx = Math.max(0, Math.min(swSteps.length - 1,
           (flStandsState.windStepIdx || 0) + (parseInt(el.getAttribute('data-dir'), 10) || 0)));
-        syncWindBar(); renderStandsCones();
+        syncWindBar(); renderStandsCones(); flRouteWindRepaint();
         break;
       case 'stands-wind-now':
         // Tap the step label → straight home to Now (round 17; fourteen ‹ taps
         // from Wednesday dusk was the alternative).
         flStandsState.windStepIdx = 0;
-        syncWindBar(); renderStandsCones();
+        syncWindBar(); renderStandsCones(); flRouteWindRepaint();
         break;
       case 'toggle-stands-map-full': flToggleStandsMapFull(); break;
       case 'set-pin-layer': setPinLayer(el.getAttribute('data-layer')); break;
@@ -1874,6 +1924,11 @@ function initDiaryFlUi() {
     sightSeason = sseasonSel.value || '__all__';
     renderSightingsList();
   });
+  var ssourceSel = document.getElementById('sight-source-sel');
+  if (ssourceSel) ssourceSel.addEventListener('change', function() { // 14.08
+    sightSource = ssourceSel.value || 'all';
+    renderSightingsList();
+  });
   var smMonth = document.getElementById('sight-map-month');
   if (smMonth) smMonth.addEventListener('change', function() { // SG8 map lens
     var v = smMonth.value;
@@ -2027,6 +2082,20 @@ function seasonLabel(s, startMonth) {
   return y1 + '–' + y2 + ' Season';
 }
 
+// 14.14 (visual pass P3-V5): the diary header's season select is narrow —
+// "2026–2027 Season" amputated to "2026–2027 Se…" at 390px. The header
+// shows the compact pair; the Stats select keeps the full label.
+function seasonLabelShort(s, startMonth) {
+  if (s == null || s === '') return '—';
+  var raw = String(s).trim();
+  if (raw === '__all__') return 'All seasons';
+  var parts = raw.split('-');
+  if (parts.length < 2 || parts[1] === undefined || parts[1] === '') return raw;
+  if (normalizeSeasonStartMonth(startMonth) === 1) return parts[0];
+  var yy = parts[1].length === 4 ? parts[1].slice(2) : parts[1];
+  return parts[0] + '–' + yy;
+}
+
 // SPEC: lib/fl-pure.mjs#buildSeasonFromEntry — parsing logic identical; both
 // copies take an optional `startMonth`. DELIBERATE divergences: pure defaults
 // startMonth to 8 and returns null on invalid input (modules/stats.mjs relies
@@ -2067,12 +2136,24 @@ function populateSeasonDropdown(seasons) {
   seasons.forEach(function(s) {
     var opt = document.createElement('option');
     opt.value = s;
-    opt.textContent = seasonLabel(s, sm) + (nextFromNow && s === nextFromNow ? ' · Next' : '');
+    // Compact in the narrow header (visual pass P3-V5); full label below.
+    opt.textContent = seasonLabelShort(s, sm) + (nextFromNow && s === nextFromNow ? ' · Next' : '');
     sel.appendChild(opt);
   });
   sel.value = currentSeason;
   var statsSel = document.getElementById('season-select-stats');
-  if (statsSel) { statsSel.innerHTML = sel.innerHTML; statsSel.value = currentSeason; }
+  if (statsSel) {
+    var sf = '';
+    for (var oi = 0; oi < sel.options.length; oi++) {
+      var so = sel.options[oi];
+      sf += '<option value="' + so.value + '">'
+         + (so.value === '__all__' ? 'All seasons'
+            : seasonLabel(so.value, sm) + (nextFromNow && so.value === nextFromNow ? ' · Next' : ''))
+         + '</option>';
+    }
+    statsSel.innerHTML = sf;
+    statsSel.value = currentSeason;
+  }
 }
 
 // SPEC: lib/fl-pure.mjs#buildSeasonList — pure version takes `current` as an
@@ -3579,7 +3660,7 @@ function resetSessionState() {
     flStandsState.loading = false;
     flStandsState.detailId = null;
     flStandsState.selectedId = null;
-    flStandsState.sheet = { editingId: null, lat: null, lng: null, locName: '', badWinds: [], facing: null, photos: [], newPhotos: [], removedPaths: [] };
+    flStandsState.sheet = { editingId: null, lat: null, lng: null, locName: '', badWinds: [], facing: null, facings: [], photos: [], newPhotos: [], removedPaths: [] };
   } catch (_) {}
   // 13.76: syndicate state (rows, roles, policy cache, unread, rendered page)
   // must not outlive the account that loaded it.
@@ -3698,6 +3779,294 @@ function flUnitsToggle(which) {
     : 'Weights now in ' + (flWtU() === 'lb' ? 'pounds' : 'kilograms')));
 }
 
+// ── 14.08: per-camera intel (the report over 14.07's marker_ref) ─────────
+/** Pure aggregation: one camera's sighting history. `inSeason` is a
+ *  predicate (already bound to the current season's bounds) or null for
+ *  no season split. Returns counts, headcounts, the latest sighting and
+ *  the season's top species. */
+function flCamIntelModel(list, ref, inSeason) {
+  var all = [], season = [];
+  (list || []).forEach(function(s) {
+    if (!s || String(s.marker_ref || '') !== String(ref)) return;
+    all.push(s);
+    if (!inSeason || inSeason(s)) season.push(s);
+  });
+  var head = function(s) { return (s.n_male | 0) + (s.n_female | 0) + (s.n_young | 0) + (s.n_unknown | 0); };
+  var animals = 0;
+  season.forEach(function(s) { animals += head(s); });
+  var last = null;
+  all.forEach(function(s) { if (!last || String(s.seen_at || '') > String(last.seen_at || '')) last = s; });
+  var by = {};
+  season.forEach(function(s) { var k = s.species || 'Unknown'; by[k] = (by[k] || 0) + 1; });
+  var top = Object.keys(by).map(function(k) { return [k, by[k]]; })
+    .sort(function(a, b) { return b[1] - a[1] || String(a[0]).localeCompare(String(b[0])); })
+    .slice(0, 3);
+  return { seasonN: season.length, seasonAnimals: animals, allN: all.length, last: last, top: top, lastHead: last ? head(last) : 0 };
+}
+
+/** 8-way compass word from degrees (the camera's aim). */
+function flCompass8(deg) {
+  if (!Number.isFinite(deg)) return null;
+  var words = ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW'];
+  return words[Math.round((((deg % 360) + 360) % 360) / 45) % 8];
+}
+
+function flCamIntelClose() {
+  var el = document.getElementById('cam-intel-pop');
+  if (el && el.parentNode) el.parentNode.removeChild(el);
+}
+
+/** The tap-a-camera history card, anchored inside the stands map wrap. */
+function flCamIntelPop(f, mk) {
+  if (!sightingsLoaded) {
+    // Preloaded post-auth in practice; belt-and-braces for a cold tap.
+    loadSightings().then(function() { flCamIntelPop(f, mk); });
+    return;
+  }
+  var wrap = document.getElementById('stands-map-wrap');
+  if (!wrap) return;
+  flCamIntelClose();
+  flRouteWindClose(); // 14.10: one map popover at a time
+  // Season predicate — the same bounds the sightings season scope uses.
+  var sm = personalSeasonStartMonth();
+  var b = seasonBoundsForKey(getCurrentSeason(), sm);
+  var inSeason = b ? function(s) { var d = sightingDatePart(s); return d && d >= b.startIso && d <= b.endIso; } : null;
+  var m = flCamIntelModel(allSightings, f.id, inSeason);
+  var nm = f.name || markerTypeChip(mk.type);
+  var subBits = [markerTypeChip(mk.type)];
+  if (f.ground) subBits.push(f.ground);
+  var aim = flCompass8(mk.facing);
+  if (aim) subBits.push('aims ' + aim);
+  if (mk.checked) {
+    var dAgo = Math.round((Date.now() - new Date(mk.checked + 'T12:00:00Z').getTime()) / 86400000);
+    if (Number.isFinite(dAgo) && dAgo >= 0) subBits.push('checked ' + (dAgo === 0 ? 'today' : dAgo + 'd ago'));
+  }
+  var lastLine = '';
+  if (m.last) {
+    var ld = sightingDatePart(m.last);
+    var lw = '';
+    try {
+      var pd = new Date(ld + 'T12:00:00Z');
+      lw = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'][pd.getUTCDay()] + ' ' + pd.getUTCDate() + ' '
+        + ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'][pd.getUTCMonth()];
+    } catch (_) { lw = ld; }
+    lastLine = '<div class="cip-row"><span>Last</span><b>' + esc(String(m.lastHead || '') + ' ' + (m.last.species || '') + ' · ' + lw) + '</b></div>';
+  }
+  var topLine = m.top.length
+    ? '<div class="cip-row"><span>Top</span><b>' + esc(m.top.map(function(t) { return t[0] + ' ' + t[1]; }).join(' · ')) + '</b></div>'
+    : '';
+  var el = document.createElement('div');
+  el.className = 'cam-intel-pop';
+  el.id = 'cam-intel-pop';
+  el.setAttribute('role', 'dialog');
+  el.setAttribute('aria-label', nm + ' history');
+  el.innerHTML =
+    '<div class="cip-hdr"><div class="cip-name">' + esc(nm) + '</div>'
+    + '<button type="button" class="cip-x" aria-label="Close">✕</button></div>'
+    + '<div class="cip-sub">' + esc(subBits.join(' · ')) + '</div>'
+    + '<div class="cip-row"><span>This season</span><b>' + m.seasonN + ' sighting' + (m.seasonN === 1 ? '' : 's') + ' · ' + m.seasonAnimals + ' animal' + (m.seasonAnimals === 1 ? '' : 's') + '</b></div>'
+    + lastLine + topLine
+    + (m.allN !== m.seasonN ? '<div class="cip-row"><span>All time</span><b>' + m.allN + ' sighting' + (m.allN === 1 ? '' : 's') + '</b></div>' : '')
+    + (m.allN === 0 ? '<div class="cip-none">No sightings logged from here yet — link one below.</div>' : '')
+    + '<button type="button" class="cip-log">Log sighting from here ›</button>';
+  el.querySelector('.cip-x').addEventListener('click', flCamIntelClose);
+  el.querySelector('.cip-log').addEventListener('click', function() { void flCamIntelLogHere(f, mk); });
+  wrap.appendChild(el);
+}
+
+/** The inverse door (forum request, phase 3): open the sighting form with
+ *  this camera preselected — mirrors standAddEntryHere. */
+async function flCamIntelLogHere(f, mk) {
+  flCamIntelClose();
+  await openNewEntry();
+  var vf = document.getElementById('v-form');
+  if (!vf || !vf.classList.contains('active')) return; // clock guard
+  enterSighting();
+  formPinLat = mk.lat; formPinLng = mk.lng;
+  flFormStandId = null;
+  flFormMarkerRef = String(f.id); // carries the camera (14.07 column)
+  var nm = f.name || markerTypeChip(mk.type);
+  var loc = document.getElementById('f-location');
+  if (loc) loc.value = nm;
+  showPinnedStrip(nm, mk.lat, mk.lng);
+  if (f.ground) setGroundValue(f.ground);
+  populateSightStandSelect();
+  go('v-form');
+}
+
+// ── 14.10: route/wind approach scoring (forum, CG733: score the best
+// approach route "taking into account wind for dawn or dusk") ────────────
+// G9 gave the drawn rides and footpaths, the stands lens gives the stepper
+// + per-stand hourly wind; this joins them. PURE core first; the paint gate
+// lives in renderGroundBoundaries' line branch (stands map, own routes only).
+
+/** Map stroke per walking verdict — the cone strokes' colour language. */
+var FL_ROUTE_WIND_STYLE = { good: '#2f6d1f', okay: '#8a6516', poor: '#a5321f' };
+
+/**
+ * PURE: score walking a route against one wind.
+ *   ring        [[lat,lng],…] — the drawn stroke, in draw order
+ *   windFromDeg met convention (wind FROM; a SW wind is 225)
+ *
+ * Per leg: scent carries toward (windFrom + 180); comp = cos(carry − travel).
+ *   comp ≥ 0.5  → risky     (scent runs ahead of you — within 60°)
+ *   comp ≤ −0.5 → safe      (scent trails behind — you walk into wind)
+ *   else        → crosswind (neither side claims it)
+ *
+ * ONE pass answers BOTH directions: reversing travel negates comp, so
+ * risky↔safe swap and crosswind stays crosswind; a maximal run of
+ * consecutive risky legs is the same set of legs read either way round.
+ * Fractions are length-weighted; worst = longest contiguous risky stretch.
+ * Verdict: good ≤ 15% risky, okay ≤ 40%, poor above.
+ * Straight-line legs, no thermals, no cover — the card says so out loud.
+ */
+function flRouteWindScore(ring, windFromDeg) {
+  if (windFromDeg == null || !Number.isFinite(windFromDeg) || !ring || ring.length < 2) return null;
+  var carry = ((windFromDeg + 180) % 360 + 360) % 360;
+  var rad = Math.PI / 180;
+  var totalM = 0, riskyM = 0, safeM = 0;
+  var runRisky = 0, worstRisky = 0, runSafe = 0, worstSafe = 0;
+  for (var i = 0; i < ring.length - 1; i++) {
+    var len = flDistMeters(ring[i][0], ring[i][1], ring[i + 1][0], ring[i + 1][1]);
+    var t = flBearingDeg(ring[i][0], ring[i][1], ring[i + 1][0], ring[i + 1][1]);
+    // A duplicated vertex is not a break in the walk — skip, keep the runs.
+    if (!len || t == null) continue;
+    totalM += len;
+    var comp = Math.cos((carry - t) * rad);
+    if (comp >= 0.5) {
+      riskyM += len; runRisky += len; runSafe = 0;
+      if (runRisky > worstRisky) worstRisky = runRisky;
+    } else if (comp <= -0.5) {
+      safeM += len; runSafe += len; runRisky = 0;
+      if (runSafe > worstSafe) worstSafe = runSafe;
+    } else {
+      runRisky = 0; runSafe = 0;
+    }
+  }
+  if (!totalM) return null;
+  var dir = function(rm, sm, worst) {
+    var rf = rm / totalM;
+    return { riskyFrac: rf, safeFrac: sm / totalM, worstRiskyM: Math.round(worst),
+      verdict: rf <= 0.15 ? 'good' : rf <= 0.4 ? 'okay' : 'poor' };
+  };
+  var fwd = dir(riskyM, safeM, worstRisky);
+  var rev = dir(safeM, riskyM, worstSafe);
+  var best = (rev.riskyFrac < fwd.riskyFrac
+    || (rev.riskyFrac === fwd.riskyFrac && rev.worstRiskyM < fwd.worstRiskyM)) ? 'rev' : 'fwd';
+  return {
+    totalM: Math.round(totalM),
+    headFwdDeg: flBearingDeg(ring[0][0], ring[0][1], ring[ring.length - 1][0], ring[ring.length - 1][1]),
+    fwd: fwd, rev: rev, best: best,
+    verdict: best === 'rev' ? rev.verdict : fwd.verdict
+  };
+}
+
+/** 14.10: the wind a route is scored against — the current lens step's wind
+ *  read at the NEAREST seat with a forecast (seats are where hourly wind
+ *  lives; a drawn line has none of its own). Null: lens off / no wind yet. */
+function flRouteWindNow(ring) {
+  var step = flCurrentWindStep(); // null when the lens is off
+  if (!step || !ring || !ring.length) return null;
+  var f = flStandsState.forecasts;
+  if (!f || !f.byStandId) return null;
+  var mid = ring[Math.floor(ring.length / 2)];
+  var nowUkHour = Math.floor(flToMinutes(new Date()) / 60);
+  var best = null, bestD = Infinity;
+  (flStandsState.list || []).forEach(function(s) {
+    if (s.lat == null || s.lng == null) return;
+    var aw = flStandConeWind(s, f.byStandId[s.id], step, nowUkHour);
+    if (!aw || aw.dirDeg == null) return;
+    var d = flDistMeters(mid[0], mid[1], s.lat, s.lng);
+    if (d != null && d < bestD) {
+      bestD = d;
+      best = { dirDeg: aw.dirDeg, speedKmh: aw.speedKmh, standName: s.name || '', step: step };
+    }
+  });
+  return best;
+}
+
+/** 14.10: tint + score for one route under the lens; null → paint as always. */
+function flRouteWindVerdict(ring) {
+  if (!flStandsState.windOn) return null;
+  var wind = flRouteWindNow(ring);
+  if (!wind) return null;
+  var score = flRouteWindScore(ring, wind.dirDeg);
+  if (!score) return null;
+  return { color: FL_ROUTE_WIND_STYLE[score.verdict] || FL_ROUTE_WIND_STYLE.okay, score: score, wind: wind };
+}
+
+function flRouteWindClose() {
+  var el = document.getElementById('route-wind-pop');
+  if (el && el.parentNode) el.parentNode.removeChild(el);
+}
+
+/** 14.10: a step change must repaint the tinted strokes (the boundary layers
+ *  own them) — but only estates that actually drew routes pay for it, and a
+ *  stale card never survives into a different wind. */
+function flRouteWindRepaint() {
+  flRouteWindClose();
+  if (!standsMap) return;
+  var own = groundFeaturesNow() || [];
+  for (var i = 0; i < own.length; i++) {
+    if (own[i] && own[i].kind === 'line') { renderGroundBoundaries(standsMap); return; }
+  }
+}
+
+/** The tap-a-route card: which way to walk it in the current step's wind. */
+function flRouteWindPop(f, ring) {
+  var wrap = document.getElementById('stands-map-wrap');
+  if (!wrap) return;
+  flCamIntelClose(); // 14.10: one map popover at a time
+  flRouteWindClose();
+  var v = flRouteWindVerdict(ring);
+  if (!v) return; // the lens flipped off under the tap — claim nothing
+  var sc = v.score, wind = v.wind;
+  var nm = f.name || lineSubtypeLabel(lineSubtypeOf(f.geometry));
+  var subBits = [lineSubtypeChip(lineSubtypeOf(f.geometry))];
+  if (f.ground) subBits.push(f.ground);
+  subBits.push(flDistVal(sc.totalM) + ' ' + flDistU()); // units voice (14.01)
+  var stepLbl = wind.step.mode === 'now' ? 'right now' : flStepLabelInline(wind.step.label);
+  var windLine = flWindDirLabel8(wind.dirDeg) + ' ' + Math.round(wind.speedKmh || 0) + ' km/h · ' + stepLbl
+    + (wind.standName ? ' · read at ' + wind.standName : '');
+  var hFwd = flCompass8(sc.headFwdDeg);
+  var hRev = sc.headFwdDeg == null ? null : flCompass8((sc.headFwdDeg + 180) % 360);
+  var vWord = { good: 'good', okay: 'workable', poor: 'deer will wind you' };
+  var row = function(lbl, d) {
+    return '<div class="cip-row"><span>' + esc(lbl) + '</span><b class="rtw-' + d.verdict + '">'
+      + esc(vWord[d.verdict] + ' · scent ahead ' + Math.round(d.riskyFrac * 100) + '%') + '</b></div>';
+  };
+  var bestD = sc.best === 'rev' ? sc.rev : sc.fwd;
+  var bestH = sc.best === 'rev' ? hRev : hFwd;
+  var mindRow = (bestD.verdict !== 'poor' && bestD.worstRiskyM >= 40)
+    ? '<div class="cip-row"><span>Mind</span><b>' + esc('one ' + flDistVal(bestD.worstRiskyM) + ' ' + flDistU() + ' stretch runs scent ahead') + '</b></div>'
+    : '';
+  var walkLine = bestD.verdict === 'poor'
+    ? 'No clean end in this wind — your scent runs ahead whichever way you walk it.'
+    : 'Walk it heading ' + (bestH || 'the far end') + (bestD.verdict === 'good'
+      // Honesty (walkthrough finding): a pure-crosswind route is 'good' with
+      // nothing behind you — the scent goes SIDEWAYS, so say that instead.
+      ? (bestD.safeFrac >= 0.5 ? ' — your scent stays mostly behind you.' : ' — your scent stays off your line.')
+      : ' — workable; some legs run your scent ahead.');
+  var el = document.createElement('div');
+  el.className = 'cam-intel-pop'; // 14.08's card frame — same place, same clothes
+  el.id = 'route-wind-pop';
+  el.setAttribute('role', 'dialog');
+  el.setAttribute('aria-label', nm + ' approach');
+  el.innerHTML =
+    '<div class="cip-hdr"><div class="cip-name">' + esc(nm) + '</div>'
+    + '<button type="button" class="cip-x" aria-label="Close">\u2715</button></div>'
+    + '<div class="cip-sub">' + esc(subBits.join(' · ')) + '</div>'
+    + '<div class="cip-row"><span>Wind</span><b>' + esc(windLine) + '</b></div>'
+    + row('Heading ' + (hFwd || 'out'), sc.fwd)
+    + row('Heading ' + (hRev || 'back'), sc.rev)
+    + mindRow
+    + '<div class="cip-walk ' + esc(bestD.verdict) + '">' + esc(walkLine) + '</div>'
+    + '<div class="cip-none">Straight-line scent, leg by leg — no thermals, no cover. Guidance, not gospel.</div>';
+  el.querySelector('.cip-x').addEventListener('click', flRouteWindClose);
+  wrap.appendChild(el);
+}
+
+
 // Purge device-local caches holding this account's LOCATION + activity data
 // (ground boundaries, stand GPS, coord-keyed forecasts, score log, last ground,
 // species prefs, and any offline-queue backups). Prefix-matched so a future cache
@@ -3708,8 +4077,16 @@ function flUnitsToggle(which) {
 // erasure. App display prefs + the on-device ballistics profiles are left intact.
 function purgeLocalUserDataCaches() {
   try {
-    var prefixes = ['fl-grounds-cache', 'fl-stands-cache', 'fl-stands-forecast', 'fl-score-log', 'fl-last-ground', 'fl-my-species', 'fl-home-ground-card', 'fl-gmap-draft'];
-    var extra = [OFFLINE_KEY + '-corrupt', OFFLINE_KEY + '-deadletter'];
+    // 14.11 (audit P1-4): the original eight prefixes missed six caches that
+    // outlived sign-out on a shared device — worst, fl-shared-grounds-cache
+    // (OTHER members' seat coordinates) and the stand outbox (unsynced seat
+    // coordinates keyed to the signed-out account; discarded here exactly as
+    // the entries queue always has been — sync before signing out).
+    // fl-species-onboarded rides with fl-my-species as a PAIR: purging the
+    // list but not the onboarding flag left the Field Guide empty forever.
+    var prefixes = ['fl-grounds-cache', 'fl-stands-cache', 'fl-stands-forecast', 'fl-score-log', 'fl-last-ground', 'fl-my-species', 'fl-species-onboarded', 'fl-home-ground-card', 'fl-gmap-draft',
+      'fl-shared-grounds-cache', 'fl-stand-outbox', 'fl_state', 'fl_bookings_cache', 'fl_ground_bridge', 'fl_synd_msg_seen', 'fl_syn_last', 'fl_outing_nudge_dismissed'];
+    var extra = [OFFLINE_KEY + '-corrupt', OFFLINE_KEY + '-deadletter', 'fl_pending_invite'];
     var kill = [];
     for (var i = 0; i < localStorage.length; i++) {
       var k = localStorage.key(i);
@@ -5056,8 +5433,10 @@ function renderList() {
         ? '<span class="gc-dupe" title="More than one entry shares this species, sex, date, time and place — they are separate records, numbered oldest first.">' + esc(flDupOrd[e.id]) + '</span>'
         : '';
       var gcPlace = esc(e.location_name || e.ground || '');
-      var gcLineTxt = gcPlace
-        + (hasValue(e.weight_kg) ? (gcPlace ? ' · ' : '') + '<b class="gc-line-kg">' + flWtVal(e.weight_kg) + ' ' + flWtU() + '</b>' : '');
+      // 14.14 (visual pass P3-V6): the place truncates; the weight keeps its
+      // unit whole ("21.4 …" was the old failure at two-up width).
+      var gcLineTxt = (gcPlace ? '<span class="gc-place">' + gcPlace + '</span>' : '')
+        + (hasValue(e.weight_kg) ? (gcPlace ? '<span class="gc-dot">·</span>' : '') + '<b class="gc-line-kg">' + esc(flWtVal(e.weight_kg)) + ' ' + flWtU() + '</b>' : '');
       var gcTag = e.tag_number ? '<span class="gc-tag">' + esc(e.tag_number) + '</span>' : '';
       var gcBody = (gcLineTxt || gcTag)
         ? '<div class="gc-body"><div class="gc-line"><span class="gc-line-txt">' + gcLineTxt + '</span>' + gcTag + '</div></div>'
@@ -5418,6 +5797,7 @@ async function openNewEntry() {
   formDirty = false;
   editingId = null;
   flFormStandId = null;
+  flFormMarkerRef = null; // 14.07
   photoFile = null;
   editingOriginalPhotoPath = null;
   editingOriginalSightingPhotoPath = null;
@@ -6365,17 +6745,59 @@ function populateSightStandSelect() {
       var lbl = (nameCounts[nm] > 1 && st.ground) ? (nm + ' — ' + String(st.ground)) : nm;
       opts += '<option value="' + esc(String(st.id)) + '">' + esc(lbl) + '</option>';
     });
+  // 14.07: cameras + the feed sites they watch, from the grounds cache.
+  // Value scheme keeps the two id spaces apart: markers ride "m:<id>".
+  // Same SG-i dedupe rule, cameras listed before feeders before licks.
+  var cams = flSightLinkMarkers();
+  if (cams.length) {
+    var mCounts = {};
+    cams.forEach(function(m) {
+      var n0 = m.name || markerTypeChip(m.type);
+      mCounts[n0] = (mCounts[n0] || 0) + 1;
+    });
+    var rank = { trail_cam: 0, feeder: 1, lick: 2 };
+    opts += '<optgroup label="Cameras &amp; feed sites">';
+    cams.slice().sort(function(a, b) {
+      var r = (rank[a.type] != null ? rank[a.type] : 9) - (rank[b.type] != null ? rank[b.type] : 9);
+      if (r) return r;
+      return String(a.name || '').localeCompare(String(b.name || ''), undefined, { numeric: true, sensitivity: 'base' });
+    }).forEach(function(m) {
+      var mn = m.name || markerTypeChip(m.type);
+      var mlbl = (mCounts[mn] > 1 && m.ground) ? (mn + ' — ' + String(m.ground)) : mn;
+      opts += '<option value="m:' + esc(String(m.id)) + '">' + esc(mlbl) + '</option>';
+    });
+    opts += '</optgroup>';
+  }
   sel.innerHTML = opts;
-  sel.value = flFormStandId ? String(flFormStandId) : '';
-  if (flFormStandId && sel.value === '') sel.value = ''; // linked stand deleted — reads as free
+  sel.value = flFormMarkerRef ? ('m:' + String(flFormMarkerRef)) : (flFormStandId ? String(flFormStandId) : '');
+  if ((flFormMarkerRef || flFormStandId) && sel.value === '') sel.value = ''; // linked source deleted — reads as free
 }
 
-/** Stand chosen in the form: keep the id, and adopt the stand's pin when no pin is set. */
+/** Stand OR camera chosen in the form: keep the link, and adopt the source's
+ *  pin when no pin is set. 14.07: camera sightings are usually logged at home
+ *  off the SD card — GPS there would pin the sofa, so the camera's own point
+ *  is the only correct one. */
 function onSightStandChange() {
   var sel = document.getElementById('sight-stand-sel');
   if (!sel) return;
-  flFormStandId = sel.value || null;
+  var v = sel.value || '';
   formDirty = true;
+  if (v.indexOf('m:') === 0) {
+    flFormStandId = null;
+    flFormMarkerRef = v.slice(2) || null;
+    var mk = flSightLinkMarkers().find(function(m) { return String(m.id) === String(flFormMarkerRef); });
+    if (!mk) return;
+    if (mk.ground && !getGroundValue()) setGroundValue(mk.ground);
+    if (formPinLat != null) return;
+    if (mk.lat != null && mk.lng != null) {
+      formPinLat = mk.lat;
+      formPinLng = mk.lng;
+      showPinnedStrip(mk.name || markerTypeChip(mk.type), mk.lat, mk.lng);
+    }
+    return;
+  }
+  flFormMarkerRef = null;
+  flFormStandId = v || null;
   if (!flFormStandId) return;
   var list = flEffectiveStands();
   var st = (list || []).find(function(x) { return String(x.id) === String(flFormStandId); });
@@ -6423,6 +6845,7 @@ function applySightingAgain() {
   });
   renderSightingLabels();
   flFormStandId = ctx.stand_id || null;
+  flFormMarkerRef = ctx.marker_ref || null; // 14.07
   populateSightStandSelect();
   if (ctx.lat != null && ctx.lng != null) {
     formPinLat = ctx.lat;
@@ -6629,6 +7052,7 @@ async function saveSightingEntry() {
       behaviour: flSightingBehaviour || null,
       ground: ground,
       stand_id: flFormStandId,
+      marker_ref: flFormMarkerRef, // 14.07
       lat: lat,
       lng: lng,
       notes: notes,
@@ -6648,8 +7072,8 @@ async function saveSightingEntry() {
       formDirty = false;
       // SG3: remember this context for the "Same as last" chip.
       flLastSightingCtx = {
-        species: formSpecies, stand_id: flFormStandId,
-        standName: sightingStandName({ stand_id: flFormStandId }),
+        species: formSpecies, stand_id: flFormStandId, marker_ref: flFormMarkerRef,
+        standName: sightingStandName({ stand_id: flFormStandId, marker_ref: flFormMarkerRef }),
         lat: lat, lng: lng, ground: ground || null
       };
       // Round 12: prediction↔outcome pair at queue time (this offline branch
@@ -6704,6 +7128,7 @@ async function saveSightingEntry() {
       behaviour: flSightingBehaviour || null,
       ground: ground,
       stand_id: flFormStandId,
+      marker_ref: flFormMarkerRef, // 14.07
       lat: lat,
       lng: lng,
       notes: notes,
@@ -6721,8 +7146,8 @@ async function saveSightingEntry() {
     // edits are desk work, not the second-group-of-the-evening flow).
     if (!editingSightingId) {
       flLastSightingCtx = {
-        species: formSpecies, stand_id: flFormStandId,
-        standName: sightingStandName({ stand_id: flFormStandId }),
+        species: formSpecies, stand_id: flFormStandId, marker_ref: flFormMarkerRef,
+        standName: sightingStandName({ stand_id: flFormStandId, marker_ref: flFormMarkerRef }),
         lat: lat, lng: lng, ground: ground || null
       };
     }
@@ -6969,15 +7394,25 @@ function entryLightWord(e) {
  * unlinked or the stand is gone.
  */
 function sightingStandName(s) {
-  if (!s || !s.stand_id) return null;
-  var list = flEffectiveStands();
-  var st = (list || []).find(function(x) { return String(x.id) === String(s.stand_id); });
-  return (st && st.name) ? st.name : null;
+  if (!s) return null;
+  if (s.stand_id) {
+    var list = flEffectiveStands();
+    var st = (list || []).find(function(x) { return String(x.id) === String(s.stand_id); });
+    return (st && st.name) ? st.name : null;
+  }
+  // 14.07: a camera-linked sighting answers with the camera's name.
+  if (s.marker_ref) {
+    var mk = flSightLinkMarkers().find(function(m) { return String(m.id) === String(s.marker_ref); });
+    return mk ? (mk.name || markerTypeChip(mk.type)) : null;
+  }
+  return null;
 }
 
 // SG7: season scope for the whole sightings journey (list, trends, map,
 // header stats, exports). '__all__' preserves the pre-SG7 all-time view.
 var sightSeason = '__all__';
+// 14.08: 'all' | 's:<stand id>' | 'm:<marker id>' — the "Seen from" lens.
+var sightSource = 'all';
 
 /** Season-scoped (never species-scoped) sightings — the base every surface filters from. */
 function sightingsInScope() {
@@ -6989,6 +7424,39 @@ function sightingsInScope() {
     var d = sightingDatePart(s);
     return d && d >= b.startIso && d <= b.endIso;
   });
+}
+
+/** 14.08: rebuild the "Seen from" dropdown from the sources that actually
+ *  hold sightings — a filter with dead options is noise, so it lists only
+ *  seats and cameras with at least one record, and hides itself when there
+ *  are none. */
+function populateSightSourceSelect() {
+  var sel = document.getElementById('sight-source-sel');
+  if (!sel) return;
+  var sIds = {}, mIds = {};
+  (allSightings || []).forEach(function(s) {
+    if (!s) return;
+    if (s.stand_id) sIds[String(s.stand_id)] = true;
+    if (s.marker_ref) mIds[String(s.marker_ref)] = true;
+  });
+  var seats = flEffectiveStands().filter(function(st) { return st && st.id && sIds[String(st.id)]; });
+  var cams = flSightLinkMarkers().filter(function(m) { return mIds[String(m.id)]; });
+  if (!seats.length && !cams.length) { sel.style.display = 'none'; sightSource = 'all'; return; }
+  sel.style.display = '';
+  var o = '<option value="all">All sources</option>';
+  if (seats.length) {
+    o += '<optgroup label="Seats">';
+    seats.forEach(function(st) { o += '<option value="s:' + esc(String(st.id)) + '">' + esc(String(st.name || 'Unnamed stand')) + '</option>'; });
+    o += '</optgroup>';
+  }
+  if (cams.length) {
+    o += '<optgroup label="Cameras &amp; feed sites">';
+    cams.forEach(function(m) { o += '<option value="m:' + esc(String(m.id)) + '">' + esc(m.name || markerTypeChip(m.type)) + '</option>'; });
+    o += '</optgroup>';
+  }
+  sel.innerHTML = o;
+  sel.value = sightSource;
+  if (sel.value !== sightSource) { sightSource = 'all'; sel.value = 'all'; }
 }
 
 /** Rebuild the season dropdown from the seasons that actually hold sightings. */
@@ -7012,6 +7480,10 @@ function populateSightSeasonSelect() {
 
 function filteredSightingsForView() {
   var list = sightingsInScope().filter(function(s) {
+    if (sightSource !== 'all') {
+      if (sightSource.indexOf('m:') === 0) { if (String(s.marker_ref || '') !== sightSource.slice(2)) return false; }
+      else if (sightSource.indexOf('s:') === 0) { if (String(s.stand_id || '') !== sightSource.slice(2)) return false; }
+    }
     if (sightFilter === 'all') return true;
     return s.species === sightFilter;
   });
@@ -7060,6 +7532,7 @@ function renderSightingsList() {
   var sortBtn = document.getElementById('sight-sort-toggle');
   if (sortBtn) sortBtn.style.display = (sightView === 'trends') ? 'none' : '';
   populateSightSeasonSelect(); // SG7: options follow the data; selection sticks
+  populateSightSourceSelect(); // 14.08: same doctrine for the Seen-from lens
   renderSightMap(); // SG map round: hides itself in Trends / with nothing pinned
   if (sightView === 'trends') { renderSightingsTrends(); return; }
   renderSightingsListBody();
@@ -7392,7 +7865,7 @@ function setSightView(v) {
 function exportSightingsCsv() {
   var list = filteredSightingsForView();
   if (!list.length) { showToast('⚠️ No sightings to export'); return; }
-  var HEAD = ['Date', 'Time', 'Species', 'Males', 'Females', 'Young', 'Unknown', 'Total', 'Behaviour', 'Ground', 'Stand', 'Lat', 'Lng', 'Notes'];
+  var HEAD = ['Date', 'Time', 'Species', 'Males', 'Females', 'Young', 'Unknown', 'Total', 'Behaviour', 'Ground', 'Seen from', 'Lat', 'Lng', 'Notes'];
   var lines = [HEAD.map(csvField).join(',')];
   list.forEach(function(s) {
     lines.push([
@@ -7499,6 +7972,7 @@ async function openEditSighting(id) {
   if (!vf || !vf.classList.contains('active')) return; // clock guard
   enterSighting();
   flFormStandId = s.stand_id || null; // preserve an existing stand link on edit
+  flFormMarkerRef = s.marker_ref || null; // 14.07: and an existing camera link
   editingSightingId = String(id);
   // Species
   formSpecies = s.species || '';
@@ -11603,7 +12077,11 @@ function readSyncedRecentMap() {
 function writeSyncedRecentMap(map) {
   try {
     localStorage.setItem(OFFLINE_SYNCED_RECENT_KEY, JSON.stringify(map));
-  } catch(_) {}
+  } catch (e) {
+    // 14.11 (audit P2-3): silent failure here quietly weakens the
+    // duplicate-sync guard — say so once in the console.
+    console.warn('synced-recent map write failed \u2014 duplicate-sync guard weakened this session', e);
+  }
 }
 function pruneSyncedRecentMap(map) {
   var now = Date.now();
@@ -11954,7 +12432,8 @@ async function syncOfflineQueue() {
             n_male: entry.n_male, n_female: entry.n_female,
             n_young: entry.n_young, n_unknown: entry.n_unknown,
             behaviour: entry.behaviour, ground: entry.ground,
-            stand_id: entry.stand_id || null, lat: entry.lat, lng: entry.lng,
+            stand_id: entry.stand_id || null, marker_ref: entry.marker_ref || null,
+            lat: entry.lat, lng: entry.lng,
             notes: entry.notes, photo_url: sPhotoUrl
           };
           if (entry.client_uuid && !_clientUuidColMissing) sFields.client_uuid = entry.client_uuid;
@@ -12127,7 +12606,12 @@ async function syncOfflineQueue() {
         var _prevDl = [];
         try { _prevDl = JSON.parse(localStorage.getItem(_dlKey) || '[]'); if (!Array.isArray(_prevDl)) _prevDl = []; } catch (_) { _prevDl = []; }
         localStorage.setItem(_dlKey, JSON.stringify(_prevDl.concat(deadLettered)));
-      } catch (_) {}
+      } catch (dlErr) {
+        // 14.11 (audit P2-3): this is the LAST-RESORT vault and quota is its
+        // expected eventual failure mode — it must never fail silently.
+        console.error('Dead-letter store failed — entries could not be banked on this device', dlErr);
+        showToast('\u26a0\ufe0f ' + deadLettered.length + (deadLettered.length === 1 ? ' failed entry' : ' failed entries') + ' could not be banked on this device — export your diary soon', 6000);
+      }
     }
     updateOfflineBadge();
     await loadEntries();
@@ -12484,6 +12968,7 @@ function sharedDisplayStands() {
       id: st.id, name: st.name || 'Seat', ground: st.ground || '',
       lat: st.lat, lng: st.lng,
       facing: (st.facing != null ? st.facing : null),
+      facings: (Array.isArray(st.facings) ? st.facings : null), // 14.09
       bad_winds: st.bad_winds || null,
       notes: null, foreign: true, ownerUserId: st.user_id || null
     });
@@ -13080,7 +13565,9 @@ function grxSeatData() {
     // of the forecast module.
     (rows[g] = rows[g] || []).push({
       id: st.id, name: st.name || 'High seat',
-      facingLabel: Number.isFinite(st.facing) ? flWindDirLabel8(st.facing) : '',
+      facingLabel: Number.isFinite(st.facing)
+        ? [flWindDirLabel8(st.facing)].concat((Array.isArray(st.facings) ? st.facings : []).map(function(d) { return flWindDirLabel8(d); })).join(', ')
+        : '',
       hasPin: st.lat != null && st.lng != null,
       culls: grxCullsNear(st)
     });
@@ -15161,7 +15648,9 @@ function groundsExport(format, groundOnly) {
       lat: s.lat,
       lng: s.lng,
       facing: Number.isFinite(s.facing) ? s.facing : null,
-      facingLabel: Number.isFinite(s.facing) ? flWindDirLabel8(s.facing) : '',
+      facingLabel: Number.isFinite(s.facing)
+        ? [flWindDirLabel8(s.facing)].concat((Array.isArray(s.facings) ? s.facings : []).map(function(d) { return flWindDirLabel8(d); })).join(', ')
+        : '',
       badWinds: Array.isArray(s.bad_winds) ? s.bad_winds.slice() : null,
       notes: s.notes || ''
     };
@@ -16439,10 +16928,18 @@ function renderGroundBoundaries(map, opts) {
         camWedge.addTo(map);
         entry.layers.push(camWedge);
       }
+      // 14.08: on the stands map (opts.camIntel) an OWN camera/feed-site
+      // badge answers a tap with its sighting history. Foreign shared
+      // furniture stays interactive:false — phase-1 doctrine: painting is
+      // the whole of what a member can do with it. Shared copies carry
+      // user_id; own rows never do.
+      var camTap = !!(opts && opts.camIntel) && !f.user_id && f.id
+        && FL_SIGHT_MARKER_TYPES.indexOf(mk.type) !== -1;
       var badge = L.marker([mk.lat, mk.lng], {
         icon: L.divIcon({ html: groundMarkerBadgeHtml(mk.type, mkNamesOn ? (f.name || '') : ''), iconSize: [24, 24], iconAnchor: [12, 12], className: '' }),
-        interactive: false, keyboard: false
+        interactive: !!camTap, keyboard: false
       });
+      if (camTap) (function(ff, mm) { badge.on('click', function() { flCamIntelPop(ff, mm); }); })(f, mk);
       badge.addTo(map);
       entry.layers.push(badge);
       return;
@@ -16459,9 +16956,17 @@ function renderGroundBoundaries(map, opts) {
       // colour, exactly as every line did before G15.
       var lst = groundLineStyle(lineSubtypeOf(f.geometry));
       var lclr = lst.color || f.color || groundColorFor(f.ground);
+      // 14.10: on the stands map (opts.routeWind) an OWN route tints by
+      // how the current lens step's wind treats WALKING it, and a tap
+      // answers with the direction split. Foreign shared lines keep the
+      // phase-1 doctrine (painted, never interactive); lens off → rwv
+      // null → exactly the paint above.
+      var rwv = (opts && opts.routeWind && !f.user_id && f.id) ? flRouteWindVerdict(ring) : null;
       poly = L.polyline(ring, {
-        color: lclr, weight: 2.8, opacity: 0.92, dashArray: lst.dashArray, interactive: false
+        color: rwv ? rwv.color : lclr, weight: rwv ? 3.6 : 2.8, opacity: 0.92,
+        dashArray: lst.dashArray, interactive: !!rwv
       });
+      if (rwv) (function(ff, rr) { poly.on('click', function() { flRouteWindPop(ff, rr); }); })(f, ring);
     } else if (f.kind === 'no_shoot') {
       // G4: no-shoot zones — red, dashed, a touch heavier fill. No label.
       poly = L.polygon(ring, {
@@ -16811,7 +17316,7 @@ var flStandsState = {
   // glance"): compact one-line rows instead of full cards. Persisted choice;
   // default = cards (the design he likes).
   compact: (function() { try { return localStorage.getItem('fl-stands-compact') === '1'; } catch (e) { return false; } })(),
-  sheet: { editingId: null, lat: null, lng: null, locName: '', badWinds: [], facing: null, photos: [], newPhotos: [], removedPaths: [] }
+  sheet: { editingId: null, lat: null, lng: null, locName: '', badWinds: [], facing: null, facings: [], photos: [], newPhotos: [], removedPaths: [] }
 };
 
 // ── Status-bar clamp for inline map controls (2026-07-27) ────────────────
@@ -17841,7 +18346,7 @@ function renderStandsMap() {
 
   // G3/G10/G8b: (re)draw ground boundaries + markers with the current filter —
   // hidden marker types dropped, name pills honoured — beneath the seat markers.
-  renderGroundBoundaries(standsMap, { hiddenMarkerTypes: flStandsMarkerHidden, featureNames: standMarkerNamesOn() });
+  renderGroundBoundaries(standsMap, { hiddenMarkerTypes: flStandsMarkerHidden, featureNames: standMarkerNamesOn(), camIntel: true, routeWind: true });
 
   if (standsClusterGroup) { standsMap.removeLayer(standsClusterGroup); standsClusterGroup = null; }
   standsMapMarkers.forEach(function(m){ standsMap.removeLayer(m); });
@@ -19446,6 +19951,7 @@ function openStandSheet(standId, seed) {
     locName: (seedLat != null && seedLng != null) ? flPlaceRef(seedLat, seedLng, 6) : '',
     badWinds: (s && s.bad_winds) ? s.bad_winds.slice() : [],
     facing: (s && s.facing != null) ? s.facing : null,
+    facings: (s && Array.isArray(s.facings)) ? s.facings.slice() : [], // 14.09
     photos: (s && s.photos) ? s.photos.slice() : [],
     newPhotos: [],
     removedPaths: [],
@@ -19646,11 +20152,13 @@ function flDrawStandMapFeatures(map, s, doFit, interactive) {
       }
     }
   } catch (e) { /* forecast not loaded yet — the map still renders, cone joins on the repaint */ }
-  if (s.facing != null) {
-    L.polygon(flFacingConePolygon(s.lat, s.lng, s.facing, STAND_HISTORY_RADIUS_M * 0.82), {
+  // 14.09: a seat covering several rides draws one wedge per look.
+  [s.facing].concat(Array.isArray(s.facings) ? s.facings : []).forEach(function(fd) {
+    if (fd == null) return;
+    L.polygon(flFacingConePolygon(s.lat, s.lng, fd, STAND_HISTORY_RADIUS_M * 0.82), {
       color: '#d8b054', weight: 1, opacity: 0.65, fillColor: '#d8b054', fillOpacity: 0.16
     }).addTo(map);
-  }
+  });
   var near = flStandCullsNear(s), seen = {};
   near.forEach(function(e) {
     var clr = SP_COLORS[e.species] || '#5a7a30';
@@ -19663,7 +20171,7 @@ function flDrawStandMapFeatures(map, s, doFit, interactive) {
   L.marker([s.lat, s.lng], { icon: flSeatMarkerIcon(), zIndexOffset: 1000 }).addTo(map);
   if (doFit) { try { map.fitBounds(ring.getBounds(), { padding: [8, 8] }); } catch (e) {} }
   var lh = '<span class="mml"><svg width="12" height="14" viewBox="0 0 40 46" style="flex-shrink:0;"><g stroke="#fff" stroke-width="3" fill="none" stroke-linejoin="round"><path d="M11 27 L7 44 M29 27 L33 44 M12 39 L30 39"/><path d="M3 11 L20 2 L37 11 Z"/><rect x="7" y="11" width="26" height="16" rx="3.5"/></g><path d="M11 27 L7 44 M29 27 L33 44 M12 39 L30 39" stroke="#2d3a1f" stroke-width="2.2" fill="none"/><path d="M3 11 L20 2 L37 11 Z" fill="#2d3a1f"/><rect x="7" y="11" width="26" height="16" rx="3.5" fill="#2d3a1f"/></svg>This seat</span>';
-  if (s.facing != null) lh += '<span class="mml"><span class="mml-cone"></span>Looks ' + esc(flWindDirLabel8(s.facing)) + '</span>';
+  if (s.facing != null) lh += '<span class="mml"><span class="mml-cone"></span>Looks ' + esc([flWindDirLabel8(s.facing)].concat((Array.isArray(s.facings) ? s.facings : []).map(function(d) { return flWindDirLabel8(d); })).join(', ')) + '</span>';
   lh += coneChip;
   Object.keys(seen).forEach(function(sp) {
     var n = near.filter(function(e){ return e.species === sp; }).length;
@@ -19844,6 +20352,26 @@ function toggleStandWind(dir) {
 
 var FL_FACE_DEG = { N: 0, NE: 45, E: 90, SE: 135, S: 180, SW: 225, W: 270, NW: 315 };
 
+/** 14.09: the multi-look invariant, in one pure place. The primary keeps
+ *  round 31's exact aimable degree; extras are sector picks. An extra in the
+ *  primary's sector (or a duplicated sector) is noise and drops; three
+ *  extras is the cap; everything normalizes to 0–359 ints. The sheet, both
+ *  save paths and the tests all share this. */
+function flFacingsNorm(primary, extras) {
+  var p = (typeof primary === 'number' && isFinite(primary)) ? ((Math.round(primary) % 360) + 360) % 360 : null;
+  var pSec = p != null ? flWindDirLabel8(p) : null;
+  var out = [], seen = {};
+  (extras || []).forEach(function(v) {
+    if (typeof v !== 'number' || !isFinite(v)) return;
+    var d = ((Math.round(v) % 360) + 360) % 360;
+    var sec = flWindDirLabel8(d);
+    if (sec === pSec || seen[sec]) return;
+    seen[sec] = true;
+    out.push(d);
+  });
+  return { facing: p, facings: out.slice(0, 3) };
+}
+
 /**
  * Single-select facing grid. Round 31: facing can now be ANY degree (set by
  * pointing on the map), so the lit chip is the NEAREST 8-way sector, and an
@@ -19854,11 +20382,18 @@ function renderStandSheetFacing() {
   if (!grid) return;
   var deg = flStandsState.sheet.facing;
   var lbl = deg != null ? flWindDirLabel8(deg) : null;
+  // 14.09: extra looks light the same grid in the dimmer gold (.on2).
+  var extras = flStandsState.sheet.facings || [];
+  var extraLbls = extras.map(function(d) { return flWindDirLabel8(d); });
   grid.querySelectorAll('.stnd-wind-btn').forEach(function(b) {
-    b.classList.toggle('on', lbl != null && b.getAttribute('data-dir') === lbl);
+    var d0 = b.getAttribute('data-dir');
+    b.classList.toggle('on', lbl != null && d0 === lbl);
+    b.classList.toggle('on2', extraLbls.indexOf(d0) !== -1);
   });
   var out = document.getElementById('stand-face-val');
-  if (out) out.textContent = deg != null ? 'Looks ' + deg + '° (' + lbl + ')' : '';
+  if (out) out.textContent = deg != null
+    ? 'Looks ' + deg + '° (' + lbl + ')' + (extraLbls.length ? ' + ' + extraLbls.join(', ') : '')
+    : '';
 }
 
 /**
@@ -19869,8 +20404,30 @@ function renderStandSheetFacing() {
 function setStandFacing(dir) {
   var deg = FL_FACE_DEG[dir];
   if (deg == null) return;
-  var cur = flStandsState.sheet.facing;
-  flStandsState.sheet.facing = (cur != null && flWindDirLabel8(cur) === dir) ? null : deg;
+  var sh = flStandsState.sheet;
+  sh.facings = sh.facings || [];
+  var curLbl = sh.facing != null ? flWindDirLabel8(sh.facing) : null;
+  if (curLbl === dir) {
+    // Tapping the lit primary clears it. If extra looks exist, the first is
+    // promoted to primary so a multi-look seat's wedges never vanish wholesale.
+    sh.facing = sh.facings.length ? sh.facings[0] : null;
+    sh.facings = sh.facings.slice(1);
+  } else if (sh.facing == null) {
+    sh.facing = deg; // first pick = the primary, exactly as round 31 had it
+  } else {
+    var exIdx = sh.facings.map(function(d) { return flWindDirLabel8(d); }).indexOf(dir);
+    if (exIdx !== -1) {
+      sh.facings.splice(exIdx, 1); // a lit extra clears itself
+    } else if (sh.facings.length >= 3) {
+      showToast('Three extra looks is the cap — clear one first');
+      return;
+    } else {
+      sh.facings.push(deg); // 14.09: an additional look
+    }
+  }
+  var norm = flFacingsNorm(sh.facing, sh.facings);
+  sh.facing = norm.facing;
+  sh.facings = norm.facings;
   renderStandSheetFacing();
 }
 
@@ -20168,6 +20725,7 @@ async function saveStandFromSheet() {
       bad_winds: sh.badWinds,
       notes: notesEl ? notesEl.value : null,
       facing: sh.facing,
+      facings: flFacingsNorm(sh.facing, sh.facings).facings, // 14.09: sector-deduped extras
       photos: []
     });
     delete offFields.photos; // never queued: updates must not touch server photos
@@ -20220,6 +20778,7 @@ async function saveStandFromSheet() {
       bad_winds: sh.badWinds,
       notes: notesEl ? notesEl.value : null,
       facing: sh.facing,
+      facings: flFacingsNorm(sh.facing, sh.facings).facings, // 14.09: sector-deduped extras
       photos: photoPaths
     });
   } catch (e) {
@@ -21214,14 +21773,17 @@ function flQuerySwVersion() {
 function renderSettingsAppRows() {
   var v = document.getElementById('app-version-value');
   if (v) {
-    v.textContent = 'v' + FL_APP_VERSION;
+    // 14.11 (audit P2-10): display derives from FL_JS_BUILD so it can never
+    // drift from what shipped; FL_APP_VERSION stays as the internal stamp
+    // for error logs and score snapshots.
+    v.textContent = 'v3.1 \u00b7 build ' + FL_JS_BUILD;
     // Diagnostic suffix (2026-07-27): the app version alone cannot tell a
     // stale install from a fresh one when only the SW/CSS changed — five
     // launch-day patches shipped under one FL version. Ask the controlling
     // SW which build is actually serving this page and show both.
     flQuerySwVersion().then(function (swv) {
       if (swv && v.isConnected) {
-        v.textContent = 'v' + FL_APP_VERSION + ' \u00b7 SW ' + swv + ' \u00b7 js ' + FL_JS_BUILD;
+        v.textContent = 'v3.1 \u00b7 build ' + FL_JS_BUILD + ' \u00b7 SW ' + swv;
         if (swv !== FL_JS_BUILD) v.textContent += ' (mismatch)';
       }
     });
@@ -21323,7 +21885,8 @@ async function syndicateHubOpen() {
         + '<div class="plan-empty-s">Join with an invite from your manager, or create a group and invite members with a link or code.'
         + (navigator.onLine === false ? ' (Offline \u2014 anything you already belong to will appear once you have signal.)' : '')
         + '</div>'
-        + '<button type="button" class="plan-set-btn" data-fl-action="open-syndicate-create">Join or create</button></div>';
+        + '<button type="button" class="plan-set-btn" data-fl-action="open-syndicate-create">Join or create</button>'
+        + flSynPreviewHtml() + '</div>';
       enhanceKeyboardClickables(cardEl);
     }
     return;
@@ -21673,6 +22236,22 @@ var flSynBook = { open: false, shareIdx: 0, dayIdx: 0, slot: 'dawn', standId: un
 // 13.76 (owner switched accounts in one tab and saw the previous account's
 // syndicate shell): the page's hosts keep their HTML across re-renders, so a
 // bail-out path must actively clear them or the last sign-in's panels stand.
+// 14.14 (visual pass P3-V9): what a syndicate gives, shown where there is
+// none yet — the doorway screen was a lone card in a green void.
+function flSynPreviewHtml() {
+  var ic = function (d) {
+    return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + d + '</svg>';
+  };
+  return '<div class="syn-prev">'
+    + '<div class="syn-prev-r">' + ic('<path d="M9 6l-6-3v15l6 3 6-3 6 3V6l-6-3-6 3z"/><path d="M9 3v15M15 6v15"/>')
+    + '<div><b>One shared map</b><span>the owner\u2019s boundary, seats and routes, live for every member</span></div></div>'
+    + '<div class="syn-prev-r">' + ic('<rect x="3" y="5" width="18" height="16" rx="2"/><path d="M8 3v4M16 3v4M3 10h18"/>')
+    + '<div><b>Seat bookings</b><span>dawn and dusk slots, clash-proof, with the manager\u2019s say</span></div></div>'
+    + '<div class="syn-prev-r">' + ic('<path d="M4 20V9M10 20V4M16 20v-8M20 20H2"/>')
+    + '<div><b>A season board</b><span>group targets and the running cull, one honest tally</span></div></div>'
+    + '</div>';
+}
+
 function flSynPageDomClear() {
   // 13.83 (pre-release audit): the popover STATE must die with the page —
   // a warm-up completing after an account switch re-showed the previous
@@ -23767,7 +24346,10 @@ async function renderGroundNotesSection(syndicate, isMgr, containerId) {
           var when = '';
           try {
             var dtN = new Date(n.created_at);
-            when = dtN.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }) + ' ' + dtN.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
+            // 14.11 (audit P2-4, YR1): this feed has no year-bearing container
+            // and no date floor — a note from a past season must say its year.
+            var nYr = dtN.getFullYear() !== new Date().getFullYear() ? ' ' + dtN.getFullYear() : '';
+            when = dtN.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }) + nYr + ' ' + dtN.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
           } catch (_) {}
           var rule = n.shared ? 'rgba(216,176,84,0.75)' : 'var(--sy-rule, rgba(0,0,0,0.14))';
           html += '<div style="padding:4px 0 4px 10px;border-left:2.5px solid ' + rule + ';margin-bottom:7px;">'
