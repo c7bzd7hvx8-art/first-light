@@ -96,7 +96,7 @@ const FL_APP_VERSION = '7.403';
 // Payload build tag - proves which diary.js actually reached the device (the
 // SW version alone cannot: sw.js is always fetched fresh while the precache
 // could be CDN-stale until the cache:'reload' fix). Bump with SW_VERSION.
-const FL_JS_BUILD = '14.17';
+const FL_JS_BUILD = '14.20';
 import {
   wxCodeLabel,
   windDirLabel,
@@ -3827,6 +3827,7 @@ function flCamIntelPop(f, mk) {
   if (!wrap) return;
   flCamIntelClose();
   flRouteWindClose(); // 14.10: one map popover at a time
+  flWayInClose(); // 14.18
   // Season predicate — the same bounds the sightings season scope uses.
   var sm = personalSeasonStartMonth();
   var b = seasonBoundsForKey(getCurrentSeason(), sm);
@@ -3918,7 +3919,7 @@ var FL_ROUTE_WIND_STYLE = { good: '#2f6d1f', okay: '#8a6516', poor: '#a5321f' };
  * consecutive risky legs is the same set of legs read either way round.
  * Fractions are length-weighted; worst = longest contiguous risky stretch.
  * Verdict: good ≤ 15% risky, okay ≤ 40%, poor above.
- * Straight-line legs, no thermals, no cover — the card says so out loud.
+ * Straight-line legs, no rising or sinking air, no cover — the card says so out loud.
  */
 function flRouteWindScore(ring, windFromDeg) {
   if (windFromDeg == null || !Number.isFinite(windFromDeg) || !ring || ring.length < 2) return null;
@@ -4005,6 +4006,7 @@ function flRouteWindClose() {
  *  stale card never survives into a different wind. */
 function flRouteWindRepaint() {
   flRouteWindClose();
+  flWayInClose(); // 14.18: the seat card is wind-stamped too
   if (!standsMap) return;
   var own = groundFeaturesNow() || [];
   for (var i = 0; i < own.length; i++) {
@@ -4018,6 +4020,7 @@ function flRouteWindPop(f, ring) {
   if (!wrap) return;
   flCamIntelClose(); // 14.10: one map popover at a time
   flRouteWindClose();
+  flWayInClose(); // 14.18
   var v = flRouteWindVerdict(ring);
   if (!v) return; // the lens flipped off under the tap — claim nothing
   var sc = v.score, wind = v.wind;
@@ -4061,10 +4064,130 @@ function flRouteWindPop(f, ring) {
     + row('Heading ' + (hRev || 'back'), sc.rev)
     + mindRow
     + '<div class="cip-walk ' + esc(bestD.verdict) + '">' + esc(walkLine) + '</div>'
-    + '<div class="cip-none">Straight-line scent, leg by leg — no thermals, no cover. Guidance, not gospel.</div>';
+    + '<div class="cip-none">Straight-line scent, leg by leg — no rising or sinking air, no cover. Guidance only.</div>';
   el.querySelector('.cip-x').addEventListener('click', flRouteWindClose);
   wrap.appendChild(el);
 }
+
+// ── 14.18: WAY IN — the seat-first half of 14.10 ────────────────────────────
+// The route card answers "which way do I walk THIS path?"; the field asks the
+// question the other way round: "I'm sitting HS1 tonight — which path do I
+// take?" A route APPROACHES a seat when either end lands within
+// FL_WAYIN_NEAR_M of it (a path that merely passes nearby is not a way in);
+// only the direction that ENDS at the seat is scored — you are walking
+// toward the sit — with the wind read AT THAT SEAT, not at whichever seat
+// happens to sit nearest the route. Own routes only, exactly like the tints.
+var FL_WAYIN_NEAR_M = 100;
+
+/** Pure: rank a seat's approaches. routes = [{id, name, ring, f}]. */
+function flWayInRank(seatLat, seatLng, routes, windFromDeg) {
+  if (seatLat == null || seatLng == null || windFromDeg == null || !routes || !routes.length) return [];
+  var out = [];
+  for (var i = 0; i < routes.length; i++) {
+    var r = routes[i];
+    var ring = r && r.ring;
+    if (!ring || ring.length < 2) continue;
+    var a = ring[0], b = ring[ring.length - 1];
+    var dA = flDistMeters(seatLat, seatLng, a[0], a[1]);
+    var dB = flDistMeters(seatLat, seatLng, b[0], b[1]);
+    if (dA == null || dB == null) continue;
+    if (Math.min(dA, dB) > FL_WAYIN_NEAR_M) continue; // passes nearby ≠ arrives
+    var sc = flRouteWindScore(ring, windFromDeg);
+    if (!sc) continue;
+    // Walk the direction that ends at the seat; a loop with both ends near
+    // honestly takes whichever end the wind favours.
+    var dir = (dA <= FL_WAYIN_NEAR_M && dB <= FL_WAYIN_NEAR_M) ? sc.best
+            : (dB <= dA ? 'fwd' : 'rev');
+    var d = dir === 'rev' ? sc.rev : sc.fwd;
+    var head = sc.headFwdDeg == null ? null : (dir === 'rev' ? (sc.headFwdDeg + 180) % 360 : sc.headFwdDeg);
+    out.push({ id: r.id, name: r.name || '', ring: ring, f: r.f || null,
+      dir: dir, headDeg: head, totalM: sc.totalM,
+      riskyFrac: d.riskyFrac, safeFrac: d.safeFrac, worstRiskyM: d.worstRiskyM, verdict: d.verdict });
+  }
+  out.sort(function(x, y) {
+    return (x.riskyFrac - y.riskyFrac) || (x.worstRiskyM - y.worstRiskyM) || (x.totalM - y.totalM);
+  });
+  return out;
+}
+
+/** The seat's ways in under the current lens step, or null (lens off, no
+ *  wind at this seat yet, or no route arrives here). */
+function flStandWayIn(s) {
+  var step = flCurrentWindStep();
+  if (!step || !s || s.lat == null || s.lng == null) return null;
+  var fc = flStandsState.forecasts;
+  var aw = (fc && fc.byStandId)
+    ? flStandConeWind(s, fc.byStandId[s.id], step, Math.floor(flToMinutes(new Date()) / 60))
+    : null;
+  if (!aw || aw.dirDeg == null) return null;
+  var own = groundFeaturesNow() || [];
+  var routes = [];
+  for (var i = 0; i < own.length; i++) {
+    var g = own[i];
+    if (!g || g.kind !== 'line' || !g.id || g.user_id) continue; // own drawn routes only, like the tints
+    var ring = g.geometry && g.geometry.ring;
+    if (!ring || ring.length < 2) continue;
+    if (s.ground && g.ground && g.ground !== s.ground) continue; // another ground's path is no way in here
+    routes.push({ id: g.id, name: g.name || lineSubtypeLabel(lineSubtypeOf(g.geometry)), ring: ring, f: g });
+  }
+  var ranked = flWayInRank(s.lat, s.lng, routes, aw.dirDeg);
+  if (!ranked.length) return null;
+  return { seat: s, wind: { dirDeg: aw.dirDeg, speedKmh: aw.speedKmh, step: step }, ranked: ranked };
+}
+
+function flWayInClose() {
+  var el = document.getElementById('way-in-pop');
+  if (el && el.parentNode) el.parentNode.removeChild(el);
+}
+
+/** Seat-pin tap, lens on: the ways in, ranked best first. Silently nothing
+ *  when there is nothing true to say — no card beats an empty card. */
+function flWayInMaybe(s) {
+  var wrap = document.getElementById('stands-map-wrap');
+  if (!wrap || !flStandsState.windOn) return;
+  var w = flStandWayIn(s);
+  if (!w) return;
+  flCamIntelClose();
+  flRouteWindClose();
+  flWayInClose();
+  var wind = w.wind;
+  var stepLbl = wind.step.mode === 'now' ? 'right now' : flStepLabelInline(wind.step.label);
+  var vWord = { good: 'scent behind you', okay: 'workable', poor: 'deer will wind you' };
+  var top = w.ranked.slice(0, 3);
+  var rowsHtml = '';
+  for (var i = 0; i < top.length; i++) {
+    var r = top[i];
+    var h = r.headDeg == null ? null : flCompass8(r.headDeg);
+    var line = (h ? 'in heading ' + h + ' · ' : '') + vWord[r.verdict]
+      + (r.verdict === 'good' ? '' : ' · scent ahead ' + Math.round(r.riskyFrac * 100) + '%');
+    rowsHtml += '<button type="button" class="wayin-row" data-i="' + i + '">'
+      + '<span class="wayin-nm rtw-' + r.verdict + '">' + esc(r.name) + '</span>'
+      + '<span class="wayin-tx">' + esc(line) + '</span>'
+      + '<span class="wayin-go" aria-hidden="true">\u203a</span></button>';
+  }
+  var el = document.createElement('div');
+  el.className = 'cam-intel-pop'; // the shared card frame
+  el.id = 'way-in-pop';
+  el.setAttribute('role', 'dialog');
+  el.setAttribute('aria-label', (s.name || 'Seat') + ' — way in');
+  el.innerHTML =
+    '<div class="cip-hdr"><div class="cip-name">' + esc(s.name || 'Seat') + ' — way in</div>'
+    + '<button type="button" class="cip-x" aria-label="Close">\u2715</button></div>'
+    + '<div class="cip-sub">' + esc(flWindDirLabel8(wind.dirDeg) + ' ' + Math.round(wind.speedKmh || 0) + ' km/h · '
+        + stepLbl + ' · read at this seat'
+        + (w.ranked.length > top.length ? ' · top ' + top.length + ' of ' + w.ranked.length : '')) + '</div>'
+    + rowsHtml
+    + '<div class="cip-none">Best first. Straight-line scent, leg by leg — no rising or sinking air, no cover. Tap a route for both directions.</div>';
+  el.querySelector('.cip-x').addEventListener('click', flWayInClose);
+  Array.prototype.forEach.call(el.querySelectorAll('.wayin-row'), function(btn) {
+    btn.addEventListener('click', function() {
+      var r = top[parseInt(btn.getAttribute('data-i'), 10)];
+      if (r && r.f && r.ring) flRouteWindPop(r.f, r.ring);
+    });
+  });
+  wrap.appendChild(el);
+}
+
 
 
 // Purge device-local caches holding this account's LOCATION + activity data
@@ -18403,6 +18526,7 @@ function renderStandsMap() {
         return;
       }
       selectStand(s.id);
+      flWayInMaybe(s); // 14.18: seat-first — the ways in, ranked, when the lens is on
     });
     if (useClustering) { standsClusterGroup.addLayer(marker); }
     else { marker.addTo(standsMap); }
@@ -21012,7 +21136,7 @@ function renderStandDetail(standId) {
 
     h += '</div>';
 
-    h += '<div class="stnd-fc-foot">Based on: moon phase · solunar periods (moon gravity) · rut calendar · seasonal body condition · temperature · barometric pressure · wind speed — scored for this stand\'s exact spot. Weather via Open-Meteo. Guidance, not gospel.'
+    h += '<div class="stnd-fc-foot">Based on: moon phase · solunar periods (moon gravity) · rut calendar · seasonal body condition · temperature · barometric pressure · wind speed — scored for this stand\'s exact spot. Weather via Open-Meteo. Guidance only.'
       + (f && f.offline && f.asOf ? ' Offline — as of ' + new Date(f.asOf).toLocaleString() + '.' : '')
       + '</div>'
       + '</div>';

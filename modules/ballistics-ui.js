@@ -3839,7 +3839,7 @@ function openReticleEstimator() {
         <p style="font-size:12px;color:rgba(255,255,255,0.6);margin-bottom:14px;line-height:1.5;">
           If you can measure how much of your reticle the deer's body fills
           (brisket to back), this gives a rough range. Accuracy is ±20% —
-          treat it as orientation, not gospel.
+          treat it as guidance only.
         </p>
         <div class="bx-field">
           <label for="bx-r-species">Deer (body depth)</label>
